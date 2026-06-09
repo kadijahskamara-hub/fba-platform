@@ -140,39 +140,58 @@ function AccordionItem({ q, a, open, onToggle }: {
   q: string; a: string; open: boolean; onToggle: () => void
 }) {
   return (
-    <div style={{ borderBottom: '1px solid var(--light-line)' }}>
+    <div style={{
+      background: 'white',
+      border: '1px solid var(--light-line)',
+      marginBottom: 8,
+    }}>
       <button
         onClick={onToggle}
         style={{
           width: '100%', display: 'flex', justifyContent: 'space-between',
-          alignItems: 'flex-start', gap: 16, padding: '20px 0',
+          alignItems: 'flex-start', gap: 20, padding: '20px 24px',
           background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
         }}
       >
         <span style={{
           fontFamily: 'var(--font-serif)',
-          fontSize: 'clamp(15px, 1.5vw, 17px)',
-          fontWeight: 300, color: 'var(--forest)', lineHeight: 1.4,
+          fontSize: 'clamp(15px, 1.4vw, 18px)',
+          fontWeight: 400,
+          color: 'var(--forest)',
+          lineHeight: 1.4,
         }}>
           {q}
         </span>
         <span style={{
-          flexShrink: 0, color: 'var(--stone)',
-          transition: 'transform 0.25s ease',
-          transform: open ? 'rotate(180deg)' : 'none',
+          flexShrink: 0,
+          width: 28, height: 28,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: open ? 'var(--forest)' : 'var(--cream)',
+          border: '1px solid var(--light-line)',
+          color: open ? 'var(--cream)' : 'var(--caramel)',
+          transition: 'background 0.2s, color 0.2s',
           marginTop: 2,
         }}>
-          <ChevronDown size={18} strokeWidth={1.5} />
+          <ChevronDown
+            size={16}
+            strokeWidth={1.5}
+            style={{
+              transition: 'transform 0.25s ease',
+              transform: open ? 'rotate(180deg)' : 'none',
+            }}
+          />
         </span>
       </button>
       <div style={{
         overflow: 'hidden',
-        maxHeight: open ? 800 : 0,
-        transition: 'max-height 0.3s ease',
+        maxHeight: open ? 1000 : 0,
+        transition: 'max-height 0.35s ease',
       }}>
         <p style={{
-          fontSize: 14, color: 'var(--stone)',
-          lineHeight: 1.85, paddingBottom: 24, maxWidth: 680,
+          fontSize: 15,
+          color: '#3d3a36',
+          lineHeight: 1.85,
+          padding: '0 24px 24px',
         }}>
           {a}
         </p>
@@ -193,13 +212,28 @@ export default function FaqsAccordion() {
   return (
     <>
       {SECTIONS.map((section, si) => (
-        <div key={si} style={{ marginBottom: 56 }}>
+        <div key={si} style={{ marginBottom: 48 }}>
           <div style={{
-            fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase',
-            color: 'var(--sand)', marginBottom: 24,
-            paddingBottom: 12, borderBottom: '1px solid var(--light-line)',
+            display: 'flex', alignItems: 'baseline', gap: 16,
+            marginBottom: 16, paddingBottom: 16,
+            borderBottom: '2px solid var(--forest)',
           }}>
-            {section.title}
+            <span style={{
+              fontFamily: 'var(--font-serif)',
+              fontSize: 13, color: 'var(--sand)',
+              letterSpacing: '0.08em',
+            }}>
+              {String(si + 1).padStart(2, '0')}
+            </span>
+            <h2 style={{
+              fontFamily: 'var(--font-serif)',
+              fontSize: 'clamp(18px, 2vw, 22px)',
+              fontWeight: 300,
+              color: 'var(--forest)',
+              letterSpacing: '-0.01em',
+            }}>
+              {section.title}
+            </h2>
           </div>
           {section.faqs.map((faq, fi) => {
             const key = `${si}-${fi}`

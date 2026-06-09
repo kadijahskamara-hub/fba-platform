@@ -43,7 +43,7 @@ export default function FaqsPage() {
       </section>
 
       {/* BODY */}
-      <section style={{ padding: 'clamp(64px, 8vw, 100px) 0', background: 'var(--warm-white)' }}>
+      <section style={{ padding: 'clamp(64px, 8vw, 100px) 0', background: 'var(--cream)' }}>
         <div className="container">
           <div className="fba-grid-sidebar" style={{ gap: 'clamp(40px, 6vw, 96px)', alignItems: 'start' }}>
 
