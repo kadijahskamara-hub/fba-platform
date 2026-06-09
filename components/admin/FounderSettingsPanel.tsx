@@ -15,7 +15,7 @@ interface FounderSettings {
 }
 
 interface Props {
-  initialValue: FounderSettings
+  initialValue: Partial<FounderSettings>
 }
 
 const DEFAULTS: FounderSettings = {
