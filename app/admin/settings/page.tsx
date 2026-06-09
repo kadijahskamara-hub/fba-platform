@@ -164,7 +164,7 @@ export default async function AdminSettingsPage() {
       {/* ── Homepage Hero CMS ────────────────────────────── */}
       <div className="admin-section" style={{ marginTop: 40 }}>
         <div className="stat-card" style={{ padding: '28px 32px' }}>
-          <HomeHeroSettingsPanel initialValue={homeHeroSettings as Parameters<typeof HomeHeroSettingsPanel>[0]['initialValue']} />
+          <HomeHeroSettingsPanel initialValue={homeHeroSettings as any} />
         </div>
       </div>
 
@@ -203,7 +203,7 @@ export default async function AdminSettingsPage() {
       {/* ── Founder Section ───────────────────────────────── */}
       <div className="admin-section" style={{ marginTop: 40 }}>
         <div className="stat-card" style={{ padding: '28px 32px' }}>
-          <FounderSettingsPanel initialValue={founderSettings as Parameters<typeof FounderSettingsPanel>[0]['initialValue']} />
+          <FounderSettingsPanel initialValue={founderSettings as any} />
         </div>
       </div>
     </>
