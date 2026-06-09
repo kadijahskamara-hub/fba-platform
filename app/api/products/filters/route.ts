@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   const artisanMap = new Map<string, { id: string; name: string; slug: string }>()
   for (const p of products) {
     if (p.artisan_id && p.artisan) {
-      const a = p.artisan as { id: string; name: string; slug: string }
+      const a = p.artisan as unknown as { id: string; name: string; slug: string }
       if (a.id && a.name) artisanMap.set(a.id, a)
     }
   }
