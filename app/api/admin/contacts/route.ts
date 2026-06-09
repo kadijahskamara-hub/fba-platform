@@ -1,0 +1,36 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase'
+import { isStaff } from '@/lib/auth'
+
+export async function GET(req: NextRequest) {
+  if (!(await isStaff())) {
+    return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+  }
+
+  const { searchParams } = new URL(req.url)
+  const page   = Math.max(1, parseInt(searchParams.get('page') ?? '1'))
+  const limit  = Math.min(100, parseInt(searchParams.get('limit') ?? '20'))
+  const search = searchParams.get('search') ?? ''
+  const type   = searchParams.get('type') ?? ''
+  const source = searchParams.get('source') ?? ''
+  const offset = (page - 1) * limit
+
+  let query = supabaseAdmin
+    .from('contacts')
+    .select('*', { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1)
+
+  if (type)   query = query.eq('contact_type', type)
+  if (source) query = query.eq('source', source)
+  if (search) {
+    query = query.or(
+      `email.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%,company_name.ilike.%${search}%`
+    )
+  }
+
+  const { data, error, count } = await query
+
+  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+  return NextResponse.json({ success: true, data: data ?? [], total: count ?? 0 })
+}
