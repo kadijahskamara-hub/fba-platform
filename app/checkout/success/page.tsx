@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
@@ -9,7 +9,7 @@ type OrderState =
   | { status: 'confirmed'; orderNumber: string; customerName: string }
   | { status: 'error' }
 
-export default function CheckoutSuccessPage() {
+function CheckoutSuccessPageContent() {
   const params = useSearchParams()
   const sessionId = params.get('session_id')
   const [state, setState] = useState<OrderState>({ status: 'loading' })
@@ -134,4 +134,8 @@ export default function CheckoutSuccessPage() {
       `}</style>
     </div>
   )
+}
+
+export default function CheckoutSuccessPage() {
+  return <Suspense fallback={null}><CheckoutSuccessPageContent /></Suspense>
 }

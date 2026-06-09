@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useTransition, useRef, useEffect } from 'react'
+import { useState, useTransition, useRef, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
-export default function VerifyOtpPage() {
+function VerifyOtpPageContent() {
   const router      = useRouter()
   const params      = useSearchParams()
   const tempToken   = params.get('token') ?? ''
@@ -191,4 +191,8 @@ export default function VerifyOtpPage() {
       </div>
     </div>
   )
+}
+
+export default function VerifyOtpPage() {
+  return <Suspense fallback={null}><VerifyOtpPageContent /></Suspense>
 }

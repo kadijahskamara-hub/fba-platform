@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router  = useRouter()
   const params  = useSearchParams()
   const next    = params.get('next') ?? '/account'
@@ -123,4 +123,8 @@ export default function LoginPage() {
       </div>
     </div>
   )
+}
+
+export default function LoginPage() {
+  return <Suspense fallback={null}><LoginPageContent /></Suspense>
 }
