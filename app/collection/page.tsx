@@ -50,7 +50,7 @@ export default async function CollectionPage() {
       {/* ── 1. HERO ─────────────────────────────────────────────── */}
       <section style={{
         background: 'var(--forest)',
-        padding: 'clamp(64px, 8vw, 100px) 0 clamp(48px, 6vw, 72px)',
+        padding: 'clamp(80px, 10vw, 120px) 0 clamp(64px, 8vw, 80px)',
         textAlign: 'center',
         position: 'relative',
         overflow: 'hidden',

@@ -54,7 +54,7 @@ export default async function FbaHomePage() {
       {/* ── 1. HERO ─────────────────────────────────────────────── */}
       <section style={{
         background: 'var(--sand)',
-        padding: 'clamp(80px, 12vw, 130px) 0 clamp(64px, 9vw, 100px)',
+        padding: 'clamp(80px, 10vw, 120px) 0 clamp(64px, 8vw, 80px)',
         textAlign: 'center',
         position: 'relative',
         overflow: 'hidden',

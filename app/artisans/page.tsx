@@ -37,7 +37,7 @@ export default async function ArtisansPage() {
       {/* Hero */}
       <section style={{
         background: 'var(--forest)',
-        padding: '72px 0 52px',
+        padding: 'clamp(80px, 10vw, 120px) 0 clamp(64px, 8vw, 80px)',
         textAlign: 'center',
         position: 'relative',
         overflow: 'hidden',

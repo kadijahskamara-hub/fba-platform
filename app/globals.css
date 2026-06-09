@@ -179,9 +179,9 @@ nav.site-nav.dark {
 }
 .site-nav.dark .nav-logo-mark { color: var(--cream); }
 .nav-logo-text {
-  font-family: var(--font-body);
-  font-size: 9.5px; font-weight: 400; letter-spacing: 0.22em;
-  text-transform: uppercase; color: var(--sage); line-height: 1.4;
+  font-family: var(--font-logo);
+  font-size: 11px; font-weight: 400; letter-spacing: 0.28em;
+  text-transform: uppercase; color: var(--sage); line-height: 1.5;
 }
 .site-nav.dark .nav-logo-text { color: rgba(196,168,130,0.6); }
 

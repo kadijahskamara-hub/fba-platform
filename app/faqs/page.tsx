@@ -13,7 +13,7 @@ export default function FaqsPage() {
       {/* HERO */}
       <section style={{
         background: 'var(--forest)',
-        padding: 'clamp(80px, 10vw, 120px) 0 clamp(56px, 7vw, 80px)',
+        padding: 'clamp(80px, 10vw, 120px) 0 clamp(64px, 8vw, 80px)',
       }}>
         <div className="container">
           <div className="label label-cream" style={{ marginBottom: 16 }}>Support</div>
