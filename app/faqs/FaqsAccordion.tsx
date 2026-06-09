@@ -56,7 +56,7 @@ export const SECTIONS = [
         a: `The Edit showcases our curated range of available pieces. Most items are made to order by our maker network — lead times typically range from 6 to 20 weeks depending on the piece and the maker's current capacity. We always confirm lead time and availability before any order is placed.`,
       },
       {
-        q: 'Can you source something that isn't in the Edit?',
+        q: "Can you source something that isn't in the Edit?",
         a: `Absolutely — bespoke sourcing is a core part of what we do. If you have a specific brief, material, dimension, or aesthetic in mind, send us a sourcing request via the Contact page or speak to your trade account manager. We draw on our full maker network and, where necessary, establish new maker relationships to meet the brief.`,
       },
       {
