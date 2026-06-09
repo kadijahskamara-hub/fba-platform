@@ -37,7 +37,7 @@ export default async function ArtisansPage() {
       {/* Hero */}
       <section style={{
         background: 'var(--forest)',
-        padding: '120px 0 80px',
+        padding: '72px 0 52px',
         textAlign: 'center',
         position: 'relative',
         overflow: 'hidden',
@@ -66,10 +66,10 @@ export default async function ArtisansPage() {
       </section>
 
       {/* Grid */}
-      <section style={{ padding: '80px 0', background: 'var(--cream)' }}>
+      <section style={{ padding: 'clamp(48px, 5vw, 64px) 0', background: 'var(--cream)' }}>
         <div className="container">
           {list.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '80px 0' }}>
+            <div style={{ textAlign: 'center', padding: 'clamp(48px, 5vw, 64px) 0' }}>
               <p style={{ color: 'var(--stone)', fontSize: 15 }}>
                 Artisan profiles coming soon.
               </p>

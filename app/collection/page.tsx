@@ -50,7 +50,7 @@ export default async function CollectionPage() {
       {/* ── 1. HERO ─────────────────────────────────────────────── */}
       <section style={{
         background: 'var(--forest)',
-        padding: 'clamp(100px, 14vw, 160px) 0 clamp(80px, 10vw, 120px)',
+        padding: 'clamp(64px, 8vw, 100px) 0 clamp(48px, 6vw, 72px)',
         textAlign: 'center',
         position: 'relative',
         overflow: 'hidden',
@@ -185,9 +185,7 @@ export default async function CollectionPage() {
         borderBottom: '1px solid var(--light-line)',
       }}>
         <div className="container">
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
+          <div className="fba-grid-2" style={{
             gap: 'clamp(40px, 8vw, 96px)',
             alignItems: 'center',
           }}>

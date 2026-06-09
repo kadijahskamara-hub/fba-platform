@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { User, ShoppingBag, Menu, X } from 'lucide-react'
 import type { SessionUser } from '@/lib/types'
 import type { LaunchFlags } from '@/lib/flags'
 
@@ -74,16 +75,16 @@ export function Nav({ session, flags }: NavProps) {
               aria-label="My account"
               title={`${session.firstName} ${session.lastName}`}
             >
-              <UserIcon />
+              <User size={20} strokeWidth={1.5} />
             </Link>
           ) : (
             <Link href="/login" className="nav-icon-btn" aria-label="Log in">
-              <UserIcon />
+              <User size={20} strokeWidth={1.5} />
             </Link>
           )}
 
           <Link href="/cart" className="nav-icon-btn" aria-label="Shopping bag">
-            <BagIcon />
+            <ShoppingBag size={20} strokeWidth={1.5} />
             {cartCount > 0 && (
               <span className="nav-badge">{cartCount > 9 ? '9+' : cartCount}</span>
             )}
@@ -97,13 +98,14 @@ export function Nav({ session, flags }: NavProps) {
 
           <button
             className="hamburger"
-            aria-label="Toggle menu"
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen(o => !o)}
           >
-            <span />
-            <span />
-            <span />
+            {menuOpen
+              ? <X size={22} strokeWidth={1.5} />
+              : <Menu size={22} strokeWidth={1.5} />
+            }
           </button>
         </div>
       </nav>
@@ -166,26 +168,5 @@ function MobileMenu({
         )}
       </div>
     </div>
-  )
-}
-
-// SVG Icons
-
-function UserIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-      <circle cx="12" cy="7" r="4"/>
-    </svg>
-  )
-}
-
-function BagIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-      <line x1="3" y1="6" x2="21" y2="6"/>
-      <path d="M16 10a4 4 0 0 1-8 0"/>
-    </svg>
   )
 }

@@ -38,7 +38,7 @@ export default async function JournalPage() {
       {/* Header */}
       <section style={{
         background: 'var(--forest)',
-        padding: '120px 0 80px',
+        padding: '72px 0 52px',
         textAlign: 'center',
         position: 'relative',
         overflow: 'hidden',
@@ -67,7 +67,7 @@ export default async function JournalPage() {
       </section>
 
       {list.length === 0 ? (
-        <section style={{ padding: '80px 0', textAlign: 'center' }}>
+        <section style={{ padding: 'clamp(48px, 5vw, 64px) 0', textAlign: 'center' }}>
           <div className="container">
             <p style={{ color: 'var(--stone)', fontSize: 15 }}>
               Journal posts coming soon.
@@ -78,12 +78,10 @@ export default async function JournalPage() {
         <>
           {/* Featured post */}
           {!!featured && (
-            <section style={{ padding: '80px 0', background: 'var(--cream)' }}>
+            <section style={{ padding: 'clamp(48px, 5vw, 64px) 0', background: 'var(--cream)' }}>
               <div className="container">
                 <Link href={`/journal/${(featured as Record<string, unknown>).slug}`} style={{ textDecoration: 'none' }}>
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
+                  <div className="fba-grid-2" style={{
                     gap: 48,
                     alignItems: 'center',
                   }}>

@@ -120,12 +120,10 @@ export default function ContactPage() {
       </section>
 
       {/* ── Main content: form + contact details ── */}
-      <section style={{
+      <section className="fba-grid-sidebar-lg" style={{
         maxWidth: 1100,
         margin: '0 auto',
         padding: '0 24px 100px',
-        display: 'grid',
-        gridTemplateColumns: '1fr 380px',
         gap: 64,
         alignItems: 'start',
       }}>

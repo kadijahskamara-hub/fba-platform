@@ -17,6 +17,7 @@ interface HomeHeroSettings {
   cta_primary_href:   string
   cta_secondary:      string
   cta_secondary_href: string
+  overlay_opacity:    number
 }
 
 interface Props {
@@ -36,6 +37,7 @@ const DEFAULTS: HomeHeroSettings = {
   cta_primary_href:   '/trade/apply',
   cta_secondary:      'Browse the Edit',
   cta_secondary_href: '/products',
+  overlay_opacity:    0.80,
 }
 
 export function HomeHeroSettingsPanel({ initialValue }: Props) {
@@ -287,6 +289,31 @@ export function HomeHeroSettingsPanel({ initialValue }: Props) {
           <label className="form-label" style={{ marginTop: 8 }}>Secondary button link</label>
           <input className="form-input" value={settings.cta_secondary_href} onChange={e => set('cta_secondary_href', e.target.value)} placeholder="/products" />
         </div>
+      </div>
+
+      {/* ── Overlay opacity ── */}
+      <div className="form-group" style={{ marginBottom: 28 }}>
+        <label className="form-label">
+          Hero overlay darkness —{' '}
+          <span style={{ fontWeight: 600, color: 'var(--forest)' }}>
+            {Math.round(settings.overlay_opacity * 100)}%
+          </span>
+        </label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <input
+            type="range"
+            min={0} max={1} step={0.05}
+            value={settings.overlay_opacity}
+            onChange={e => set('overlay_opacity', parseFloat(e.target.value))}
+            style={{ flex: 1, accentColor: 'var(--forest)' }}
+          />
+          <span style={{ fontSize: 11, color: 'var(--stone)', minWidth: 80 }}>
+            0% = no tint · 100% = fully dark
+          </span>
+        </div>
+        <p style={{ fontSize: 11, color: 'var(--stone)', marginTop: 6 }}>
+          Controls the dark green gradient that overlays the hero image. Lower values show more of the photo. Default: 80%.
+        </p>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>

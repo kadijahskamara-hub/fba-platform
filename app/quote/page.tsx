@@ -163,7 +163,7 @@ function QuoteForm() {
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div className="fba-form-row" style={{ gap: 16 }}>
             <div className="form-group">
               <label className="form-label">Estimated budget (£)</label>
               <input

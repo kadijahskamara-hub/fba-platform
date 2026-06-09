@@ -130,7 +130,7 @@ export default function CartPage() {
               </div>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 40, alignItems: 'start' }}>
+            <div className="fba-grid-sidebar-md" style={{ gap: 40, alignItems: 'start' }}>
 
               {/* Items */}
               <div>

@@ -103,6 +103,7 @@ h4, .h4 { font-family: var(--font-body);  font-size: 14px; font-weight: 500; let
 .label-sage  { color: var(--sage); }
 .label-sand  { color: var(--sand); }
 .label-stone { color: var(--stone); }
+.label-cream { color: rgba(196,168,130,0.7); }
 
 .body-sm { font-size: 13px; line-height: 1.6; color: var(--stone); }
 .body    { font-size: 15px; line-height: 1.7; }
@@ -232,16 +233,14 @@ nav.site-nav.dark {
 .site-nav.dark .nav-cta        { background: var(--sand); color: var(--forest); }
 .site-nav.dark .nav-cta:hover  { background: var(--cream); }
 
-/* hamburger */
+/* hamburger — wraps a Lucide icon */
 .hamburger {
-  display: none; flex-direction: column; gap: 5px;
-  width: 22px; cursor: pointer; padding: 4px;
+  display: none; align-items: center; justify-content: center;
+  width: 36px; height: 36px; cursor: pointer; padding: 6px;
+  background: none; border: none; color: var(--forest);
+  transition: color var(--ease);
 }
-.hamburger span {
-  display: block; height: 1px; background: var(--forest);
-  transition: all 0.3s;
-}
-.site-nav.dark .hamburger span { background: var(--cream); }
+.site-nav.dark .hamburger { color: var(--cream); }
 
 /* ── MOBILE OVERLAY ─────────────────────────────────────────── */
 .mobile-overlay {
@@ -421,6 +420,57 @@ nav.site-nav.dark {
 .form-hint  { font-size: 12px; color: var(--stone); margin-top: 4px; }
 .form-error { font-size: 12px; color: var(--danger); margin-top: 4px; }
 .form-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+/* responsive two-column form rows — used in HomepageEnquiryForm */
+.fba-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 600px) {
+  .fba-form-row { grid-template-columns: 1fr; }
+}
+
+/* ── HERO UTILITIES ──────────────────────────────────────────── */
+/* hide right-side city list on mobile */
+@media (max-width: 768px) {
+  .hero-cities { display: none !important; }
+}
+
+/* ── THE EDIT GALLERY — 4×2 desktop / 2×4 mobile ────────────── */
+.fba-edit-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 768px) {
+  .fba-edit-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ── RESPONSIVE GRID UTILITIES (public pages) ────────────────── */
+/* Replace inline gridTemplateColumns on public pages so media queries work */
+.fba-grid-2            { display: grid; grid-template-columns: 1fr 1fr; }
+.fba-grid-3            { display: grid; grid-template-columns: repeat(3, 1fr); }
+.fba-grid-4            { display: grid; grid-template-columns: repeat(4, 1fr); }
+/* sidebar layouts — content column + fixed-width panel */
+.fba-grid-sidebar      { display: grid; grid-template-columns: 1fr 320px; }
+.fba-grid-sidebar-md   { display: grid; grid-template-columns: 1fr 340px; }
+.fba-grid-sidebar-lg   { display: grid; grid-template-columns: 1fr 380px; }
+/* image + text layouts */
+.fba-grid-img-text     { display: grid; grid-template-columns: 200px 1fr; }
+.fba-grid-img-text-lg  { display: grid; grid-template-columns: 360px 1fr; }
+
+@media (max-width: 900px) {
+  /* sidebar layouts stack earlier so content isn't cramped */
+  .fba-grid-sidebar,
+  .fba-grid-sidebar-md,
+  .fba-grid-sidebar-lg { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 768px) {
+  .fba-grid-2,
+  .fba-grid-3,
+  .fba-grid-img-text,
+  .fba-grid-img-text-lg { grid-template-columns: 1fr; }
+  /* 4-col → 2×2 on tablet/mobile */
+  .fba-grid-4           { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 480px) {
+  /* 4-col → single on small phones */
+  .fba-grid-4           { grid-template-columns: 1fr; }
+}
 
 /* checkbox */
 .form-checkbox {

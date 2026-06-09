@@ -81,7 +81,7 @@ export default async function ProductDetailPage({ params }: Props) {
 
       {/* Product layout */}
       <div className="container" style={{ paddingBottom: 80 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80 }}>
+        <div className="fba-grid-2" style={{ gap: 80 }}>
 
           {/* Left: Image gallery */}
           <ProductDetailClient product={product} />
@@ -227,7 +227,7 @@ export default async function ProductDetailPage({ params }: Props) {
 
         {/* Full description */}
         <div className="divider-lg" />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80 }}>
+        <div className="fba-grid-2" style={{ gap: 80 }}>
           <div>
             <div className="label label-sage" style={{ marginBottom: 20 }}>About this piece</div>
             <div style={{ fontSize: 15, lineHeight: 1.8, color: 'var(--stone)', whiteSpace: 'pre-wrap' }}>

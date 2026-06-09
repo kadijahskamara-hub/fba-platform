@@ -102,9 +102,7 @@ export default async function ArtisanDetailPage({ params }: { params: { slug: st
       {/* Bio + details */}
       <section style={{ padding: '72px 0', background: 'var(--cream)' }}>
         <div className="container">
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 320px',
+          <div className="fba-grid-sidebar" style={{
             gap: 64,
           }}>
             <div>

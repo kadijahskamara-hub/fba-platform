@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
+import { Check, ArrowRight } from 'lucide-react'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
 import HomepageEnquiryForm from './HomepageEnquiryForm'
@@ -66,7 +67,7 @@ async function getFeaturedProducts() {
     .from('products')
     .select('id, name, slug, images, short_description, retail_price, trade_price, price_type, currency, is_fba_collection, artisan:artisans(name, slug), category:categories(name)')
     .eq('visibility', 'published')
-    .limit(6)
+    .limit(8)
   return data ?? []
 }
 
@@ -121,6 +122,7 @@ interface HomeHeroSettings {
   cta_primary_href?:  string
   cta_secondary?:     string
   cta_secondary_href?: string
+  overlay_opacity?:   number
 }
 
 async function getHomeHeroSettings(): Promise<HomeHeroSettings> {
@@ -156,13 +158,15 @@ export default async function HomePage() {
   const isTradeOrAdmin = session && ['trade_user', 'admin', 'staff'].includes(session.role)
   const tickerFull = [...TICKER_ITEMS, ...TICKER_ITEMS]
   const citiesFull = [...CITIES, ...CITIES, ...CITIES, ...CITIES]
+  const overlayOpacity = hs.overlay_opacity ?? 0.80
+  const overlayMid     = Math.round(overlayOpacity * 0.31 * 100) / 100
 
   return (
     <div className="page-body">
 
       {/* HERO */}
       <section style={{
-        position: 'relative', height: '100vh', minHeight: 640,
+        position: 'relative', height: '82vh', minHeight: 560,
         display: 'flex', alignItems: 'flex-end', overflow: 'hidden',
       }}>
         <Image
@@ -173,11 +177,11 @@ export default async function HomePage() {
         />
         <div style={{
           position: 'absolute', inset: 0,
-          background: 'linear-gradient(to top, rgba(26,43,24,0.80) 0%, rgba(26,43,24,0.25) 55%, transparent 100%)',
+          background: `linear-gradient(to top, rgba(26,43,24,${overlayOpacity}) 0%, rgba(26,43,24,${overlayMid}) 55%, transparent 100%)`,
         }} />
 
-        {/* Vertical cities — right side */}
-        <div style={{
+        {/* Vertical cities — right side (hidden on mobile) */}
+        <div className="hero-cities" style={{
           position: 'absolute', right: 56, top: '50%', transform: 'translateY(-50%)',
           display: 'flex', flexDirection: 'column', gap: 12, zIndex: 2, alignItems: 'flex-end',
         }}>
@@ -257,9 +261,9 @@ export default async function HomePage() {
       </div>
 
       {/* STUDIO INTRO */}
-      <section style={{ padding: '96px 0', background: 'var(--cream)' }}>
+      <section style={{ padding: 'clamp(56px, 7vw, 80px) 0', background: 'var(--cream)' }}>
         <div className="container">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80, alignItems: 'center' }}>
+          <div className="fba-grid-2" style={{ gap: 80, alignItems: 'center' }}>
             <div>
               <div className="label label-sage" style={{ marginBottom: 20 }}>The Studio</div>
               <h2 style={{
@@ -279,10 +283,10 @@ export default async function HomePage() {
                 From first sourcing conversation to room-ready delivery, we manage the complete journey
                 — with technical precision and the discerning eye of a specialist who has delivered it at every scale.
               </p>
-              <Link href="/about" className="btn btn-primary">Our story →</Link>
+              <Link href="/about" className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>Our story <ArrowRight size={14} strokeWidth={1.5} /></Link>
             </div>
             <div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2, marginBottom: 40 }}>
+              <div className="fba-grid-3" style={{ gap: 2, marginBottom: 40 }}>
                 {[
                   { value: '10+', label: 'Years FF&E' },
                   { value: '3',   label: 'Continents' },
@@ -317,7 +321,7 @@ export default async function HomePage() {
       </section>
 
       {/* FEATURED PRODUCTS */}
-      <section style={{ padding: '96px 0', background: 'var(--warm-white)', borderTop: '1px solid var(--light-line)' }}>
+      <section style={{ padding: 'clamp(56px, 7vw, 80px) 0', background: 'var(--warm-white)', borderTop: '1px solid var(--light-line)' }}>
         <div className="container">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20 }}>
             <div>
@@ -327,8 +331,8 @@ export default async function HomePage() {
                 <em>silhouettes and textures.</em>
               </h2>
             </div>
-            <Link href="/products" style={{ fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--caramel)' }}>
-              View all →
+            <Link href="/products" style={{ fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--caramel)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              View all <ArrowRight size={13} strokeWidth={1.5} />
             </Link>
           </div>
 
@@ -353,7 +357,7 @@ export default async function HomePage() {
               <p>Products coming soon — the Edit is being curated. Check back shortly.</p>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 24 }}>
+            <div className="fba-edit-grid" style={{ gap: 24 }}>
               {featuredProducts.map((p: Record<string, unknown>) => (
                 <Link key={p.id as string} href={`/products/${p.slug}`} style={{ textDecoration: 'none' }}>
                   <div style={{ cursor: 'pointer' }}>
@@ -389,7 +393,7 @@ export default async function HomePage() {
       </section>
 
       {/* THREE PILLARS */}
-      <section style={{ padding: '96px 0', position: 'relative', overflow: 'hidden' }}>
+      <section style={{ padding: 'clamp(56px, 7vw, 80px) 0', position: 'relative', overflow: 'hidden' }}>
         <Image
           src="https://images.pexels.com/photos/1838554/pexels-photo-1838554.jpeg?auto=compress&cs=tinysrgb&w=1920"
           alt="Luxury hotel — Full Bloom Artelier"
@@ -398,7 +402,7 @@ export default async function HomePage() {
         />
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(18,30,16,0.80)' }} />
         <div className="container" style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{ textAlign: 'center', marginBottom: 64 }}>
+          <div style={{ textAlign: 'center', marginBottom: 48 }}>
             <div className="label" style={{ color: 'rgba(196,168,130,0.7)', marginBottom: 16 }}>What We Do</div>
             <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 'clamp(28px, 3vw, 44px)', fontWeight: 300, color: 'var(--cream)', letterSpacing: '-0.01em' }}>
               Three pillars.<br />
@@ -408,7 +412,7 @@ export default async function HomePage() {
               Every service is built to protect your creative vision — from first brief to room-ready installation.
             </p>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2 }}>
+          <div className="fba-grid-3" style={{ gap: 2 }}>
             {PILLARS.map(pillar => (
               <div key={pillar.num} className="service-strip-card" style={{ padding: '48px 36px' }}>
                 <div style={{ fontFamily: 'var(--font-serif)', fontSize: 48, fontWeight: 300, color: 'rgba(196,168,130,0.2)', lineHeight: 1, marginBottom: 20 }}>
@@ -420,8 +424,8 @@ export default async function HomePage() {
                 <p style={{ fontSize: 14, color: 'rgba(247,243,238,0.55)', lineHeight: 1.8, marginBottom: 28 }}>
                   {pillar.desc}
                 </p>
-                <Link href={pillar.href} style={{ fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--sand)' }}>
-                  {pillar.cta} →
+                <Link href={pillar.href} style={{ fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--sand)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  {pillar.cta} <ArrowRight size={12} strokeWidth={1.5} />
                 </Link>
               </div>
             ))}
@@ -430,9 +434,9 @@ export default async function HomePage() {
       </section>
 
       {/* GLOBAL NETWORK */}
-      <section style={{ padding: '96px 0', background: 'var(--cream)' }}>
+      <section style={{ padding: 'clamp(56px, 7vw, 80px) 0', background: 'var(--cream)' }}>
         <div className="container">
-          <div style={{ textAlign: 'center', marginBottom: 64 }}>
+          <div style={{ textAlign: 'center', marginBottom: 48 }}>
             <div className="label label-sage" style={{ marginBottom: 16 }}>Our Network</div>
             <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 'clamp(28px, 3vw, 44px)', fontWeight: 300, color: 'var(--forest)', letterSpacing: '-0.01em' }}>
               A global reach,<br />
@@ -444,7 +448,7 @@ export default async function HomePage() {
             </p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2, marginBottom: 64 }}>
+          <div className="fba-grid-4" style={{ gap: 2, marginBottom: 40 }}>
             {REGIONS.map(region => (
               <div key={region.label} style={{ position: 'relative', overflow: 'hidden' }}>
                 <div style={{ height: 200, position: 'relative', background: 'var(--sage-light)' }}>
@@ -459,14 +463,14 @@ export default async function HomePage() {
             ))}
           </div>
 
-          <div style={{ background: 'var(--forest)', padding: '48px 56px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, alignItems: 'center' }}>
+          <div className="fba-grid-2" style={{ background: 'var(--forest)', padding: '48px 56px', gap: 40, alignItems: 'center' }}>
             <div>
               <div className="label" style={{ color: 'rgba(196,168,130,0.7)', marginBottom: 16 }}>Technical Passport™</div>
               <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 'clamp(22px, 2.5vw, 32px)', fontWeight: 300, color: 'var(--cream)', lineHeight: 1.3, marginBottom: 16 }}>
                 Every piece is vetted<br />before it enters your project.
               </h3>
-              <Link href="/about" style={{ fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--sand)' }}>
-                Learn how it works →
+              <Link href="/about" style={{ fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--sand)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                Learn how it works <ArrowRight size={12} strokeWidth={1.5} />
               </Link>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -475,7 +479,7 @@ export default async function HomePage() {
                   display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0',
                   borderBottom: i < PASSPORT_BULLETS.length - 1 ? '1px solid rgba(196,168,130,0.1)' : 'none',
                 }}>
-                  <span style={{ width: 6, height: 6, flexShrink: 0, background: 'var(--sand)', borderRadius: '50%' }} />
+                  <Check size={13} strokeWidth={2} style={{ color: 'var(--sand)', flexShrink: 0 }} />
                   <span style={{ fontSize: 13, color: 'rgba(247,243,238,0.65)', lineHeight: 1.5 }}>{item}</span>
                 </div>
               ))}
@@ -486,17 +490,17 @@ export default async function HomePage() {
 
       {/* ARTISANS */}
       {artisans.length > 0 && (
-        <section style={{ padding: '96px 0', background: 'var(--warm-white)', borderTop: '1px solid var(--light-line)' }}>
+        <section style={{ padding: 'clamp(56px, 7vw, 80px) 0', background: 'var(--warm-white)', borderTop: '1px solid var(--light-line)' }}>
           <div className="container">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 56 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 40 }}>
               <div>
                 <div className="label label-sage" style={{ marginBottom: 12 }}>Our Maker Network</div>
                 <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 'clamp(28px, 3vw, 40px)', fontWeight: 300, color: 'var(--forest)', letterSpacing: '-0.01em' }}>
                   The artisans behind the work
                 </h2>
               </div>
-              <Link href="/artisans" style={{ fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--caramel)' }}>
-                Meet them all →
+              <Link href="/artisans" style={{ fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--caramel)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                Meet them all <ArrowRight size={13} strokeWidth={1.5} />
               </Link>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 24 }}>
@@ -532,17 +536,17 @@ export default async function HomePage() {
 
       {/* JOURNAL */}
       {journalPosts.length > 0 && (
-        <section style={{ padding: '96px 0', background: 'var(--cream)', borderTop: '1px solid var(--light-line)' }}>
+        <section style={{ padding: 'clamp(56px, 7vw, 80px) 0', background: 'var(--cream)', borderTop: '1px solid var(--light-line)' }}>
           <div className="container">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 56 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 40 }}>
               <div>
                 <div className="label label-sage" style={{ marginBottom: 12 }}>Thinking &amp; Making</div>
                 <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 'clamp(28px, 3vw, 40px)', fontWeight: 300, color: 'var(--forest)', letterSpacing: '-0.01em' }}>
                   The Journal
                 </h2>
               </div>
-              <Link href="/journal" style={{ fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--caramel)' }}>
-                All posts →
+              <Link href="/journal" style={{ fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--caramel)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                All posts <ArrowRight size={13} strokeWidth={1.5} />
               </Link>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 24 }}>
@@ -583,9 +587,9 @@ export default async function HomePage() {
 
       {/* FOUNDER STRIP */}
       {f.show_on_home !== false && (
-      <section style={{ background: 'var(--warm-white)', borderTop: '1px solid var(--light-line)', borderBottom: '1px solid var(--light-line)', padding: '80px 0' }}>
+      <section style={{ background: 'var(--warm-white)', borderTop: '1px solid var(--light-line)', borderBottom: '1px solid var(--light-line)', padding: 'clamp(48px, 5vw, 64px) 0' }}>
         <div className="container">
-          <div style={{ display: 'grid', gridTemplateColumns: f.show_image ? '200px 1fr' : '1fr', gap: 56, alignItems: 'center' }}>
+          <div className={f.show_image ? 'fba-grid-img-text' : undefined} style={{ display: 'grid', gap: 56, alignItems: 'center' }}>
             {f.show_image && (
               <div style={{ position: 'relative', aspectRatio: '3/4', overflow: 'hidden' }}>
                 <Image src="/images/founder.jpeg" alt={f.name + ', Founder'} fill style={{ objectFit: 'cover', objectPosition: 'center top' }} />
@@ -610,7 +614,7 @@ export default async function HomePage() {
                   ))}
                 </div>
               )}
-              <Link href="/about" className="btn btn-secondary">About the studio →</Link>
+              <Link href="/about" className="btn btn-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>About the studio <ArrowRight size={14} strokeWidth={1.5} /></Link>
             </div>
           </div>
         </div>
@@ -619,7 +623,7 @@ export default async function HomePage() {
 
       {/* TRADE BANNER */}
       {!isTradeOrAdmin && (
-        <section style={{ background: 'var(--forest)', padding: '80px 0' }}>
+        <section style={{ background: 'var(--forest)', padding: 'clamp(48px, 5vw, 64px) 0' }}>
           <div className="container" style={{ maxWidth: 800, textAlign: 'center' }}>
             <div className="label" style={{ color: 'rgba(196,168,130,0.7)', marginBottom: 16 }}>Trade professionals</div>
             <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 'clamp(26px, 3vw, 40px)', fontWeight: 300, color: 'var(--cream)', marginBottom: 20, letterSpacing: '-0.01em' }}>
@@ -638,9 +642,9 @@ export default async function HomePage() {
       )}
 
       {/* ENQUIRY FORM */}
-      <section id="enquiry" style={{ padding: '96px 0', background: isTradeOrAdmin ? 'var(--forest)' : 'var(--warm-white)' }}>
+      <section id="enquiry" style={{ padding: 'clamp(56px, 7vw, 80px) 0', background: isTradeOrAdmin ? 'var(--forest)' : 'var(--warm-white)' }}>
         <div className="container" style={{ maxWidth: 760 }}>
-          <div style={{ textAlign: 'center', marginBottom: 56 }}>
+          <div style={{ textAlign: 'center', marginBottom: 40 }}>
             <div style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: isTradeOrAdmin ? 'rgba(196,168,130,0.7)' : 'var(--caramel)', marginBottom: 16 }}>
               Work With Us
             </div>
@@ -653,7 +657,7 @@ export default async function HomePage() {
               developers on a trade basis. Every enquiry receives a personal response within 48 hours.
             </p>
           </div>
-          <HomepageEnquiryForm />
+          <HomepageEnquiryForm dark={!!isTradeOrAdmin} />
         </div>
       </section>
 

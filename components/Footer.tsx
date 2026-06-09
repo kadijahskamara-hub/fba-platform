@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Mail, MapPin, ArrowUpRight } from 'lucide-react'
 
 export function Footer() {
   const year = new Date().getFullYear()
@@ -12,11 +13,8 @@ export function Footer() {
     }}>
       <div className="container">
 
-        {/* Main grid */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '2fr 1fr 1fr 1fr',
-          gap: 48,
+        {/* Main grid — 4-col desktop, 2-col tablet, 1-col mobile */}
+        <div className="footer-grid" style={{
           paddingBottom: 56,
           borderBottom: '1px solid rgba(196,168,130,0.12)',
           marginBottom: 40,
@@ -53,14 +51,24 @@ export function Footer() {
               and property developers.
             </p>
 
-            <div style={{ fontSize: 12, marginBottom: 8 }}>
-              <a href="mailto:info@fullbloom.uk.com"
-                style={{ color: 'rgba(196,168,130,0.8)', textDecoration: 'none' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <a
+                href="mailto:info@fullbloom.uk.com"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  color: 'rgba(196,168,130,0.8)', textDecoration: 'none', fontSize: 13,
+                }}
+              >
+                <Mail size={14} strokeWidth={1.5} style={{ flexShrink: 0 }} />
                 info@fullbloom.uk.com
               </a>
-            </div>
-            <div style={{ fontSize: 12, color: 'rgba(247,243,238,0.35)' }}>
-              London, United Kingdom
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                color: 'rgba(247,243,238,0.35)', fontSize: 13,
+              }}>
+                <MapPin size={14} strokeWidth={1.5} style={{ flexShrink: 0 }} />
+                London, United Kingdom
+              </div>
             </div>
           </div>
 
@@ -109,11 +117,12 @@ export function Footer() {
             </div>
             <nav style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {[
-                { label: 'Trade Procurement', href: '/trade/apply' },
-                { label: 'Product Sourcing',  href: '/contact' },
-                { label: 'Atelier Commissions', href: '/contact' },
-                { label: 'Technical Passport™', href: '/about#technical-passport' },
+                { label: 'Trade Procurement',    href: '/trade/apply' },
+                { label: 'Product Sourcing',     href: '/contact' },
+                { label: 'Atelier Commissions',  href: '/contact' },
+                { label: 'Technical Passport™',  href: '/about#technical-passport' },
                 { label: 'Apply for Trade Access', href: '/trade/apply' },
+                { label: 'FAQs',                 href: '/faqs' },
               ].map(l => (
                 <Link key={l.label} href={l.href} style={{
                   fontSize: 13,
@@ -154,6 +163,21 @@ export function Footer() {
                 </Link>
               ))}
             </nav>
+
+            {/* Enquiry CTA */}
+            <div style={{ marginTop: 32 }}>
+              <a
+                href="/contact"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  fontSize: 11, letterSpacing: '0.15em', textTransform: 'uppercase',
+                  color: 'var(--sand)', textDecoration: 'none',
+                }}
+              >
+                Send an enquiry
+                <ArrowUpRight size={13} strokeWidth={1.5} />
+              </a>
+            </div>
           </div>
         </div>
 

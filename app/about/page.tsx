@@ -147,7 +147,7 @@ export default async function AboutPage() {
       {/* STATS STRIP */}
       <section style={{ background: 'var(--forest)', borderTop: '1px solid rgba(196,168,130,0.12)', padding: '48px 0' }}>
         <div className="container">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2 }}>
+          <div className="fba-grid-3" style={{ gap: 2 }}>
             {STATS.map(s => (
               <div key={s.label} style={{
                 padding: '32px 40px', background: 'rgba(255,255,255,0.03)',
@@ -169,9 +169,9 @@ export default async function AboutPage() {
       </section>
 
       {/* MISSION */}
-      <section style={{ padding: '96px 0', background: 'var(--cream)' }}>
+      <section style={{ padding: 'clamp(56px, 7vw, 80px) 0', background: 'var(--cream)' }}>
         <div className="container">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80, alignItems: 'center' }}>
+          <div className="fba-grid-2" style={{ gap: 80, alignItems: 'center' }}>
             <div>
               <div className="label label-sage" style={{ marginBottom: 20 }}>Our Mission</div>
               <h2 style={{
@@ -214,7 +214,7 @@ export default async function AboutPage() {
       </section>
 
       {/* WHAT WE DO */}
-      <section style={{ padding: '96px 0', background: 'var(--warm-white)', borderTop: '1px solid var(--light-line)' }}>
+      <section style={{ padding: 'clamp(56px, 7vw, 80px) 0', background: 'var(--warm-white)', borderTop: '1px solid var(--light-line)' }}>
         <div className="container">
           <div style={{ textAlign: 'center', marginBottom: 64 }}>
             <div className="label label-sage" style={{ marginBottom: 16 }}>What We Do</div>
@@ -226,7 +226,7 @@ export default async function AboutPage() {
               come back to <em>the Edit.</em>
             </h2>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 32 }}>
+          <div className="fba-grid-3" style={{ gap: 32 }}>
             {SERVICES.map(s => (
               <div key={s.num} className="service-card">
                 <div className="service-card-num">{s.num}</div>
@@ -240,9 +240,9 @@ export default async function AboutPage() {
 
       {/* FOUNDER */}
       {f.show_on_about !== false && (
-      <section style={{ padding: '96px 0', background: 'var(--cream)', borderTop: '1px solid var(--light-line)' }}>
+      <section style={{ padding: 'clamp(56px, 7vw, 80px) 0', background: 'var(--cream)', borderTop: '1px solid var(--light-line)' }}>
         <div className="container">
-          <div style={{ display: 'grid', gridTemplateColumns: f.show_image ? '360px 1fr' : '1fr', gap: 72, alignItems: 'start' }}>
+          <div className={f.show_image ? 'fba-grid-img-text-lg' : undefined} style={{ display: 'grid', gap: 72, alignItems: 'start' }}>
             {f.show_image && (
               <div style={{ position: 'relative', aspectRatio: '3/4', overflow: 'hidden' }}>
                 <Image
@@ -299,9 +299,9 @@ export default async function AboutPage() {
       )}
 
       {/* TECHNICAL PASSPORT */}
-      <section id="technical-passport" style={{ padding: '96px 0', background: 'var(--forest)' }}>
+      <section id="technical-passport" style={{ padding: 'clamp(56px, 7vw, 80px) 0', background: 'var(--forest)' }}>
         <div className="container">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80, alignItems: 'start' }}>
+          <div className="fba-grid-2" style={{ gap: 80, alignItems: 'start' }}>
             <div>
               <div className="label" style={{ color: 'rgba(196,168,130,0.7)', marginBottom: 20 }}>
                 Technical Passport™
@@ -369,7 +369,7 @@ export default async function AboutPage() {
       </section>
 
       {/* HOW WE WORK */}
-      <section style={{ padding: '96px 0', background: 'var(--warm-white)', borderTop: '1px solid var(--light-line)' }}>
+      <section style={{ padding: 'clamp(56px, 7vw, 80px) 0', background: 'var(--warm-white)', borderTop: '1px solid var(--light-line)' }}>
         <div className="container">
           <div style={{ textAlign: 'center', marginBottom: 64 }}>
             <div className="label label-sage" style={{ marginBottom: 16 }}>How We Work</div>
@@ -381,7 +381,7 @@ export default async function AboutPage() {
               <em>delivery</em> — our process.
             </h2>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2 }}>
+          <div className="fba-grid-4" style={{ gap: 2 }}>
             {PROCESS_STEPS.map((step, i) => (
               <div key={step.num} style={{
                 padding: '40px 32px', background: 'var(--cream)',
@@ -401,7 +401,7 @@ export default async function AboutPage() {
       </section>
 
       {/* CTA */}
-      <section style={{ padding: '96px 0', background: 'var(--forest)', textAlign: 'center' }}>
+      <section style={{ padding: 'clamp(56px, 7vw, 80px) 0', background: 'var(--forest)', textAlign: 'center' }}>
         <div className="container" style={{ maxWidth: 560 }}>
           <div className="label" style={{ color: 'rgba(196,168,130,0.7)', marginBottom: 20 }}>
             Ready to source without compromise?
