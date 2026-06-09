@@ -180,10 +180,10 @@ nav.site-nav.dark {
 .site-nav.dark .nav-logo-mark { color: var(--cream); }
 .nav-logo-text {
   font-family: var(--font-logo);
-  font-size: 11px; font-weight: 400; letter-spacing: 0.28em;
-  text-transform: uppercase; color: var(--sage); line-height: 1.5;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.28em;
+  text-transform: uppercase; color: var(--forest); line-height: 1.5;
 }
-.site-nav.dark .nav-logo-text { color: rgba(196,168,130,0.6); }
+.site-nav.dark .nav-logo-text { color: rgba(247,243,238,0.75); }
 
 .nav-links { display: flex; align-items: center; gap: 36px; }
 .nav-actions { display: flex; align-items: center; gap: 16px; }

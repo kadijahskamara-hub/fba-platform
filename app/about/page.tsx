@@ -114,9 +114,14 @@ export default async function AboutPage() {
 
       {/* HERO */}
       <section style={{
-        position: 'relative', height: 580, overflow: 'hidden',
-        background: 'var(--forest)', display: 'flex', alignItems: 'flex-end',
-        marginTop: 0,
+        position: 'relative',
+        height: 'calc(100vh - var(--nav-h))',
+        minHeight: 520,
+        maxHeight: 900,
+        overflow: 'hidden',
+        background: 'var(--forest)',
+        display: 'flex',
+        alignItems: 'flex-end',
       }}>
         <Image
           src={heroImage.url || 'https://images.pexels.com/photos/1571460/pexels-photo-1571460.jpeg?auto=compress&cs=tinysrgb&w=1920'}
