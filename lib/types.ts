@@ -1,5 +1,6 @@
 // ============================================================
 // FBA Platform — Shared TypeScript Types
+// (Sprint 1: lifecycle, documents, variants, finishes, imports)
 // ============================================================
 
 // ── User & Auth ──────────────────────────────────────────────
@@ -110,6 +111,24 @@ export type ProductAudience   = 'retail' | 'trade' | 'retail_and_trade'
 export type PriceType         = 'fixed' | 'price_on_request'
 export type CurrencyCode      = 'GBP' | 'EUR' | 'USD'
 
+// Derived lifecycle status. `visibility` stays the stored enum;
+// archived/deleted are timestamp-driven ("hidden" == unpublished).
+export type ProductStatus = 'draft' | 'published' | 'unpublished' | 'archived' | 'deleted'
+
+export function deriveProductStatus(p: {
+  visibility: ProductVisibility
+  archivedAt?: string | null
+  deletedAt?: string | null
+}): ProductStatus {
+  if (p.deletedAt) return 'deleted'
+  if (p.archivedAt) return 'archived'
+  if (p.visibility === 'hidden') return 'unpublished'
+  return p.visibility // 'draft' | 'published'
+}
+
+export type ImportSourceType =
+  | 'google_drive' | 'google_sheet' | 'csv' | 'manual' | 'brand_integration' | 'other'
+
 export interface Product {
   id: string
   name: string
@@ -143,6 +162,32 @@ export interface Product {
   // Edit catalogue filters
   finishType?: string
   originRegion?: string
+  // Lifecycle (Sprint 1)
+  archivedAt?: string | null
+  archivedBy?: string | null
+  deletedAt?: string | null
+  deletedBy?: string | null
+  deleteReason?: string | null
+  lastUpdatedBy?: string | null
+  // Content fields (site brief §8–9)
+  technicalDescription?: string | null
+  customisationNote?: string | null
+  madeToOrder?: boolean
+  dispatchTimeLabel?: string | null
+  leadTimeMinWeeks?: number | null
+  leadTimeMaxWeeks?: number | null
+  minOrderQuantity?: number | null
+  publicBrandVisible?: boolean
+  // Import source metadata
+  sourceType?: ImportSourceType
+  sourceUrl?: string | null
+  sourceFileId?: string | null
+  sourceSheetId?: string | null
+  sourceRowId?: string | null
+  sourceBatchId?: string | null
+  sourceHash?: string | null
+  lastImportedAt?: string | null
+  lastImportMode?: string | null
   createdAt: string
   updatedAt: string
   // joined
@@ -182,6 +227,131 @@ export interface ProductSpecification {
   cableLength?: string
   dimmable?: boolean
   ipRating?: string
+}
+
+// ── Product documents / variants / finishes (Sprint 1) ──────
+
+export type ProductDocumentType =
+  | 'product_specification' | 'upholstery_program' | 'material_finishes'
+  | 'tear_sheet' | 'technical_passport' | 'care_maintenance'
+  | 'installation_guide' | 'warranty'
+
+export interface ProductDocument {
+  id: string
+  productId: string
+  documentType: ProductDocumentType
+  label?: string | null
+  url: string
+  fileName?: string | null
+  fileSize?: number | null
+  mimeType?: string | null
+  sourceUrl?: string | null
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ProductVariant {
+  id: string
+  productId: string
+  variantName: string
+  width?: number | null
+  height?: number | null
+  depth?: number | null
+  diameter?: number | null
+  seatHeight?: number | null
+  weightKg?: number | null
+  unit: string
+  priceOverride?: number | null
+  tradePriceOverride?: number | null
+  leadTimeOverride?: string | null
+  availability: 'available' | 'unavailable' | 'made_to_order'
+  sortOrder: number
+}
+
+export type FinishCategory = 'hard_finish' | 'upholstery'
+
+export interface ProductFinish {
+  id: string
+  productId: string
+  finishCategory: FinishCategory
+  finishName: string
+  finishCode?: string | null
+  material?: string | null
+  colour?: string | null
+  swatchUrl?: string | null
+  comAccepted?: boolean | null
+  rubCount?: number | null
+  fireTreatment?: string | null
+  isDefault: boolean
+  availability: 'available' | 'unavailable'
+  sortOrder: number
+}
+
+// ── Import batches (Sprint 2 data model, created in Sprint 1) ─
+
+export type ImportMode =
+  | 'create_only' | 'upsert' | 'force_refresh' | 'replace_batch' | 'purge_reload'
+
+export type ImportBatchStatus =
+  | 'pending' | 'previewed' | 'running' | 'completed'
+  | 'completed_with_errors' | 'failed' | 'rolled_back' | 'cancelled'
+
+export type ImportItemAction =
+  | 'create' | 'update' | 'unchanged' | 'skip' | 'conflict' | 'archive' | 'fail'
+
+export interface ImportBatch {
+  id: string
+  batchRef: string
+  sourceType: ImportSourceType
+  sourceUrl?: string | null
+  sourceName?: string | null
+  importMode: ImportMode
+  status: ImportBatchStatus
+  productsFound: number
+  createdCount: number
+  updatedCount: number
+  unchangedCount: number
+  skippedCount: number
+  conflictCount: number
+  archivedCount: number
+  failedCount: number
+  importedBy?: string | null
+  startedAt?: string | null
+  completedAt?: string | null
+  errorSummary?: string | null
+  createdAt: string
+}
+
+export interface ImportBatchItem {
+  id: string
+  batchId: string
+  productId?: string | null
+  sourceRowNumber?: number | null
+  sourceRowId?: string | null
+  referenceCode?: string | null
+  sku?: string | null
+  slug?: string | null
+  productName?: string | null
+  action: ImportItemAction
+  status: 'pending' | 'done' | 'error'
+  message?: string | null
+  warning?: string | null
+  error?: string | null
+}
+
+// ── Audit logs ───────────────────────────────────────────────
+
+export interface AuditLog {
+  id: string
+  actorId?: string | null
+  actorEmail?: string | null
+  action: string
+  entityType: string
+  entityId?: string | null
+  beforeValue?: unknown
+  afterValue?: unknown
+  createdAt: string
 }
 
 export interface ProductOptionGroup {

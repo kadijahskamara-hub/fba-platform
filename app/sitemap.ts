@@ -66,7 +66,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const { data: products } = await supabaseAdmin
     .from('products')
     .select('slug, updated_at')
-    .eq('visibility', 'published')
+    .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
 
   const productEntries: MetadataRoute.Sitemap = (products ?? []).map(p => ({
     url:             `${BASE}/products/${p.slug}`,

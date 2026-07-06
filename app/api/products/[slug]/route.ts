@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase, supabaseAdmin } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
+import { isPubliclyVisible } from '@/lib/productVisibility'
+import { logAudit } from '@/lib/audit'
 
 export async function GET(
   _req: NextRequest,
@@ -26,8 +28,8 @@ export async function GET(
     return NextResponse.json({ success: false, error: 'Product not found' }, { status: 404 })
   }
 
-  // Only published for non-admins
-  if (session?.role !== 'admin' && data.visibility !== 'published') {
+  // Only publicly visible products for non-admins
+  if (session?.role !== 'admin' && !isPubliclyVisible(data)) {
     return NextResponse.json({ success: false, error: 'Product not found' }, { status: 404 })
   }
 
@@ -46,7 +48,6 @@ export async function PATCH(
   try {
     const body = await req.json()
 
-    // ── Product-level allowlist (prevents mass assignment) ──────────────────
     const PRODUCT_ALLOWED: string[] = [
       'name', 'slug', 'sku', 'reference_code', 'category_id', 'subcategory_id',
       'artisan_id', 'description', 'short_description', 'retail_price', 'trade_price',
@@ -54,9 +55,11 @@ export async function PATCH(
       'is_fba_collection', 'is_fba_home',
       'lead_time', 'shipping_origin', 'shipping_notes',
       'images', 'seo_title', 'seo_description',
+      'technical_description', 'customisation_note', 'made_to_order',
+      'dispatch_time_label', 'lead_time_min_weeks', 'lead_time_max_weeks',
+      'min_order_quantity', 'public_brand_visible',
     ]
 
-    // Body uses camelCase keys — map to snake_case for the DB
     const camelToSnake: Record<string, string> = {
       name: 'name', slug: 'slug', sku: 'sku',
       referenceCode: 'reference_code', categoryId: 'category_id',
@@ -69,9 +72,20 @@ export async function PATCH(
       leadTime: 'lead_time', shippingOrigin: 'shipping_origin',
       shippingNotes: 'shipping_notes', images: 'images',
       seoTitle: 'seo_title', seoDescription: 'seo_description',
+      technicalDescription: 'technical_description',
+      customisationNote: 'customisation_note',
+      madeToOrder: 'made_to_order',
+      dispatchTimeLabel: 'dispatch_time_label',
+      leadTimeMinWeeks: 'lead_time_min_weeks',
+      leadTimeMaxWeeks: 'lead_time_max_weeks',
+      minOrderQuantity: 'min_order_quantity',
+      publicBrandVisible: 'public_brand_visible',
     }
 
-    const productUpdates: Record<string, unknown> = { updated_at: new Date() }
+    const productUpdates: Record<string, unknown> = {
+      updated_at: new Date(),
+      last_updated_by: session.id,
+    }
     for (const [camel, snake] of Object.entries(camelToSnake)) {
       if (body[camel] !== undefined && PRODUCT_ALLOWED.includes(snake)) {
         productUpdates[snake] = body[camel]
@@ -87,12 +101,10 @@ export async function PATCH(
 
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
 
-    // ── Spec upsert ──────────────────────────────────────────────────────────
     if (body.specifications && data?.id) {
       const sp = body.specifications
       const specData: Record<string, unknown> = {
         product_id:          data.id,
-        // base
         material:            sp.material            ?? null,
         finish:              sp.finish              ?? null,
         fabric:              sp.fabric              ?? null,
@@ -105,7 +117,6 @@ export async function PATCH(
         com_available:       sp.comAvailable        ?? false,
         care_instructions:   sp.careInstructions    ?? null,
         technical_notes:     sp.technicalNotes      ?? null,
-        // existing lighting
         bulb_type:           sp.bulbType            ?? null,
         wattage:             sp.wattage             ?? null,
         voltage:             sp.voltage             ?? null,
@@ -113,7 +124,6 @@ export async function PATCH(
         cable_length:        sp.cableLength         ?? null,
         dimmable:            sp.dimmable            ?? null,
         ip_rating:           sp.ipRating            ?? null,
-        // generic material config
         frame_material:                sp.frameMaterial               ?? null,
         frame_material_options:        sp.frameMaterialOptions        ?? null,
         frame_finish_colour_options:   sp.frameFinishColourOptions    ?? null,
@@ -129,7 +139,6 @@ export async function PATCH(
         footprint_m2:                  sp.footprintM2                 ?? null,
         shipping_volume_m3:            sp.shippingVolumeM3            ?? null,
         other_available_options:       sp.otherAvailableOptions       ?? null,
-        // table-specific
         leg_material:            sp.legMaterial            ?? null,
         leg_material_options:    sp.legMaterialOptions     ?? null,
         leg_finish_colour_options: sp.legFinishColourOptions ?? null,
@@ -143,7 +152,6 @@ export async function PATCH(
         feet_glides:             sp.feetGlides             ?? null,
         suitable_table_top_sizes: sp.suitableTableTopSizes ?? null,
         extension_options:       sp.extensionOptions       ?? null,
-        // extended lighting
         body_frame_material:          sp.bodyFrameMaterial          ?? null,
         base_material:                sp.baseMaterial               ?? null,
         diffuser_shade_material:      sp.diffuserShadeMaterial      ?? null,
@@ -169,12 +177,19 @@ export async function PATCH(
         .upsert(specData, { onConflict: 'product_id' })
     }
 
-    // Return the full updated product
     const { data: updated } = await supabaseAdmin
       .from('products')
       .select('*')
       .eq('id', data.id)
       .single()
+
+    await logAudit({
+      actor: session,
+      action: 'product.updated',
+      entityType: 'product',
+      entityId: data.id,
+      after: productUpdates,
+    })
 
     return NextResponse.json({ success: true, data: updated })
   } catch (err) {

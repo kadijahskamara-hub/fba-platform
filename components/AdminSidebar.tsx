@@ -49,6 +49,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/collection',   label: 'FBA Collection',     icon: CollectionIcon, permission: 'products' },
       { href: '/admin/home',         label: 'FBA Home',           icon: HomeIcon,       permission: 'products' },
       { href: '/admin/integrations', label: 'Brand Integrations', icon: PlugIcon,       permission: 'products' },
+      { href: '/admin/imports',      label: 'Import History',     icon: PlugIcon,       permission: 'products' },
     ],
   },
   {

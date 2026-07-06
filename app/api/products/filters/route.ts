@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   let query = client
     .from('products')
     .select('artisan_id, material, retail_price, finish_type, origin_region, lead_time_weeks, artisan:artisans(id, name, slug)')
-    .eq('visibility', 'published')
+    .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
 
   if (collection) {
     query = query.eq('is_fba_collection', true) as typeof query

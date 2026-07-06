@@ -25,7 +25,7 @@ async function getStats() {
   const { data } = await supabaseAdmin
     .from('products')
     .select('id')
-    .eq('visibility', 'published')
+    .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
     .eq('is_fba_collection', true)
 
   return { total: data?.length ?? 0 }

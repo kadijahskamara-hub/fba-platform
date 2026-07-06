@@ -20,7 +20,7 @@ const securityHeaders = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.sheetjs.com https://cdnjs.cloudflare.com",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https://images.pexels.com https://*.supabase.co https://www.expormim.com",
+      "img-src 'self' data: blob: https:",
       "font-src 'self'",
       "connect-src 'self' https://*.supabase.co",
       "frame-ancestors 'none'",
@@ -41,21 +41,14 @@ const nextConfig = {
     ]
   },
   images: {
+    // Product images are imported from arbitrary supplier CDNs
+    // (Squarespace, Expormim, Google Drive, Pexels, Supabase...).
+    // Allow any https host; the long-term plan is mirroring imported
+    // images into Supabase Storage so this can be tightened again.
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'images.pexels.com',
-        pathname: '/photos/**',
-      },
-      {
-        protocol: 'https',
-        hostname: '*.supabase.co',
-        pathname: '/storage/v1/object/public/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'www.expormim.com',
-        pathname: '/wp-content/uploads/**',
+        hostname: '**',
       },
     ],
   },

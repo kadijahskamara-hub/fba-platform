@@ -25,7 +25,7 @@ async function getHomeProducts(isTradeUser: boolean) {
       artisan:artisans(name, slug),
       category:categories(name, slug)
     `)
-    .eq('visibility', 'published')
+    .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
     .eq('is_fba_home', true)
     .order('created_at', { ascending: false })
 

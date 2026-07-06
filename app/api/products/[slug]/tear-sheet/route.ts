@@ -29,7 +29,7 @@ export async function GET(
       category:categories(name)
     `)
     .eq('slug', params.slug)
-    .eq('visibility', 'published')
+    .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
     .single()
 
   if (!product) {

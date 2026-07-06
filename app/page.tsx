@@ -66,7 +66,7 @@ async function getFeaturedProducts() {
   const { data } = await supabaseAdmin
     .from('products')
     .select('id, name, slug, images, short_description, retail_price, trade_price, price_type, currency, is_fba_collection, artisan:artisans(name, slug), category:categories(name)')
-    .eq('visibility', 'published')
+    .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
     .limit(8)
   return data ?? []
 }

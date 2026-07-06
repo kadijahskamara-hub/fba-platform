@@ -1,190 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
+import { logAudit } from '@/lib/audit'
+import {
+  classifyRows, nextBatchRef,
+  type ImportMode, type ClassifiedItem,
+} from '@/lib/importEngine'
 
-// ─── Column name normaliser ───────────────────────────────────────────────────
-// FBA Standard Excel files may have slightly varied column names.
-// Try each alias in order and return the first non-empty value found.
+// ============================================================
+// Product import (admin brief §4)
+// POST body:
+//   rows:        parsed sheet rows
+//   mode:        create_only | upsert | force_refresh | replace_batch | purge_reload
+//   preview:     true → classify only, no writes
+//   sourceUrl?:  original Drive/Sheet URL (for batch record + replace matching)
+//   sourceFileId?: Drive file id (preferred replace-batch scope key)
+//   sourceName?: display name
+//   confirm?:    'RELOAD PRODUCTS' required for purge_reload
+// ============================================================
 
-function col(row: Record<string, string>, ...aliases: string[]): string {
-  for (const a of aliases) {
-    const v = (row[a] ?? '').trim()
-    if (v) return v
-  }
-  return ''
-}
-
-function num(row: Record<string, string>, ...aliases: string[]): number | null {
-  const v = col(row, ...aliases)
-  if (!v) return null
-  const n = parseFloat(v.replace(/[^0-9.]/g, ''))
-  return isNaN(n) ? null : n
-}
-
-function bool(val: string): boolean {
-  return ['yes', 'true', '1'].includes(val.toLowerCase())
-}
-
-// ─── Audience mapping ─────────────────────────────────────────────────────────
-function mapAudience(raw: string): 'retail' | 'trade' | 'retail_and_trade' {
-  const v = raw.toLowerCase()
-  if (v.includes('trade only') || v === 'trade') return 'trade'
-  if (v.includes('retail only') || v === 'retail') return 'retail'
-  return 'retail_and_trade'
-}
-
-// ─── Price type mapping ───────────────────────────────────────────────────────
-function mapPriceType(raw: string): 'fixed' | 'price_on_request' {
-  const v = raw.toLowerCase()
-  if (v === 'poa' || v.includes('request') || v.includes('enquire')) return 'price_on_request'
-  return 'fixed'
-}
-
-// ─── Visibility mapping ───────────────────────────────────────────────────────
-function mapVisibility(raw: string): 'draft' | 'published' | 'hidden' {
-  const v = raw.toLowerCase()
-  if (v === 'published') return 'published'
-  if (v === 'hidden')    return 'hidden'
-  return 'draft'
-}
-
-// ─── Category / subcategory resolver ─────────────────────────────────────────
-const categoryCache: Record<string, string> = {}
-const subcategoryCache: Record<string, string> = {}
-
-async function resolveCategory(name: string): Promise<string | null> {
-  if (!name) return null
-  const key = name.toLowerCase()
-  if (categoryCache[key]) return categoryCache[key]
-  const { data } = await supabaseAdmin
-    .from('categories')
-    .select('id, name')
-    .ilike('name', `%${name}%`)
-    .limit(1)
-  if (data?.[0]) categoryCache[key] = data[0].id
-  return data?.[0]?.id ?? null
-}
-
-async function resolveSubcategory(name: string, categoryId: string | null): Promise<string | null> {
-  if (!name) return null
-  const key = `${categoryId}:${name.toLowerCase()}`
-  if (subcategoryCache[key]) return subcategoryCache[key]
-  let q = supabaseAdmin.from('subcategories').select('id').ilike('name', `%${name}%`).limit(1)
-  if (categoryId) q = q.eq('category_id', categoryId) as typeof q
-  const { data } = await q
-  if (data?.[0]) subcategoryCache[key] = data[0].id
-  return data?.[0]?.id ?? null
-}
-
-// ─── Artisan resolver / creator ───────────────────────────────────────────────
-const artisanCache: Record<string, string> = {}
-
-async function resolveArtisan(name: string): Promise<string | null> {
-  if (!name) return null
-  const key = name.toLowerCase()
-  if (artisanCache[key]) return artisanCache[key]
-
-  // Try exact match first
-  const { data: existing } = await supabaseAdmin
-    .from('artisans')
-    .select('id')
-    .ilike('name', name)
-    .limit(1)
-
-  if (existing?.[0]) {
-    artisanCache[key] = existing[0].id
-    return existing[0].id
-  }
-
-  // Create minimal artisan record
-  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-  const { data: created } = await supabaseAdmin
-    .from('artisans')
-    .insert({ name, slug, is_active: true })
-    .select('id')
-    .single()
-
-  if (created) artisanCache[key] = created.id
-  return created?.id ?? null
-}
-
-// ─── Main row mapper ──────────────────────────────────────────────────────────
-async function mapRowToProduct(row: Record<string, string>) {
-  // Resolve relationships
-  const artisanName   = col(row, 'Artisan / Studio', 'Artisan', 'Studio', 'Brand')
-  const categoryName  = col(row, 'Category')
-  const subcatName    = col(row, 'Subcategory', 'Sub-category', 'Subcategories')
-
-  const artisanId    = await resolveArtisan(artisanName)
-  const categoryId   = await resolveCategory(categoryName)
-  const subcategoryId = await resolveSubcategory(subcatName, categoryId)
-
-  // Images — comma or newline separated URLs
-  const rawImages = col(row, 'Images (URLs)', 'Images', 'Image URL', 'Image')
-  const images = rawImages
-    ? rawImages.split(/[\n,]+/).map(u => u.trim()).filter(u => u.startsWith('http'))
-    : []
-
-  const priceTypeRaw = col(row, 'Price Type', 'PriceType', 'Pricing Type')
-  const visibilityRaw = col(row, 'Visibility', 'Status', 'Published')
-
-  const product = {
-    name:              col(row, 'Product Name', 'Name', 'Products Product Name'),
-    slug:              col(row, 'Slug (URL)', 'Slug', 'URL Slug'),
-    sku:               col(row, 'SKU') || null,
-    reference_code:    col(row, 'Reference Code', 'Ref Code', 'Ref') || null,
-    artisan_id:        artisanId,
-    category_id:       categoryId,
-    subcategory_id:    subcategoryId,
-    description:       col(row, 'Full Description', 'Description', 'Long Description') || col(row, 'Short Description'),
-    short_description: col(row, 'Short Description', 'Tagline') || null,
-    retail_price:      num(row, 'Retail Price', 'RRP') ?? null,
-    trade_price:       num(row, 'Trade Price', 'Net Price') ?? null,
-    supplier_cost:     num(row, 'Supplier Cost', 'Cost Price') ?? null,
-    price_type:        mapPriceType(priceTypeRaw),
-    currency:          (col(row, 'Currency') === 'EUR' ? 'EUR' : col(row, 'Currency') === 'USD' ? 'USD' : 'GBP') as 'GBP' | 'EUR' | 'USD',
-    visibility:        mapVisibility(visibilityRaw),
-    audience:          mapAudience(col(row, 'Audience', 'Audience Type')),
-    is_fba_collection: bool(col(row, 'FBA Collection Piece', 'FBA Collection', 'Is FBA Collection')),
-    is_fba_home:       bool(col(row, 'FBA Home', 'Is FBA Home')),
-    lead_time:         col(row, 'Lead Time') || null,
-    shipping_origin:   col(row, 'Shipping Origin', 'Origin') || null,
-    shipping_notes:    col(row, 'Shipping Notes', 'Shipping') || null,
-    images,
-    seo_title:         col(row, 'SEO Title') || null,
-    seo_description:   col(row, 'SEO Description') || null,
-  }
-
-  const specs = {
-    width_mm:          num(row, 'Width (mm)', 'Width'),
-    depth_mm:          num(row, 'Depth (mm)', 'Depth'),
-    height_mm:         num(row, 'Height (mm)', 'Height'),
-    seat_height_mm:    num(row, 'Seat Height (mm)', 'Seat Height'),
-    diameter_mm:       num(row, 'Diameter (mm)', 'Diameter'),
-    weight_kg:         num(row, 'Weight (kg)', 'Weight'),
-    material:          col(row, 'Material') || null,
-    finish:            col(row, 'Finish') || null,
-    fabric:            col(row, 'Fabric / Upholstery', 'Fabric', 'Upholstery') || null,
-    com_available:     bool(col(row, 'COM Available')),
-    care_instructions: col(row, 'Care Instructions') || null,
-    technical_notes:   col(row, 'Technical Notes', 'Notes') || null,
-    // Generic material config
-    frame_material:                col(row, 'Frame Material') || null,
-    frame_material_options:        col(row, 'Frame Material Options', 'Frame Finish / Colour Options') || null,
-    armrest_material:              col(row, 'Armrest Material') || null,
-    seat_material:                 col(row, 'Seat Material') || null,
-    back_material:                 col(row, 'Back Material') || null,
-    seat_back_upholstery_options:  col(row, 'Seat & Back Upholstery Options') || null,
-    glides:                        col(row, 'Glides') || null,
-    stackable:                     col(row, 'Stackable') ? bool(col(row, 'Stackable')) : null,
-    indoor_outdoor_use:            col(row, 'Indoor / Outdoor Use', 'Indoor/Outdoor') || null,
-    other_available_options:       col(row, 'Other Available Options', 'Other Options') || null,
-  }
-
-  return { product, specs }
-}
-
-// ─── POST handler ─────────────────────────────────────────────────────────────
+const MODES: ImportMode[] = ['create_only', 'upsert', 'force_refresh', 'replace_batch', 'purge_reload']
+const CHUNK = 100
 
 export async function POST(req: NextRequest) {
   const session = await getSession()
@@ -192,66 +28,302 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
   }
 
-  let rows: Record<string, string>[]
+  let body: {
+    rows?: Record<string, string>[]
+    mode?: string
+    preview?: boolean
+    sourceUrl?: string
+    sourceFileId?: string
+    sourceName?: string
+    confirm?: string
+  }
   try {
-    const body = await req.json()
-    rows = body.rows
-    if (!Array.isArray(rows) || rows.length === 0) {
-      return NextResponse.json({ success: false, error: 'No rows provided' }, { status: 400 })
-    }
+    body = await req.json()
   } catch {
     return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const results = { inserted: 0, skipped: 0, errors: [] as string[] }
+  const rows = body.rows
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return NextResponse.json({ success: false, error: 'No rows provided' }, { status: 400 })
+  }
+  if (rows.length > 5000) {
+    return NextResponse.json({ success: false, error: 'Too many rows in one import (max 5000). Split the file.' }, { status: 400 })
+  }
 
-  for (const row of rows) {
-    try {
-      const { product, specs } = await mapRowToProduct(row)
+  const mode = (body.mode ?? 'upsert') as ImportMode
+  if (!MODES.includes(mode)) {
+    return NextResponse.json({ success: false, error: 'Unknown import mode' }, { status: 400 })
+  }
 
-      // Skip rows without a name or slug
-      if (!product.name || !product.slug) {
-        results.skipped++
-        continue
+  if ((mode === 'replace_batch' || mode === 'purge_reload') && session.role !== 'admin') {
+    return NextResponse.json({ success: false, error: 'Replace Batch and Purge & Reload are admin-only import modes.' }, { status: 403 })
+  }
+  if (mode === 'purge_reload' && !body.preview && body.confirm !== 'RELOAD PRODUCTS') {
+    return NextResponse.json({ success: false, error: 'Type RELOAD PRODUCTS to confirm a purge and reload.' }, { status: 400 })
+  }
+
+  // ── Classify all rows ──────────────────────────────────────
+  let classified
+  try {
+    // purge_reload rewrites everything from source regardless of hash
+    classified = await classifyRows(rows, mode === 'purge_reload' ? 'force_refresh' : mode)
+  } catch (err) {
+    return NextResponse.json({ success: false, error: err instanceof Error ? err.message : 'Classification failed' }, { status: 500 })
+  }
+  const { items, summary, resolvers, index } = classified
+
+  const sourceFileId = body.sourceFileId?.trim() || null
+  let toArchive: Array<{ id: string; name: string; slug: string }> = []
+  if ((mode === 'replace_batch' || mode === 'purge_reload') && sourceFileId) {
+    const seenSlugs = new Set(items.filter(i => i.slug).map(i => i.slug))
+    toArchive = index.all
+      .filter(p => p.source_file_id === sourceFileId && !seenSlugs.has(p.slug) && !p.archived_at)
+      .map(p => ({ id: p.id, name: p.name, slug: p.slug }))
+    summary.archive = toArchive.length
+  }
+
+  // ── Preview: return classification without writing ─────────
+  if (body.preview) {
+    return NextResponse.json({
+      success: true,
+      preview: true,
+      mode,
+      summary,
+      items: items.map(({ product: _p, specs: _s, documents: _d, ...rest }) => rest),
+      toArchive: toArchive.map(p => ({ name: p.name, slug: p.slug })),
+    })
+  }
+
+  // ── Run import ─────────────────────────────────────────────
+  const batchRef = await nextBatchRef()
+  const { data: batch, error: batchError } = await supabaseAdmin
+    .from('import_batches')
+    .insert({
+      batch_ref: batchRef,
+      source_type: sourceFileId ? 'google_drive' : 'csv',
+      source_url: body.sourceUrl ?? null,
+      source_name: body.sourceName ?? null,
+      import_mode: mode,
+      status: 'running',
+      products_found: rows.length,
+      imported_by: session.id,
+      started_at: new Date().toISOString(),
+    })
+    .select('id')
+    .single()
+
+  if (batchError || !batch) {
+    return NextResponse.json({ success: false, error: `Could not create import batch: ${batchError?.message}` }, { status: 500 })
+  }
+
+  const counts = { created: 0, updated: 0, unchanged: 0, skipped: 0, conflict: 0, archived: 0, failed: 0 }
+  const batchItems: Record<string, unknown>[] = []
+  const errors: string[] = []
+  const now = new Date().toISOString()
+
+  const sourceMeta = {
+    source_type: sourceFileId ? 'google_drive' : 'csv',
+    source_url: body.sourceUrl ?? null,
+    source_file_id: sourceFileId,
+    source_batch_id: batch.id,
+    last_imported_at: now,
+    last_import_mode: mode,
+  }
+
+  // Pre-fetch full before-snapshots for all products being updated
+  const updateIds = items.filter(i => i.action === 'update' && i.matchedProductId).map(i => i.matchedProductId as string)
+  const beforeMap = new Map<string, Record<string, unknown>>()
+  for (let i = 0; i < updateIds.length; i += CHUNK) {
+    const { data } = await supabaseAdmin.from('products').select('*').in('id', updateIds.slice(i, i + CHUNK))
+    for (const p of data ?? []) beforeMap.set(p.id, p)
+  }
+
+  function artisanNameFor(item: ClassifiedItem): string {
+    const row = rows![item.rowNumber - 1]
+    if (!row) return ''
+    return (row['Artisan / Studio'] ?? row['Artisan'] ?? row['Studio'] ?? row['Brand'] ?? '').toString().trim()
+  }
+
+  // ── Creates (chunked bulk inserts) ─────────────────────────
+  const creates = items.filter(i => i.action === 'create')
+  for (let c = 0; c < creates.length; c += CHUNK) {
+    const chunk = creates.slice(c, c + CHUNK)
+    for (const item of chunk) {
+      item.product!.artisan_id = await resolvers.ensureArtisan(artisanNameFor(item))
+    }
+    const payload = chunk.map(i => ({ ...i.product, ...sourceMeta, source_row_id: i.sourceRowId ?? null }))
+    const { data: inserted, error } = await supabaseAdmin
+      .from('products')
+      .insert(payload)
+      .select('id, slug')
+
+    if (error) {
+      // fall back to row-by-row so one bad row doesn't sink the chunk
+      for (const item of chunk) {
+        const { data: one, error: oneErr } = await supabaseAdmin
+          .from('products')
+          .insert({ ...item.product, ...sourceMeta, source_row_id: item.sourceRowId ?? null })
+          .select('id, slug')
+          .single()
+        if (oneErr || !one) {
+          counts.failed++
+          errors.push(`${item.name}: ${oneErr?.message ?? 'insert failed'}`)
+          batchItems.push(itemRecord(batch.id, item, 'fail', oneErr?.message ?? 'insert failed'))
+        } else {
+          counts.created++
+          await writeSubRecords(one.id, item)
+          batchItems.push(itemRecord(batch.id, item, 'create', item.message, one.id))
+        }
       }
+      continue
+    }
 
-      // Upsert by slug — skip if already exists
-      const { data: existing } = await supabaseAdmin
-        .from('products')
-        .select('id')
-        .eq('slug', product.slug)
-        .single()
-
-      if (existing) {
-        results.skipped++
-        continue
-      }
-
-      // Insert product
-      const { data: inserted, error: productError } = await supabaseAdmin
-        .from('products')
-        .insert(product)
-        .select('id')
-        .single()
-
-      if (productError) {
-        results.errors.push(`${product.name}: ${productError.message}`)
-        continue
-      }
-
-      // Insert specs
-      const hasSpecs = Object.values(specs).some(v => v !== null && v !== false)
-      if (hasSpecs) {
-        await supabaseAdmin
-          .from('product_specifications')
-          .insert({ product_id: inserted.id, ...specs })
-      }
-
-      results.inserted++
-    } catch (err) {
-      results.errors.push(`Row error: ${err instanceof Error ? err.message : String(err)}`)
+    const idBySlug = new Map((inserted ?? []).map(r => [r.slug, r.id]))
+    for (const item of chunk) {
+      const id = idBySlug.get(item.slug)
+      if (!id) { counts.failed++; batchItems.push(itemRecord(batch.id, item, 'fail', 'insert returned no id')); continue }
+      counts.created++
+      await writeSubRecords(id, item)
+      batchItems.push(itemRecord(batch.id, item, 'create', item.message, id))
     }
   }
 
-  return NextResponse.json({ success: true, ...results })
+  // ── Updates ────────────────────────────────────────────────
+  const updates = items.filter(i => i.action === 'update')
+  for (const item of updates) {
+    const id = item.matchedProductId as string
+    const artisanId = await resolvers.ensureArtisan(artisanNameFor(item))
+
+    const { error } = await supabaseAdmin
+      .from('products')
+      .update({
+        ...item.product,
+        artisan_id: artisanId,
+        ...sourceMeta,
+        source_row_id: item.sourceRowId ?? null,
+        last_updated_by: session.id,
+        updated_at: now,
+      })
+      .eq('id', id)
+
+    if (error) {
+      counts.failed++
+      errors.push(`${item.name}: ${error.message}`)
+      batchItems.push(itemRecord(batch.id, item, 'fail', error.message, id))
+    } else {
+      counts.updated++
+      await writeSubRecords(id, item)
+      batchItems.push({ ...itemRecord(batch.id, item, 'update', item.message, id), before_snapshot: beforeMap.get(id) ?? null })
+    }
+  }
+
+  // ── Unchanged / skipped / conflicts (recorded, never silent) ─
+  for (const item of items) {
+    if (item.action === 'unchanged') { counts.unchanged++; batchItems.push(itemRecord(batch.id, item, 'unchanged', item.message, item.matchedProductId)) }
+    if (item.action === 'skip')      { counts.skipped++;   batchItems.push(itemRecord(batch.id, item, 'skip', item.message, item.matchedProductId)) }
+    if (item.action === 'conflict')  { counts.conflict++;  batchItems.push(itemRecord(batch.id, item, 'conflict', item.message)) }
+  }
+
+  // ── Archive missing-from-source (replace_batch / purge_reload) ─
+  for (const p of toArchive) {
+    const { error } = await supabaseAdmin
+      .from('products')
+      .update({ archived_at: now, archived_by: session.id, last_updated_by: session.id, updated_at: now })
+      .eq('id', p.id)
+    if (error) {
+      counts.failed++
+      errors.push(`Archive ${p.name}: ${error.message}`)
+    } else {
+      counts.archived++
+      batchItems.push({
+        batch_id: batch.id, product_id: p.id, slug: p.slug, product_name: p.name,
+        action: 'archive', status: 'done',
+        message: 'Product was in a previous import from this source but is missing from the new file — archived.',
+      })
+    }
+  }
+
+  // ── Persist batch items (chunked) ──────────────────────────
+  for (let i = 0; i < batchItems.length; i += CHUNK) {
+    await supabaseAdmin.from('import_batch_items').insert(batchItems.slice(i, i + CHUNK))
+  }
+
+  const finalStatus = counts.failed > 0 ? 'completed_with_errors' : 'completed'
+  await supabaseAdmin
+    .from('import_batches')
+    .update({
+      status: finalStatus,
+      created_count: counts.created,
+      updated_count: counts.updated,
+      unchanged_count: counts.unchanged,
+      skipped_count: counts.skipped,
+      conflict_count: counts.conflict,
+      archived_count: counts.archived,
+      failed_count: counts.failed,
+      completed_at: new Date().toISOString(),
+      error_summary: errors.length ? errors.slice(0, 20).join('\n') : null,
+    })
+    .eq('id', batch.id)
+
+  await logAudit({
+    actor: session,
+    action: 'import.completed',
+    entityType: 'import_batch',
+    entityId: batch.id,
+    after: { batchRef, mode, ...counts },
+  })
+
+  return NextResponse.json({
+    success: true,
+    batchId: batch.id,
+    batchRef,
+    mode,
+    status: finalStatus,
+    ...counts,
+    errors,
+  })
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+
+function itemRecord(batchId: string, item: ClassifiedItem, action: string, message: string, productId?: string | null): Record<string, unknown> {
+  return {
+    batch_id: batchId,
+    product_id: productId ?? null,
+    source_row_number: item.rowNumber,
+    source_row_id: item.sourceRowId ?? null,
+    reference_code: item.referenceCode ?? null,
+    sku: item.sku ?? null,
+    slug: item.slug || null,
+    product_name: item.name || null,
+    action,
+    status: action === 'fail' ? 'error' : 'done',
+    message,
+    warning: item.warning ?? null,
+    error: action === 'fail' ? message : null,
+  }
+}
+
+/** Upsert specs + replace imported documents for a product. */
+async function writeSubRecords(productId: string, item: ClassifiedItem): Promise<void> {
+  if (item.specs && Object.values(item.specs).some(v => v !== null && v !== false)) {
+    await supabaseAdmin
+      .from('product_specifications')
+      .upsert({ product_id: productId, ...item.specs }, { onConflict: 'product_id' })
+  }
+  if (item.documents && item.documents.length > 0) {
+    const types = item.documents.map(d => d.document_type)
+    await supabaseAdmin.from('product_documents').delete().eq('product_id', productId).in('document_type', types)
+    await supabaseAdmin.from('product_documents').insert(
+      item.documents.map((d, i) => ({
+        product_id: productId,
+        document_type: d.document_type,
+        label: d.label,
+        url: d.url,
+        source_url: d.url,
+        sort_order: i,
+      }))
+    )
+  }
 }

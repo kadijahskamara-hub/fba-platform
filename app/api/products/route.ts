@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
 
   // Admin sees all; everyone else only published
   if (session?.role !== 'admin') {
-    query = query.eq('visibility', 'published') as typeof query
+    query = query.eq('visibility', 'published').is('archived_at', null).is('deleted_at', null) as typeof query
   }
 
   // Resolve category/subcategory slugs to IDs for reliable filtering

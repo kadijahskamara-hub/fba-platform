@@ -35,7 +35,7 @@ export default async function ArtisanDetailPage({ params }: { params: { slug: st
     .from('products')
     .select('id, name, slug, images, retail_price, trade_price, price_type, currency, category:categories(name)')
     .eq('artisan_id', artisan.id)
-    .eq('visibility', 'published')
+    .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
     .limit(8)
 
   const productList = products ?? []

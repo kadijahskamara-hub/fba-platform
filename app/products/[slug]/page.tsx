@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     .from('products')
     .select('name, seo_title, seo_description, images')
     .eq('slug', params.slug)
-    .eq('visibility', 'published')
+    .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
     .single()
 
   if (!data) return { title: 'Product not found' }
@@ -43,7 +43,7 @@ export default async function ProductDetailPage({ params }: Props) {
       specifications:product_specifications(*)
     `)
     .eq('slug', params.slug)
-    .eq('visibility', 'published')
+    .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
     .single()
 
   if (!product) notFound()
@@ -52,7 +52,7 @@ export default async function ProductDetailPage({ params }: Props) {
   const { data: related } = await supabase
     .from('products')
     .select('id, name, slug, images, retail_price, trade_price, price_type, currency, artisan:artisans(name, slug), category:categories(name)')
-    .eq('visibility', 'published')
+    .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
     .eq('category_id', product.category_id)
     .neq('id', product.id)
     .limit(4)
