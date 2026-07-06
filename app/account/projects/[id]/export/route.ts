@@ -39,7 +39,11 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   const showTrade = canSeeTradePricing(session)
 
-  const rows = (items ?? []).map(it => {
+  // Cast once through unknown — supabase-js types the joined `product`
+  // relation as an array, but a to-one FK returns a single object at runtime.
+  const rawItems = (items ?? []) as unknown as Array<Record<string, unknown>>
+
+  const rows = rawItems.map(it => {
     const p = (it.product ?? null) as Record<string, unknown> | null
     const priceD = p ? resolvePrice(p as Parameters<typeof resolvePrice>[0], session)
                      : { type: 'request' as const, label: 'Unavailable' }
@@ -59,7 +63,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     }
   })
 
-  const currency  = (rows.find(r => r.total != null) && (items?.[0]?.product as Record<string, string> | null)?.currency as 'GBP' | 'EUR' | 'USD') || 'GBP'
+  const firstProduct = rawItems[0]?.product as { currency?: 'GBP' | 'EUR' | 'USD' } | null
+  const currency  = firstProduct?.currency ?? 'GBP'
   const subtotal  = rows.reduce((s, r) => s + (r.total ?? 0), 0)
   const porCount  = rows.filter(r => r.total == null).length
 
