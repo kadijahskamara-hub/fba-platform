@@ -16,6 +16,10 @@ function QuoteForm() {
   const params  = useSearchParams()
   const router  = useRouter()
   const productId = params.get('product')
+  const selQty    = Math.min(999, Math.max(1, parseInt(params.get('qty') ?? '1', 10) || 1))
+  const selFinish = params.get('finish')
+  const selFabric = params.get('fabric')
+  const selSize   = params.get('size')
 
   const [form, setForm] = useState({
     projectName:     '',
@@ -37,7 +41,13 @@ function QuoteForm() {
     setErrorMsg('')
 
     const payload: Record<string, unknown> = {
-      productIds:      productId ? [productId] : [],
+      items: productId ? [{
+        productId,
+        quantity:       selQty,
+        selectedFinish: selFinish ?? undefined,
+        selectedFabric: selFabric ?? undefined,
+        selectedSize:   selSize ?? undefined,
+      }] : [],
       projectName:     form.projectName.trim() || undefined,
       projectLocation: form.projectLocation.trim() || undefined,
       budget:          form.budget ? Number(form.budget) : undefined,
@@ -139,6 +149,26 @@ function QuoteForm() {
             marginBottom: 28, fontSize: 14,
           }}>
             {errorMsg}
+          </div>
+        )}
+
+        {productId && (
+          <div style={{
+            background: 'var(--warm-white)', border: '1px solid var(--light-line)',
+            padding: '14px 18px', marginBottom: 28, fontSize: 13, color: 'var(--forest)',
+          }}>
+            <div style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--stone)', marginBottom: 6 }}>
+              Your selection
+            </div>
+            {[
+              `Quantity: ${selQty}`,
+              selFinish ? `Finish: ${selFinish}` : null,
+              selFabric ? `Upholstery: ${selFabric}` : null,
+              selSize ? `Size: ${selSize}` : null,
+            ].filter(Boolean).join(' · ')}
+            <div style={{ fontSize: 11, color: 'var(--stone)', marginTop: 6 }}>
+              These details will be included with your quote request.
+            </div>
           </div>
         )}
 

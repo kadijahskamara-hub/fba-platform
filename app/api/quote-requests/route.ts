@@ -21,9 +21,27 @@ export async function POST(req: NextRequest) {
     requiredBy,
     notes,
     productIds = [],
+    items = [],
   } = body
 
-  if (!productIds.length && !projectId) {
+  // Rich item format: [{ productId, quantity, selectedFinish, selectedFabric, selectedSize }]
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const clean = (v: unknown): string | null =>
+    typeof v === 'string' && v.trim() ? v.trim().slice(0, 200) : null
+
+  const richItems: Array<{ productId: string; quantity: number; selectedFinish: string | null; selectedFabric: string | null; selectedSize: string | null }> =
+    (Array.isArray(items) ? items : [])
+      .filter((i: Record<string, unknown>) => typeof i?.productId === 'string' && UUID_RE.test(i.productId as string))
+      .slice(0, 100)
+      .map((i: Record<string, unknown>) => ({
+        productId: i.productId as string,
+        quantity: Math.min(999, Math.max(1, Number(i.quantity) || 1)),
+        selectedFinish: clean(i.selectedFinish),
+        selectedFabric: clean(i.selectedFabric),
+        selectedSize: clean(i.selectedSize),
+      }))
+
+  if (!richItems.length && !productIds.length && !projectId) {
     return NextResponse.json({ success: false, error: 'At least one product or a project is required.' }, { status: 400 })
   }
 
@@ -71,14 +89,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: quoteError.message }, { status: 500 })
   }
 
-  // Link products to the quote
-  if (resolvedProductIds.length) {
-    const items = resolvedProductIds.map((pid: string) => ({
-      quote_request_id: quote.id,
-      product_id:       pid,
-      quantity:         1,
-    }))
-    await supabaseAdmin.from('quote_request_items').insert(items)
+  // Link products to the quote — rich items carry selections through
+  if (richItems.length) {
+    await supabaseAdmin.from('quote_request_items').insert(
+      richItems.map(i => ({
+        quote_request_id: quote.id,
+        product_id:       i.productId,
+        quantity:         i.quantity,
+        selected_finish:  i.selectedFinish,
+        selected_fabric:  i.selectedFabric,
+        selected_size:    i.selectedSize,
+      }))
+    )
+  } else if (resolvedProductIds.length) {
+    await supabaseAdmin.from('quote_request_items').insert(
+      resolvedProductIds.map((pid: string) => ({
+        quote_request_id: quote.id,
+        product_id:       pid,
+        quantity:         1,
+      }))
+    )
   }
 
   // Also record in contacts

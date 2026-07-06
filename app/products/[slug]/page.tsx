@@ -7,10 +7,23 @@ import { supabase } from '@/lib/supabase'
 import { resolvePrice } from '@/lib/pricing'
 import { ProductDetailClient } from './ProductDetailClient'
 import { AddToBagButton } from '@/components/AddToBagButton'
-import type { SessionUser } from '@/lib/types'
+import ProductConfigurator, { type FinishOption, type SizeOption } from './ProductConfigurator'
 
 interface Props {
   params: { slug: string }
+}
+
+const DEFAULT_SHIPPING_NOTE =
+  'If you need more details regarding this item please feel free to contact us at info@fullbloom.uk.com. Please note that delivery times may be longer for shipping outside of the UK.'
+
+const DOC_LABELS: Record<string, string> = {
+  product_specification: 'Download Product Specification',
+  upholstery_program:    'Download Upholstery Program',
+  material_finishes:     'Download Material & Finishes',
+  care_maintenance:      'Download Care & Maintenance',
+  installation_guide:    'Download Installation Guide',
+  technical_passport:    'Download Technical Passport™',
+  warranty:              'Download Warranty',
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -39,7 +52,7 @@ export default async function ProductDetailPage({ params }: Props) {
       *,
       category:categories(id, name, slug),
       subcategory:subcategories(id, name, slug),
-      artisan:artisans(id, name, slug, location, bio, profile_image, craft_category),
+      artisan:artisans(id, name, slug, location),
       specifications:product_specifications(*)
     `)
     .eq('slug', params.slug)
@@ -48,17 +61,46 @@ export default async function ProductDetailPage({ params }: Props) {
 
   if (!product) notFound()
 
-  // Fetch related products (same category, excluding current)
-  const { data: related } = await supabase
-    .from('products')
-    .select('id, name, slug, images, retail_price, trade_price, price_type, currency, artisan:artisans(name, slug), category:categories(name)')
-    .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
-    .eq('category_id', product.category_id)
-    .neq('id', product.id)
-    .limit(4)
+  // Documents, finishes, variants + related — RLS limits these to published products
+  const [{ data: documents }, { data: finishes }, { data: variants }, { data: related }] = await Promise.all([
+    supabase.from('product_documents').select('*').eq('product_id', product.id).order('sort_order'),
+    supabase.from('product_finishes').select('*').eq('product_id', product.id).order('sort_order'),
+    supabase.from('product_variants').select('*').eq('product_id', product.id).order('sort_order'),
+    supabase
+      .from('products')
+      .select('id, name, slug, images, price_type, category:categories(name)')
+      .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
+      .eq('category_id', product.category_id)
+      .neq('id', product.id)
+      .limit(4),
+  ])
 
   const price = resolvePrice(product, session)
   const specs = product.specifications
+
+  const hardFinishes: FinishOption[] = (finishes ?? [])
+    .filter((f: Record<string, unknown>) => f.finish_category === 'hard_finish')
+    .map(mapFinish)
+  const upholstery: FinishOption[] = (finishes ?? [])
+    .filter((f: Record<string, unknown>) => f.finish_category === 'upholstery')
+    .map(mapFinish)
+  const sizes: SizeOption[] = (variants ?? []).map((v: Record<string, unknown>) => ({
+    id: v.id as string,
+    variantName: v.variant_name as string,
+    available: v.availability !== 'unavailable',
+    leadTimeOverride: (v.lead_time_override as string | null) ?? null,
+  }))
+
+  // One fulfilment line near the price (never repeated)
+  const dispatchLine = product.made_to_order
+    ? `Made to order${product.dispatch_time_label ? ` · Dispatched within ${product.dispatch_time_label}` : product.lead_time ? ` · Lead time ${product.lead_time}` : ''}`
+    : product.dispatch_time_label
+      ? `Dispatched within ${product.dispatch_time_label}`
+      : product.lead_time
+        ? `Lead time ${product.lead_time}`
+        : null
+
+  const showBrand = product.public_brand_visible === true && product.artisan
 
   return (
     <div className="page-body">
@@ -88,151 +130,130 @@ export default async function ProductDetailPage({ params }: Props) {
 
           {/* Right: Product info */}
           <div style={{ paddingTop: 8 }}>
-            {product.artisan && (
-              <Link href={`/artisans/${product.artisan.slug}`}
-                className="label label-sand"
-                style={{ display: 'inline-block', marginBottom: 12 }}>
-                {product.artisan.name}
-                {product.artisan.location && ` — ${product.artisan.location}`}
-              </Link>
+            {product.category && (
+              <div className="label label-sand" style={{ marginBottom: 10 }}>
+                {product.category.name}
+              </div>
             )}
 
-            <h1 className="h1" style={{ marginBottom: 8 }}>{product.name}</h1>
+            <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 'clamp(24px, 3vw, 32px)', fontWeight: 300, lineHeight: 1.25, marginBottom: 6 }}>
+              {product.name}
+            </h1>
 
-            {product.referenceCode && (
-              <p style={{ fontSize: 12, color: 'var(--stone)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 20 }}>
-                Ref: {product.referenceCode}
+            {showBrand && (
+              <p style={{ fontSize: 12, color: 'var(--stone)', marginBottom: 8 }}>
+                {product.artisan.name}{product.artisan.location ? ` — ${product.artisan.location}` : ''}
               </p>
             )}
 
-            {/* Price */}
-            <div style={{ marginBottom: 32, padding: '20px 0', borderTop: '1px solid var(--light-line)', borderBottom: '1px solid var(--light-line)' }}>
+            {product.reference_code && (
+              <p style={{ fontSize: 11, color: 'var(--stone)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16 }}>
+                Ref: {product.reference_code}
+              </p>
+            )}
+
+            {/* Price + fulfilment */}
+            <div style={{ marginBottom: 28, padding: '16px 0', borderTop: '1px solid var(--light-line)', borderBottom: '1px solid var(--light-line)' }}>
               {price.type === 'fixed' ? (
                 <div>
-                  <div style={{ fontSize: 28, fontWeight: 500, color: session?.role === 'trade_user' ? 'var(--caramel)' : 'var(--forest)' }}>
+                  <div style={{ fontSize: 20, fontWeight: 500, color: session?.role === 'trade_user' ? 'var(--caramel)' : 'var(--forest)' }}>
                     {price.label}
                   </div>
                   {(session?.role === 'trade_user' || session?.role === 'admin') && (
-                    <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase',
-                      color: 'var(--caramel)', marginTop: 4 }}>
+                    <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--caramel)', marginTop: 3 }}>
                       Trade price
                     </div>
                   )}
                 </div>
               ) : (
-                <div>
-                  <div style={{ fontSize: 18, fontStyle: 'italic', color: 'var(--stone)' }}>Price on request</div>
-                  <p style={{ fontSize: 12, color: 'var(--stone)', marginTop: 4 }}>
-                    Contact us for pricing on this piece
-                  </p>
-                </div>
+                <div style={{ fontSize: 15, fontStyle: 'italic', color: 'var(--stone)' }}>Price on request</div>
+              )}
+              {dispatchLine && (
+                <p style={{ fontSize: 12, color: 'var(--forest)', marginTop: 8, fontWeight: 500 }}>
+                  {dispatchLine}
+                </p>
               )}
             </div>
 
             {/* Short description */}
             {product.short_description && (
-              <p className="body" style={{ marginBottom: 28, color: 'var(--stone)' }}>
+              <p style={{ fontSize: 14, lineHeight: 1.7, marginBottom: 24, color: 'var(--stone)' }}>
                 {product.short_description}
               </p>
             )}
 
             {/* Key spec highlights */}
             {specs && (
-              <div style={{ marginBottom: 32 }}>
+              <div style={{ marginBottom: 26 }}>
                 {specs.dimensions_summary && (
-                  <div className="qv-spec-row">
-                    <span className="qv-spec-label">Dimensions</span>
-                    <span>{specs.dimensions_summary}</span>
-                  </div>
+                  <div className="qv-spec-row"><span className="qv-spec-label">Dimensions</span><span>{specs.dimensions_summary}</span></div>
                 )}
                 {specs.material && (
-                  <div className="qv-spec-row">
-                    <span className="qv-spec-label">Material</span>
-                    <span>{specs.material}</span>
-                  </div>
-                )}
-                {specs.finish && (
-                  <div className="qv-spec-row">
-                    <span className="qv-spec-label">Finish</span>
-                    <span>{specs.finish}</span>
-                  </div>
+                  <div className="qv-spec-row"><span className="qv-spec-label">Material</span><span>{specs.material}</span></div>
                 )}
                 {specs.fabric && (
-                  <div className="qv-spec-row">
-                    <span className="qv-spec-label">Fabric</span>
-                    <span>{specs.fabric}{specs.com_available ? ' — COM available' : ''}</span>
-                  </div>
-                )}
-                {product.lead_time && (
-                  <div className="qv-spec-row">
-                    <span className="qv-spec-label">Lead time</span>
-                    <span>{product.lead_time}</span>
-                  </div>
+                  <div className="qv-spec-row"><span className="qv-spec-label">Fabric</span><span>{specs.fabric}{specs.com_available ? ' — COM available' : ''}</span></div>
                 )}
                 {product.shipping_origin && (
-                  <div className="qv-spec-row">
-                    <span className="qv-spec-label">Origin</span>
-                    <span>{product.shipping_origin}</span>
-                  </div>
+                  <div className="qv-spec-row"><span className="qv-spec-label">Origin</span><span>{product.shipping_origin}</span></div>
                 )}
               </div>
             )}
 
-            {/* CTAs */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 32 }}>
-              {price.type === 'fixed' && product.audience !== 'trade' ? (
+            {/* Configurator: finishes / upholstery / sizes / quantity + CTAs */}
+            <ProductConfigurator
+              productId={product.id}
+              slug={product.slug}
+              hardFinishes={hardFinishes}
+              upholstery={upholstery}
+              sizes={sizes}
+              isLoggedIn={Boolean(session)}
+            />
+
+            {/* Retail purchase (fixed-price retail pieces only) */}
+            {price.type === 'fixed' && product.audience !== 'trade' && (
+              <div style={{ marginBottom: 24 }}>
                 <AddToBagButton product={product} price={price} />
-              ) : (
-                <Link href={`/quote?product=${product.id}`} className="btn btn-primary btn-full btn-lg">
-                  Request Quote
-                </Link>
-              )}
-              <SaveToProjectButton product={product} session={session} />
+              </div>
+            )}
+
+            {/* Downloads — only documents that actually exist */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {(documents ?? [])
+                .filter((d: Record<string, unknown>) => typeof d.url === 'string' && (d.url as string).startsWith('http'))
+                .map((d: Record<string, unknown>) => (
+                  <a
+                    key={d.id as string}
+                    href={d.url as string}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-ghost btn-full"
+                  >
+                    ↓ {DOC_LABELS[d.document_type as string] ?? (d.label ? `Download ${d.label}` : 'Download Document')}
+                  </a>
+                ))}
               <a
                 href={`/api/products/${product.slug}/tear-sheet`}
                 className="btn btn-ghost btn-full"
-                download={`FBA-${product.referenceCode ?? product.slug}.pdf`}
+                download={`FBA-${product.reference_code ?? product.slug}.pdf`}
               >
                 ↓ Download Tear Sheet
               </a>
             </div>
-
-            {/* Artisan mini-profile */}
-            {product.artisan && (
-              <div style={{ padding: 24, background: 'var(--cream)', border: '1px solid var(--light-line)' }}>
-                <div className="label label-sage" style={{ marginBottom: 12 }}>The Artisan</div>
-                <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
-                  {product.artisan.profile_image && (
-                    <div style={{ width: 64, height: 64, flexShrink: 0, overflow: 'hidden', position: 'relative' }}>
-                      <Image src={product.artisan.profile_image} alt={product.artisan.name} fill style={{ objectFit: 'cover' }} />
-                    </div>
-                  )}
-                  <div>
-                    <div style={{ fontFamily: 'var(--font-serif)', fontSize: 18, marginBottom: 6 }}>{product.artisan.name}</div>
-                    {product.artisan.location && (
-                      <div style={{ fontSize: 12, color: 'var(--stone)', marginBottom: 10 }}>{product.artisan.location}</div>
-                    )}
-                    <p style={{ fontSize: 13, color: 'var(--stone)', lineHeight: 1.6, marginBottom: 12 }}>
-                      {product.artisan.bio?.substring(0, 160)}…
-                    </p>
-                    <Link href={`/artisans/${product.artisan.slug}`} style={{ fontSize: 12, color: 'var(--caramel)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                      Discover the artisan →
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
-        {/* Full description */}
+        {/* Technical description + full specification */}
         <div className="divider-lg" />
         <div className="fba-grid-2" style={{ gap: 80 }}>
           <div>
-            <div className="label label-sage" style={{ marginBottom: 20 }}>About this piece</div>
-            <div style={{ fontSize: 15, lineHeight: 1.8, color: 'var(--stone)', whiteSpace: 'pre-wrap' }}>
-              {product.description}
+            <div className="label label-sage" style={{ marginBottom: 20 }}>Technical description</div>
+            <div style={{ fontSize: 14, lineHeight: 1.8, color: 'var(--stone)', whiteSpace: 'pre-wrap' }}>
+              {product.technical_description || product.description}
             </div>
+            <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--forest)', marginTop: 20, fontStyle: 'italic' }}>
+              {product.customisation_note || 'This item can be customised — contact a member of the team with your requirements to find out what is possible.'}
+            </p>
           </div>
 
           {/* Full specification table */}
@@ -252,13 +273,11 @@ export default async function ProductDetailPage({ params }: Props) {
                   {specs.fabric         && <SpecRow label="Fabric"      value={specs.fabric} />}
                   {specs.com_available  && <SpecRow label="COM"         value="Available" />}
                   {specs.care_instructions && <SpecRow label="Care"     value={specs.care_instructions} />}
-                  {/* Lighting */}
                   {specs.bulb_type   && <SpecRow label="Bulb type"   value={specs.bulb_type} />}
                   {specs.wattage     && <SpecRow label="Wattage"     value={specs.wattage} />}
                   {specs.voltage     && <SpecRow label="Voltage"     value={specs.voltage} />}
                   {specs.ip_rating   && <SpecRow label="IP rating"   value={specs.ip_rating} />}
                   {typeof specs.dimmable === 'boolean' && <SpecRow label="Dimmable" value={specs.dimmable ? 'Yes' : 'No'} />}
-                  {product.shipping_notes && <SpecRow label="Shipping" value={product.shipping_notes} />}
                 </tbody>
               </table>
               {specs.technical_notes && (
@@ -267,6 +286,14 @@ export default async function ProductDetailPage({ params }: Props) {
                   {specs.technical_notes}
                 </div>
               )}
+
+              {/* Delivery & notes */}
+              <div style={{ marginTop: 24 }}>
+                <div className="label label-sage" style={{ marginBottom: 12 }}>Delivery &amp; notes</div>
+                <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--stone)' }}>
+                  {product.shipping_notes || DEFAULT_SHIPPING_NOTE}
+                </p>
+              </div>
             </div>
           )}
         </div>
@@ -279,8 +306,7 @@ export default async function ProductDetailPage({ params }: Props) {
               <div className="label label-sage" style={{ marginBottom: 24 }}>More from this category</div>
               <div className="grid-4">
                 {related.map((rp: Record<string, unknown>) => (
-                  <Link key={rp.id as string} href={`/products/${rp.slug}`}
-                    style={{ display: 'block' }}>
+                  <Link key={rp.id as string} href={`/products/${rp.slug}`} style={{ display: 'block' }}>
                     <div className="product-card">
                       <div className="product-card-image">
                         <Image
@@ -289,6 +315,11 @@ export default async function ProductDetailPage({ params }: Props) {
                         />
                       </div>
                       <div className="product-card-meta">
+                        {(rp.category as { name?: string } | null)?.name && (
+                          <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--stone)', marginBottom: 4 }}>
+                            {(rp.category as { name?: string }).name}
+                          </div>
+                        )}
                         <div className="product-card-name">{rp.name as string}</div>
                       </div>
                     </div>
@@ -308,9 +339,9 @@ export default async function ProductDetailPage({ params }: Props) {
             '@context':  'https://schema.org',
             '@type':     'Product',
             name:        product.name,
-            description: product.description.substring(0, 200),
+            description: (product.technical_description || product.description).substring(0, 200),
             image:       product.images?.[0],
-            brand:       { '@type': 'Brand', name: product.artisan?.name ?? 'Full Bloom Artelier' },
+            brand:       { '@type': 'Brand', name: showBrand ? product.artisan.name : 'Full Bloom Artelier' },
             sku:         product.sku ?? product.reference_code,
             offers: {
               '@type':       'Offer',
@@ -326,26 +357,26 @@ export default async function ProductDetailPage({ params }: Props) {
   )
 }
 
+function mapFinish(f: Record<string, unknown>): FinishOption {
+  return {
+    id: f.id as string,
+    finishName: f.finish_name as string,
+    finishCode: (f.finish_code as string | null) ?? null,
+    material: (f.material as string | null) ?? null,
+    colour: (f.colour as string | null) ?? null,
+    swatchUrl: (f.swatch_url as string | null) ?? null,
+    comAccepted: (f.com_accepted as boolean | null) ?? null,
+    rubCount: (f.rub_count as number | null) ?? null,
+    fireTreatment: (f.fire_treatment as string | null) ?? null,
+    available: f.availability !== 'unavailable',
+  }
+}
+
 function SpecRow({ label, value }: { label: string; value: string }) {
   return (
     <tr>
       <td style={{ fontWeight: 500, width: '40%', fontSize: 12, color: 'var(--stone)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</td>
       <td>{value}</td>
     </tr>
-  )
-}
-
-function SaveToProjectButton({ product, session }: { product: Record<string,unknown>; session: SessionUser | null }) {
-  if (!session) {
-    return (
-      <Link href={`/login?next=/products/${product.slug}`} className="btn btn-secondary btn-full">
-        Sign in to Save to Project
-      </Link>
-    )
-  }
-  return (
-    <Link href={`/account/projects?add=${product.id as string}`} className="btn btn-secondary btn-full">
-      Save to Project
-    </Link>
   )
 }
