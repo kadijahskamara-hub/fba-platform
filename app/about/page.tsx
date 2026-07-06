@@ -7,11 +7,6 @@ export const metadata = {
   description: 'Full Bloom Artelier is a London-based FF&E procurement studio founded by Kadijahta Kamara.',
 }
 
-const STATS = [
-  { value: '9',  label: 'Vetted Maker Studios' },
-  { value: '6',  label: 'Countries of Origin'  },
-  { value: '47', label: 'Products in the Edit' },
-]
 
 const SERVICES = [
   {
@@ -43,7 +38,6 @@ const PASSPORT_CRITERIA = [
   'ISTA 3A packaging compliance for international freight',
 ]
 
-const COUNTRIES = ['Italy', 'India', 'Morocco', 'France', 'Indonesia', 'Vietnam']
 
 const PROCESS_STEPS = [
   {
@@ -103,7 +97,47 @@ const FOUNDER_DEFAULTS: Required<FounderSettings> = {
   previously:    'KCA International · SMC Design · GA Group · Russell Sage Studio',
 }
 
+/** Derive a clean country name from free-text origins like "Valencia, Spain". */
+function countryOf(raw: string | null): string | null {
+  if (!raw) return null
+  const last = raw.split(',').pop()?.trim()
+  if (!last || last.length < 3) return null
+  return last.replace(/\b\w/g, ch => ch.toUpperCase())
+}
+
 export default async function AboutPage() {
+  // Live stats — update automatically as the catalogue changes (site brief §4.1/§4.4)
+  const [
+    { count: productCount },
+    { count: artisanCount },
+    { data: originRows },
+    { data: artisanRows },
+  ] = await Promise.all([
+    supabaseAdmin.from('products').select('*', { count: 'exact', head: true })
+      .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null),
+    supabaseAdmin.from('artisans').select('*', { count: 'exact', head: true }).eq('is_active', true),
+    supabaseAdmin.from('products').select('shipping_origin, origin_region')
+      .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null).limit(2000),
+    supabaseAdmin.from('artisans').select('location').eq('is_active', true),
+  ])
+
+  const countrySet = new Set<string>()
+  for (const r of originRows ?? []) {
+    const c1 = countryOf(r.shipping_origin) ?? countryOf(r.origin_region)
+    if (c1) countrySet.add(c1)
+  }
+  for (const a of artisanRows ?? []) {
+    const c1 = countryOf(a.location)
+    if (c1) countrySet.add(c1)
+  }
+  const COUNTRIES = [...countrySet].sort()
+
+  const STATS = [
+    { value: String(artisanCount ?? 0),  label: 'Vetted Maker Studios' },
+    { value: String(COUNTRIES.length),   label: 'Countries of Origin'  },
+    { value: String(productCount ?? 0),  label: 'Products in the Edit' },
+  ]
+
   const [heroImage, founderRaw] = await Promise.all([
     getHeroImage('about_hero_image', 'About Full Bloom Artelier'),
     getFounderSettings(),
@@ -184,19 +218,30 @@ export default async function AboutPage() {
                 fontWeight: 300, color: 'var(--forest)', letterSpacing: '0',
                 marginBottom: 28, lineHeight: 1.15,
               }}>
-                Good design should never<br />
-                fail at the <em>specification stage.</em>
+                Sourcing should be as inspiring<br />
+                as <em>designing.</em>
               </h2>
               <p style={{ fontSize: 15, color: 'var(--stone)', lineHeight: 1.85, marginBottom: 20 }}>
-                Full Bloom Artelier was founded on a single, recurring frustration: that the most interesting
-                makers in the world — the Veneto craftsmen, the Jaipur woodcarvers, the Marrakech ceramicists
-                — were regularly failing hospitality specification reviews. Not because their work was not good
-                enough. Because nobody had done the compliance work upfront.
+                We created a platform where interior designers, architects, and developers can discover
+                beautifully curated furniture, lighting, and bespoke pieces that are not only design-led,
+                but commercially viable, technically compliant, and price-conscious.
+              </p>
+              <p style={{ fontSize: 15, color: 'var(--stone)', lineHeight: 1.85, marginBottom: 20 }}>
+                Too often, designers lose valuable time navigating thousands of products, checking regulations,
+                value engineering specifications, creating countless mock-ups, and coordinating multiple
+                suppliers. The procurement process becomes a barrier to creativity. We are changing that.
+              </p>
+              <p style={{ fontSize: 15, color: 'var(--stone)', lineHeight: 1.85, marginBottom: 20 }}>
+                Full Bloom Artelier connects designers with trusted suppliers, artisans, and manufacturers
+                from around the world through one carefully curated platform. From sourcing and product
+                development to manufacturing, logistics, and final delivery, we help manage the journey —
+                making commercial procurement simpler, faster, and more transparent.
               </p>
               <p style={{ fontSize: 15, color: 'var(--stone)', lineHeight: 1.85, marginBottom: 32 }}>
-                FBA fixes that. Before any product enters the Edit, we visit the maker in person, audit their
-                production process, and build out the full Technical Passport. You specify from the Edit;
-                the documentation is already done.
+                But we are building more than a marketplace. We are creating a global design community where
+                independent designers can showcase bespoke collections adapted for commercial projects
+                worldwide — while supporting the next generation of designers with guidance on responsible
+                sourcing, material selection, compliance, procurement, and sustainable manufacturing.
               </p>
             </div>
             <div>
@@ -215,6 +260,37 @@ export default async function AboutPage() {
               </blockquote>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* VISION + PILLARS */}
+      <section style={{ padding: 'clamp(56px, 7vw, 80px) 0', background: 'var(--warm-white)', borderTop: '1px solid var(--light-line)' }}>
+        <div className="container" style={{ textAlign: 'center' }}>
+          <div className="label label-sage" style={{ marginBottom: 16 }}>Built by designers for designers</div>
+          <h2 style={{
+            fontFamily: 'var(--font-serif)', fontSize: 'clamp(24px, 3vw, 40px)',
+            fontWeight: 300, color: 'var(--forest)', maxWidth: 820, margin: '0 auto 56px', lineHeight: 1.35,
+          }}>
+            Our vision is simple: to make exceptional commercial design accessible, sustainable, and
+            effortless — connecting creativity with craftsmanship on a <em>global scale.</em>
+          </h2>
+          <div className="fba-grid-3" style={{ gap: 32, textAlign: 'left' }}>
+            {[
+              { title: 'Curate',  body: 'Beautiful, commercially viable furniture and lighting from trusted global manufacturers.' },
+              { title: 'Create',  body: 'Bespoke furniture and lighting developed with designers and manufactured to commercial standards.' },
+              { title: 'Connect', body: 'Bringing together designers, suppliers, artisans, and manufacturers on one intelligent platform while educating the next generation of design professionals.' },
+            ].map(pillar => (
+              <div key={pillar.title} style={{ padding: 32, background: 'var(--cream)', border: '1px solid var(--light-line)' }}>
+                <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 24, fontWeight: 300, color: 'var(--forest)', marginBottom: 12 }}>
+                  {pillar.title}
+                </h3>
+                <p style={{ fontSize: 14, color: 'var(--stone)', lineHeight: 1.75 }}>{pillar.body}</p>
+              </div>
+            ))}
+          </div>
+          <p style={{ fontSize: 13, color: 'var(--stone)', marginTop: 40, letterSpacing: '0.04em' }}>
+            Beautifully curated furniture for every contract requirement.
+          </p>
         </div>
       </section>
 
@@ -332,6 +408,11 @@ export default async function AboutPage() {
                 Countries of Origin
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                {COUNTRIES.length === 0 && (
+                  <span style={{ fontSize: 13, color: 'rgba(247,243,238,0.6)', fontStyle: 'italic' }}>
+                    Supplier locations coming soon.
+                  </span>
+                )}
                 {COUNTRIES.map(c => (
                   <span key={c} style={{
                     padding: '6px 16px', border: '1px solid rgba(196,168,130,0.25)',

@@ -214,7 +214,7 @@ export default async function HomePage() {
               {hs.headline_3 ?? 'Precisely.'}
             </h1>
             <p style={{ fontSize: 16, lineHeight: 1.75, color: 'rgba(247,243,238,0.70)', marginBottom: 44, maxWidth: 500 }}>
-              {hs.subtitle ?? "Full Bloom Artelier connects interior designers, architects, and hospitality developers with the world’s finest makers — hand-vetted, technically compliant, and ready for your most demanding projects."}
+              {hs.subtitle ?? "Beautiful design, delivered without compromise. Full Bloom Artelier connects interior designers, architects, and hospitality developers with curated furniture, lighting, finishes, and bespoke pieces — hand-vetted, technically compliant, and ready for commercial projects."}
             </p>
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
               <Link href={hs.cta_primary_href ?? '/trade/apply'} className="btn btn-sand">
@@ -224,6 +224,9 @@ export default async function HomePage() {
                 {hs.cta_secondary ?? 'Browse the Edit'}
               </Link>
             </div>
+            <p style={{ fontSize: 12, letterSpacing: '0.08em', color: 'rgba(196,168,130,0.75)', marginTop: 28 }}>
+              Built by designers for designers · Curated furniture for every contract requirement
+            </p>
           </div>
         </div>
 

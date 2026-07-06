@@ -46,9 +46,9 @@ export function Footer() {
             </div>
 
             <p style={{ fontSize: 13, lineHeight: 1.8, maxWidth: 280, marginBottom: 28 }}>
-              A London-based design procurement studio. We source and procure exceptional
-              handcrafted furniture, lighting and objects for interior designers, architects
-              and property developers.
+              A London-based global design procurement ecosystem that combines curated sourcing,
+              bespoke product development, manufacturing partnerships, procurement management,
+              logistics, education, and a collaborative design community.
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

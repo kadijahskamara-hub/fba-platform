@@ -104,7 +104,7 @@ export function TheEditHero({ categories, heroImage, activeCategory, onCategory 
               flexShrink:  0,
             }}>
               Every finish in this catalogue has been selected by FBA.
-              Not everything the maker offers — only the best of what they have.
+              Not everything the artisan offers — only the best of what they have.
             </p>
 
           </div>
