@@ -5,6 +5,11 @@ import { getSession } from '@/lib/auth'
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
+
+    // Honeypot: hidden "website" field — bots fill it, humans never see it.
+    if (typeof body.hp === 'string' && body.hp.trim() !== '') {
+      return NextResponse.json({ success: true })
+    }
     const {
       firstName, lastName, email, phone,
       companyName, businessType, website, location,

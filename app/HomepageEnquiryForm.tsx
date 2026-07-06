@@ -29,6 +29,7 @@ export default function HomepageEnquiryForm({ dark = false }: Props) {
     projectLocation: '',
     estimatedBudget: '',
     consentMarketing: false,
+    website: '',  // honeypot — bots fill it, humans never see it
   })
   const [state, setState] = useState<FormState>('idle')
   const [error, setError] = useState('')
@@ -106,6 +107,17 @@ export default function HomepageEnquiryForm({ dark = false }: Props) {
 
   return (
     <form onSubmit={handleSubmit}>
+      {/* Honeypot — invisible to humans, catches bots */}
+      <input
+        type="text"
+        name="website"
+        value={form.website}
+        onChange={e => update('website', e.target.value)}
+        tabIndex={-1}
+        autoComplete="off"
+        aria-hidden="true"
+        style={{ position: 'absolute', left: '-9999px', height: 0, width: 0, opacity: 0 }}
+      />
       {/* Row 1: Name */}
       <div className="fba-form-row" style={{ marginBottom: 16 }}>
         <div className="form-group">

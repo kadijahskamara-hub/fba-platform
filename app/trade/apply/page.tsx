@@ -13,6 +13,7 @@ export default function TradeApplyPage() {
   const [apiError, setApiError] = useState('')
 
   const [form, setForm] = useState({
+    hp: '',  // honeypot — bots fill it, humans never see it
     firstName: '',
     lastName: '',
     email: '',
@@ -160,6 +161,8 @@ export default function TradeApplyPage() {
         )}
 
         <form onSubmit={handleSubmit} noValidate>
+            {/* Honeypot — invisible to humans, catches bots */}
+            <input type="text" name="website" value={form.hp} onChange={e => setForm(f => ({ ...f, hp: e.target.value }))} tabIndex={-1} autoComplete="off" aria-hidden="true" style={{ position: 'absolute', left: '-9999px', height: 0, width: 0, opacity: 0 }} />
 
           {/* Personal details */}
           <div style={{ marginBottom: 32 }}>

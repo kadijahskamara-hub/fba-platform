@@ -24,6 +24,12 @@ export async function POST(req: NextRequest) {
     consentMarketing = false,
   } = body
 
+  // Honeypot: hidden "website" field — bots fill it, humans never see it.
+  // Return success without storing so bots can't detect the trap.
+  if (typeof body.website === 'string' && body.website.trim() !== '') {
+    return NextResponse.json({ success: true })
+  }
+
   if (!email?.trim() || !message?.trim() || !enquiryType) {
     return NextResponse.json(
       { success: false, error: 'email, enquiryType, and message are required.' },
