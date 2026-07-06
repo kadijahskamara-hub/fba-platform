@@ -2,10 +2,19 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { supabaseAdmin } from '@/lib/supabase'
 import { createSession } from '@/lib/auth'
+import { checkRateLimit, getClientIp } from '@/lib/rateLimit'
 import type { SessionUser } from '@/lib/types'
 
 export async function POST(req: NextRequest) {
   try {
+    const rl = checkRateLimit(`register:${getClientIp(req)}`, 5, 60_000)
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { success: false, error: 'Too many attempts. Please try again in a minute.' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfter ?? 60) } },
+      )
+    }
+
     const body = await req.json()
     const { firstName, lastName, email, password, consentMarketing = false } = body
 

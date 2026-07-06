@@ -3,7 +3,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { getSession } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
-import { resolvePrice } from '@/lib/pricing'
+import { resolvePrice, formatPrice, canSeeTradePricing } from '@/lib/pricing'
 import { RemoveItemButton, RequestQuoteButton, ExportScheduleButton } from './ProjectActions'
 
 export default async function ProjectDetailPage({ params }: { params: { id: string } }) {
@@ -26,12 +26,38 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
       product:products(
         id, name, slug, images, short_description,
         retail_price, trade_price, price_type, currency,
+        visibility, archived_at, deleted_at,
         artisan:artisans(name, slug),
         category:categories(name)
       )
     `)
     .eq('project_id', params.id)
     .order('created_at')
+
+  const showTrade = canSeeTradePricing(session)
+
+  // Derive per-row pricing + a project subtotal. Unlisted (archived/
+  // deleted/unpublished) products are kept visible but flagged, so a
+  // saved project never breaks when a piece leaves the public catalogue.
+  const rows = (items ?? []).map((item: Record<string, unknown>) => {
+    const prod = (item.product ?? null) as Record<string, unknown> | null
+    const missing  = !prod
+    const unlisted = !!prod && (
+      prod.archived_at != null || prod.deleted_at != null || prod.visibility !== 'published'
+    )
+    const priceD = prod ? resolvePrice(prod as Parameters<typeof resolvePrice>[0], session)
+                        : { type: 'request' as const, label: 'Unavailable' }
+    const qty     = (item.quantity as number) ?? 1
+    const unitAmt = priceD.type === 'fixed' ? priceD.amount : null
+    const total   = unitAmt != null ? unitAmt * qty : null
+    return { item, prod, missing, unlisted, priceD, qty, total }
+  })
+
+  const currency  = (rows.find(r => r.priceD.type === 'fixed')?.priceD as { currency?: 'GBP' | 'EUR' | 'USD' } | undefined)?.currency ?? 'GBP'
+  const subtotal  = rows.reduce((sum, r) => sum + (r.total ?? 0), 0)
+  const porCount  = rows.filter(r => r.priceD.type !== 'fixed').length
+  const budget    = project.budget != null ? Number(project.budget) : null
+  const overBudget = budget != null && subtotal > budget
 
   return (
     <div className="page-body">
@@ -57,7 +83,7 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
           {/* Actions row */}
           <div style={{ display: 'flex', gap: 12, marginBottom: 40 }}>
             <RequestQuoteButton projectId={project.id} />
-            <ExportScheduleButton projectName={project.name} />
+            <ExportScheduleButton />
           </div>
 
           {!items?.length ? (
@@ -85,52 +111,93 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
                     </tr>
                   </thead>
                   <tbody>
-                    {items.map((item: Record<string, unknown>) => {
-                      const prod = item.product as Record<string,unknown>
-                      const priceD = resolvePrice(prod as Parameters<typeof resolvePrice>[0], session)
-                      const unitAmt = priceD.type === 'fixed' ? priceD.amount : null
-                      const qty     = item.quantity as number
-                      const total   = unitAmt ? unitAmt * qty : null
-
-                      return (
-                        <tr key={item.id as string}>
-                          <td>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                              <div style={{ width: 56, height: 56, flexShrink: 0, overflow: 'hidden', position: 'relative', background: 'var(--sage-light)' }}>
-                                {(prod.images as string[])?.[0] && (
-                                  <Image src={(prod.images as string[])[0]} alt={prod.name as string} fill style={{ objectFit: 'cover' }} />
-                                )}
-                              </div>
-                              <div>
-                                <Link href={`/products/${prod.slug}`} style={{ fontWeight: 500, fontSize: 14, color: 'var(--forest)' }}>
-                                  {prod.name as string}
-                                </Link>
-                              </div>
+                    {rows.map(({ item, prod, missing, unlisted, priceD, qty, total }) => (
+                      <tr key={item.id as string}>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                            <div style={{ width: 56, height: 56, flexShrink: 0, overflow: 'hidden', position: 'relative', background: 'var(--sage-light)' }}>
+                              {!missing && (prod!.images as string[])?.[0] && (
+                                <Image src={(prod!.images as string[])[0]} alt={prod!.name as string} fill style={{ objectFit: 'cover' }} />
+                              )}
                             </div>
-                          </td>
-                          <td style={{ fontSize: 13, color: 'var(--stone)' }}>
-                            {(prod.category as Record<string,string> | null)?.name ?? '—'}
-                          </td>
-                          <td style={{ fontSize: 13, color: 'var(--stone)' }}>
-                            {(prod.artisan as Record<string,string> | null)?.name ?? '—'}
-                          </td>
-                          <td>
-                            {priceD.type === 'fixed' ? priceD.label : (
-                              <span style={{ fontStyle: 'italic', color: 'var(--stone)', fontSize: 12 }}>POR</span>
-                            )}
-                          </td>
-                          <td style={{ fontSize: 14 }}>{qty}</td>
-                          <td style={{ fontWeight: 500 }}>
-                            {total ? `£${total.toLocaleString()}` : '—'}
-                          </td>
-                          <td>
-                            <RemoveItemButton projectId={project.id} itemId={item.id as string} />
-                          </td>
-                        </tr>
-                      )
-                    })}
+                            <div>
+                              {missing ? (
+                                <span style={{ fontWeight: 500, fontSize: 14, color: 'var(--stone)' }}>Item no longer available</span>
+                              ) : unlisted ? (
+                                <>
+                                  <span style={{ fontWeight: 500, fontSize: 14, color: 'var(--forest)' }}>{prod!.name as string}</span>
+                                  <div style={{ fontSize: 11, color: 'var(--caramel)', marginTop: 2 }}>
+                                    No longer publicly listed — contact FBA
+                                  </div>
+                                </>
+                              ) : (
+                                <Link href={`/products/${prod!.slug}`} style={{ fontWeight: 500, fontSize: 14, color: 'var(--forest)' }}>
+                                  {prod!.name as string}
+                                </Link>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ fontSize: 13, color: 'var(--stone)' }}>
+                          {(prod?.category as Record<string,string> | null)?.name ?? '—'}
+                        </td>
+                        <td style={{ fontSize: 13, color: 'var(--stone)' }}>
+                          {(prod?.artisan as Record<string,string> | null)?.name ?? '—'}
+                        </td>
+                        <td>
+                          {priceD.type === 'fixed' ? priceD.label : (
+                            <span style={{ fontStyle: 'italic', color: 'var(--stone)', fontSize: 12 }}>POR</span>
+                          )}
+                        </td>
+                        <td style={{ fontSize: 14 }}>{qty}</td>
+                        <td style={{ fontWeight: 500 }}>
+                          {total != null ? formatPrice(total, currency) : '—'}
+                        </td>
+                        <td>
+                          <RemoveItemButton projectId={project.id} itemId={item.id as string} />
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Budget summary */}
+              <div style={{
+                marginTop: 24, padding: '20px 24px', background: 'var(--cream)',
+                border: '1px solid var(--light-line)', display: 'flex',
+                justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16,
+              }}>
+                <div style={{ fontSize: 12, color: 'var(--stone)', lineHeight: 1.7, maxWidth: 460 }}>
+                  {showTrade
+                    ? 'Totals reflect your trade pricing.'
+                    : 'Totals reflect indicative retail pricing. Trade pricing is available to approved trade accounts.'}
+                  {porCount > 0 && (
+                    <> {porCount} item{porCount !== 1 ? 's are' : ' is'} priced on request and not included in the subtotal — request a quote for a full figure.</>
+                  )}
+                </div>
+                <div style={{ textAlign: 'right', minWidth: 200 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 32, fontSize: 14, marginBottom: budget != null ? 8 : 0 }}>
+                    <span style={{ color: 'var(--stone)' }}>Subtotal{showTrade ? ' (trade)' : ''}</span>
+                    <span style={{ fontWeight: 600, color: 'var(--forest)' }}>{formatPrice(subtotal, currency)}</span>
+                  </div>
+                  {budget != null && (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 32, fontSize: 13, marginBottom: 8 }}>
+                        <span style={{ color: 'var(--stone)' }}>Budget</span>
+                        <span style={{ color: 'var(--stone)' }}>{formatPrice(budget, currency)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 32, fontSize: 13, paddingTop: 8, borderTop: '1px solid var(--light-line)' }}>
+                        <span style={{ color: overBudget ? 'var(--danger)' : 'var(--forest)' }}>
+                          {overBudget ? 'Over budget' : 'Remaining'}
+                        </span>
+                        <span style={{ fontWeight: 600, color: overBudget ? 'var(--danger)' : 'var(--forest)' }}>
+                          {formatPrice(Math.abs(budget - subtotal), currency)}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
 
               {/* Notes */}

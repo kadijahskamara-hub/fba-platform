@@ -138,9 +138,10 @@ export default async function AboutPage() {
     { value: String(productCount ?? 0),  label: 'Products in the Edit' },
   ]
 
-  const [heroImage, founderRaw] = await Promise.all([
+  const [heroImage, founderRaw, makerImage] = await Promise.all([
     getHeroImage('about_hero_image', 'About Full Bloom Artelier'),
     getFounderSettings(),
+    getHeroImage('about_maker_image', 'FBA maker studio'),
   ])
   const f = { ...FOUNDER_DEFAULTS, ...founderRaw }
   return (
@@ -247,8 +248,8 @@ export default async function AboutPage() {
             <div>
               <div style={{ position: 'relative', aspectRatio: '4/5', overflow: 'hidden', marginBottom: 24 }}>
                 <Image
-                  src="https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg?auto=compress&cs=tinysrgb&w=800"
-                  alt="FBA maker studio" fill style={{ objectFit: 'cover' }}
+                  src={makerImage.url || 'https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg?auto=compress&cs=tinysrgb&w=800'}
+                  alt={makerImage.alt || 'FBA maker studio'} fill style={{ objectFit: 'cover' }}
                 />
               </div>
               <blockquote style={{

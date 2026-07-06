@@ -77,6 +77,10 @@ export default async function ProductDetailPage({ params }: Props) {
 
   const price = resolvePrice(product, session)
   const specs = product.specifications
+  // Electrical specs (bulb, wattage, voltage, dimmable) only apply to
+  // lighting. `dimmable` is a non-null boolean that defaults to false, so
+  // without this gate every table/sofa wrongly showed "Dimmable: No".
+  const isLighting = (product.category as { slug?: string } | null)?.slug === 'lighting'
 
   const hardFinishes: FinishOption[] = (finishes ?? [])
     .filter((f: Record<string, unknown>) => f.finish_category === 'hard_finish')
@@ -273,11 +277,11 @@ export default async function ProductDetailPage({ params }: Props) {
                   {specs.fabric         && <SpecRow label="Fabric"      value={specs.fabric} />}
                   {specs.com_available  && <SpecRow label="COM"         value="Available" />}
                   {specs.care_instructions && <SpecRow label="Care"     value={specs.care_instructions} />}
-                  {specs.bulb_type   && <SpecRow label="Bulb type"   value={specs.bulb_type} />}
-                  {specs.wattage     && <SpecRow label="Wattage"     value={specs.wattage} />}
-                  {specs.voltage     && <SpecRow label="Voltage"     value={specs.voltage} />}
+                  {isLighting && specs.bulb_type && <SpecRow label="Bulb type" value={specs.bulb_type} />}
+                  {isLighting && specs.wattage   && <SpecRow label="Wattage"   value={specs.wattage} />}
+                  {isLighting && specs.voltage   && <SpecRow label="Voltage"   value={specs.voltage} />}
                   {specs.ip_rating   && <SpecRow label="IP rating"   value={specs.ip_rating} />}
-                  {typeof specs.dimmable === 'boolean' && <SpecRow label="Dimmable" value={specs.dimmable ? 'Yes' : 'No'} />}
+                  {isLighting && typeof specs.dimmable === 'boolean' && <SpecRow label="Dimmable" value={specs.dimmable ? 'Yes' : 'No'} />}
                 </tbody>
               </table>
               {specs.technical_notes && (

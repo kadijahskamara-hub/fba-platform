@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
+import { checkRateLimit, getClientIp } from '@/lib/rateLimit'
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: unauthenticated endpoint that can create user rows.
+    const rl = checkRateLimit(`trade-apply:${getClientIp(req)}`, 5, 60_000)
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { success: false, error: 'Too many submissions. Please try again in a minute.' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfter ?? 60) } },
+      )
+    }
+
     const body = await req.json()
 
     // Honeypot: hidden "website" field — bots fill it, humans never see it.

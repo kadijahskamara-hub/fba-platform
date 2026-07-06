@@ -3,12 +3,17 @@ import { randomBytes } from 'crypto'
 import bcrypt from 'bcryptjs'
 import { supabaseAdmin } from '@/lib/supabase'
 import { sendPasswordResetEmail } from '@/lib/email'
+import { checkRateLimit, getClientIp } from '@/lib/rateLimit'
 
 // Always return the same response to prevent email enumeration
-const OK = NextResponse.json({ success: true })
+const OK = () => NextResponse.json({ success: true })
 
 export async function POST(req: NextRequest) {
   try {
+    // Throttle to prevent password-reset email bombing / enumeration probing.
+    const rl = checkRateLimit(`forgot-pw:${getClientIp(req)}`, 4, 60_000)
+    if (!rl.allowed) return OK() // silent throttle — don't reveal anything
+
     const { email } = await req.json()
 
     if (!email || typeof email !== 'string') {
@@ -28,7 +33,7 @@ export async function POST(req: NextRequest) {
       .single()
 
     // If no user, return OK silently (don't reveal email doesn't exist)
-    if (!user || user.status === 'suspended') return OK
+    if (!user || user.status === 'suspended') return OK()
 
     // Generate a 48-byte random token (URL-safe base64)
     const rawToken  = randomBytes(48).toString('base64url')
@@ -54,7 +59,7 @@ export async function POST(req: NextRequest) {
 
     if (insertError) {
       console.error('[forgot-password] DB insert error:', insertError)
-      return OK // Still return OK to avoid revealing server errors
+      return OK() // Still return OK to avoid revealing server errors
     }
 
     // Build the reset URL — include the raw token in the link
@@ -67,10 +72,10 @@ export async function POST(req: NextRequest) {
       console.warn('[forgot-password] Reset email not sent for user:', user.id)
     }
 
-    return OK
+    return OK()
 
   } catch (err) {
     console.error('[forgot-password] Error:', err)
-    return OK // Always OK to prevent enumeration
+    return OK() // Always OK to prevent enumeration
   }
 }

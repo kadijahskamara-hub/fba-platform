@@ -5,6 +5,7 @@ import { LaunchControlsPanel } from './LaunchControlsPanel'
 import { HeroImageUploader } from '@/components/admin/HeroImageUploader'
 import { FounderSettingsPanel } from '@/components/admin/FounderSettingsPanel'
 import { HomeHeroSettingsPanel } from '@/components/admin/HomeHeroSettingsPanel'
+import { NetworkRegionsPanel } from '@/components/admin/NetworkRegionsPanel'
 
 export const metadata = { title: 'Studio Settings' }
 
@@ -36,6 +37,7 @@ export default async function AdminSettingsPage() {
     regions, flags,
     heroTheEdit, heroHome, heroCollection, heroArtisans, heroJournal, heroAbout,
     founderSettings, homeHeroSettings,
+    networkRegions, pillarsImage, makerImage,
   ] = await Promise.all([
     getRegionSettings(),
     getFlags(),
@@ -47,6 +49,9 @@ export default async function AdminSettingsPage() {
     getHeroImage('about_hero_image',      'About Full Bloom Artelier'),
     getSetting('founder_settings'),
     getSetting('home_hero_settings'),
+    getSetting('network_regions'),
+    getHeroImage('home_pillars_image',    'Luxury hotel — Full Bloom Artelier'),
+    getHeroImage('about_maker_image',     'FBA maker studio'),
   ])
 
   return (
@@ -197,6 +202,30 @@ export default async function AdminSettingsPage() {
             <HeroImageUploader pageKey="about_hero_image"      label="About"          initialValue={heroAbout} />
           </div>
 
+        </div>
+      </div>
+
+      {/* ── Homepage Network Cards ────────────────────────── */}
+      <div className="admin-section" style={{ marginTop: 48 }}>
+        <div className="stat-card" style={{ padding: '28px 32px' }}>
+          <NetworkRegionsPanel initialValue={networkRegions as any} />
+        </div>
+      </div>
+
+      {/* ── Content Images ────────────────────────────────── */}
+      <div className="admin-section" style={{ marginTop: 48 }}>
+        <h2 className="admin-section-title" style={{ marginBottom: 8 }}>Content Images</h2>
+        <p style={{ fontSize: 13, color: 'var(--stone)', marginBottom: 28 }}>
+          Editable marketing images that appear within the homepage and About page. Leave blank to fall back to the built-in default.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 24 }}>
+          <div className="stat-card" style={{ padding: '28px 32px' }}>
+            <HeroImageUploader pageKey="home_pillars_image" label="Homepage — “What We Do” band" initialValue={pillarsImage} />
+          </div>
+          <div className="stat-card" style={{ padding: '28px 32px' }}>
+            <HeroImageUploader pageKey="about_maker_image"  label="About — maker studio image"    initialValue={makerImage} />
+          </div>
         </div>
       </div>
 

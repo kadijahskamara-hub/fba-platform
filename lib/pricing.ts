@@ -28,7 +28,14 @@ export function resolvePrice(
   product: Pick<Product, 'retailPrice' | 'tradePrice' | 'priceType' | 'currency'>,
   session: SessionUser | null
 ): PriceDisplay {
-  const { retailPrice, tradePrice, priceType, currency } = product
+  // Tolerate both camelCase (mapped Product objects) and snake_case
+  // (raw Supabase rows). Several callers — e.g. the Project Board —
+  // pass rows straight from the DB, so read either spelling.
+  const p = product as Record<string, unknown>
+  const retailPrice = (p.retailPrice ?? p.retail_price) as number | null | undefined
+  const tradePrice  = (p.tradePrice  ?? p.trade_price)  as number | null | undefined
+  const priceType   = (p.priceType   ?? p.price_type)   as string | undefined
+  const currency    = ((p.currency as string | undefined) ?? 'GBP')
 
   if (priceType === 'price_on_request') {
     return { type: 'request', label: 'Price on request' }

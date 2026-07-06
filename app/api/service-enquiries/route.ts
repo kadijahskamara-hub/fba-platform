@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
+import { checkRateLimit, getClientIp } from '@/lib/rateLimit'
 
 /**
  * POST /api/service-enquiries
@@ -8,6 +9,15 @@ import { getSession } from '@/lib/auth'
  * Stores in both `service_enquiries` and `contacts` tables.
  */
 export async function POST(req: NextRequest) {
+  // Rate limit unauthenticated form submissions (spam defence-in-depth).
+  const rl = checkRateLimit(`service-enquiry:${getClientIp(req)}`, 6, 60_000)
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'Too many submissions. Please try again in a minute.' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfter ?? 60) } },
+    )
+  }
+
   const session = await getSession()
 
   const body = await req.json()

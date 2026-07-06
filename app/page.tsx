@@ -131,6 +131,27 @@ async function getHomeHeroSettings(): Promise<HomeHeroSettings> {
   return (data?.value ?? {}) as HomeHeroSettings
 }
 
+interface RegionCard { label: string; desc: string; img: string; alt: string; href: string }
+
+async function getNetworkRegions(): Promise<RegionCard[]> {
+  const { data } = await supabaseAdmin.from('site_settings').select('value').eq('key', 'network_regions').single()
+  const cards = (data?.value as { cards?: Array<{ label?: string; desc?: string; url?: string; alt?: string; href?: string }> } | null)?.cards
+  if (!cards?.length) {
+    // Fallback to built-in defaults if the setting is missing.
+    return REGIONS.map(r => ({ label: r.label, desc: r.desc, img: r.img, alt: r.label, href: '' }))
+  }
+  return cards
+    .filter(c => (c.url || '').trim() || (c.label || '').trim())
+    .map(c => ({
+      label: c.label ?? '',
+      desc:  c.desc ?? '',
+      img:   c.url ?? '',
+      alt:   c.alt || c.label || 'Maker network region',
+      // Only allow internal paths or http(s) links — never javascript: etc.
+      href:  /^\/(?!\/)|^https?:\/\//.test((c.href ?? '').trim()) ? (c.href ?? '').trim() : '',
+    }))
+}
+
 const FOUNDER_DEFAULTS = {
   show_on_home: true,
   show_image:   true,
@@ -142,7 +163,7 @@ const FOUNDER_DEFAULTS = {
 }
 
 export default async function HomePage() {
-  const [session, featuredProducts, artisans, journalPosts, heroImage, founderRaw, heroSettingsRaw] = await Promise.all([
+  const [session, featuredProducts, artisans, journalPosts, heroImage, founderRaw, heroSettingsRaw, regions, pillarsImage] = await Promise.all([
     getSession(),
     getFeaturedProducts(),
     getFeaturedArtisans(),
@@ -150,11 +171,14 @@ export default async function HomePage() {
     getHeroImage('home_hero_image', 'Full Bloom Artelier — Design Procurement Studio'),
     getFounderSettings(),
     getHomeHeroSettings(),
+    getNetworkRegions(),
+    getHeroImage('home_pillars_image', 'Luxury hotel — Full Bloom Artelier'),
   ])
   const f  = { ...FOUNDER_DEFAULTS, ...founderRaw }
   const hs = heroSettingsRaw as HomeHeroSettings
   const heroSrc = hs.images?.[0]?.url || heroImage.url || 'https://images.pexels.com/photos/29649745/pexels-photo-29649745.jpeg?auto=compress&cs=tinysrgb&w=1920'
   const heroAlt = hs.images?.[0]?.alt || heroImage.alt || 'Full Bloom Artelier — curated interiors'
+  const pillarsSrc = pillarsImage.url || 'https://images.pexels.com/photos/1838554/pexels-photo-1838554.jpeg?auto=compress&cs=tinysrgb&w=1920'
 
   const isTradeOrAdmin = session && ['trade_user', 'admin', 'staff'].includes(session.role)
   const tickerFull = [...TICKER_ITEMS, ...TICKER_ITEMS]
@@ -399,8 +423,8 @@ export default async function HomePage() {
       {/* THREE PILLARS */}
       <section style={{ padding: 'clamp(56px, 7vw, 80px) 0', position: 'relative', overflow: 'hidden' }}>
         <Image
-          src="https://images.pexels.com/photos/1838554/pexels-photo-1838554.jpeg?auto=compress&cs=tinysrgb&w=1920"
-          alt="Luxury hotel — Full Bloom Artelier"
+          src={pillarsSrc}
+          alt={pillarsImage.alt || 'Luxury hotel — Full Bloom Artelier'}
           fill
           style={{ objectFit: 'cover', objectPosition: 'center 40%' }}
         />
@@ -453,18 +477,25 @@ export default async function HomePage() {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2, marginBottom: 40 }}>
-            {REGIONS.map(region => (
-              <div key={region.label} style={{ position: 'relative', overflow: 'hidden' }}>
+            {regions.map((region, i) => {
+              const inner = (
                 <div style={{ height: 200, position: 'relative', background: 'var(--sage-light)' }}>
-                  <Image src={region.img} alt={region.label} fill style={{ objectFit: 'cover' }} />
+                  {region.img && <Image src={region.img} alt={region.alt || region.label} fill style={{ objectFit: 'cover' }} />}
                   <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(26,43,24,0.75) 0%, transparent 60%)' }} />
                   <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '20px 20px 18px' }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--cream)', marginBottom: 3 }}>{region.label}</div>
                     <div style={{ fontSize: 11, letterSpacing: '0.08em', color: 'rgba(196,168,130,0.75)' }}>{region.desc}</div>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+              return (
+                <div key={`${region.label}-${i}`} style={{ position: 'relative', overflow: 'hidden' }}>
+                  {region.href
+                    ? <Link href={region.href} style={{ display: 'block' }}>{inner}</Link>
+                    : inner}
+                </div>
+              )
+            })}
           </div>
 
           <div className="fba-grid-2" style={{ background: 'var(--forest)', padding: '48px 56px', gap: 40, alignItems: 'center' }}>

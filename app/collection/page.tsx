@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
 import { getFlags } from '@/lib/flags'
+import { applyAudienceFilter } from '@/lib/productVisibility'
 import { CollectionGrid } from '@/components/CollectionGrid'
 import { HeroImageOverlay } from '@/components/HeroImageOverlay'
 
@@ -21,13 +22,15 @@ export const metadata = {
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
-async function getStats() {
-  const { data } = await supabaseAdmin
+async function getStats(role: string | null | undefined) {
+  let q = supabaseAdmin
     .from('products')
     .select('id')
     .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
     .eq('is_fba_collection', true)
+  q = applyAudienceFilter(q, role)
 
+  const { data } = await q
   return { total: data?.length ?? 0 }
 }
 
@@ -37,9 +40,9 @@ export default async function CollectionPage() {
   const flags = await getFlags()
   if (!flags.show_collection) redirect('/coming-soon')
 
-  const [session, stats, heroImage] = await Promise.all([
-    getSession(),
-    getStats(),
+  const session = await getSession()
+  const [stats, heroImage] = await Promise.all([
+    getStats(session?.role),
     getHeroImage('collection_hero_image', 'The FBA Collection — Limited Edition Pieces'),
   ])
   const isTradeUser = ['trade_user', 'admin', 'staff'].includes(session?.role ?? '')

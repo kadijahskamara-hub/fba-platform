@@ -45,10 +45,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'At least one product or a project is required.' }, { status: 400 })
   }
 
-  // If a projectId is given, collect its items
+  // If a projectId is given, collect its items (carrying quantity through)
   let resolvedProductIds: string[] = productIds
+  let projectLineItems: Array<{ productId: string; quantity: number }> = []
 
-  if (projectId && !productIds.length) {
+  if (projectId && !productIds.length && !richItems.length) {
     // Verify ownership FIRST before fetching any project data
     const { data: project } = await supabaseAdmin
       .from('projects')
@@ -63,10 +64,14 @@ export async function POST(req: NextRequest) {
 
     const { data: items } = await supabaseAdmin
       .from('project_items')
-      .select('product_id')
+      .select('product_id, quantity')
       .eq('project_id', projectId)
 
-    resolvedProductIds = (items ?? []).map(i => i.product_id)
+    projectLineItems = (items ?? []).map(i => ({
+      productId: i.product_id as string,
+      quantity:  Math.min(999, Math.max(1, Number(i.quantity) || 1)),
+    }))
+    resolvedProductIds = projectLineItems.map(i => i.productId)
   }
 
   // Create quote request
@@ -99,6 +104,14 @@ export async function POST(req: NextRequest) {
         selected_finish:  i.selectedFinish,
         selected_fabric:  i.selectedFabric,
         selected_size:    i.selectedSize,
+      }))
+    )
+  } else if (projectLineItems.length) {
+    await supabaseAdmin.from('quote_request_items').insert(
+      projectLineItems.map(i => ({
+        quote_request_id: quote.id,
+        product_id:       i.productId,
+        quantity:         i.quantity,
       }))
     )
   } else if (resolvedProductIds.length) {

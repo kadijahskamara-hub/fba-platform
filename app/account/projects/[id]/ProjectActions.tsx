@@ -28,39 +28,52 @@ export function RemoveItemButton({ projectId, itemId }: { projectId: string; ite
 }
 
 export function RequestQuoteButton({ projectId }: { projectId: string }) {
-  const [sent, setSent] = useState(false)
+  const router = useRouter()
+  const [state, setState] = useState<'idle' | 'sending' | 'sent'>('idle')
+  const [error, setError] = useState<string | null>(null)
 
   const handleClick = async () => {
-    // In production, this opens the quote request flow
-    // For now show a placeholder confirm
-    if (confirm('This will submit a quote request for all items in this project. Continue?')) {
-      setSent(true)
+    if (!confirm('This will submit a quote request to Full Bloom Artelier for all items in this project. Continue?')) return
+    setState('sending')
+    setError(null)
+    try {
+      const res = await fetch('/api/quote-requests', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ projectId }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error ?? 'Could not submit quote request.')
+      setState('sent')
+      router.refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Something went wrong')
+      setState('idle')
     }
   }
 
-  if (sent) {
-    return (
-      <button className="btn btn-primary btn-sm" disabled>
-        ✓ Quote requested
-      </button>
-    )
+  if (state === 'sent') {
+    return <button className="btn btn-primary btn-sm" disabled>✓ Quote requested</button>
   }
 
   return (
-    <button className="btn btn-primary btn-sm" onClick={handleClick}>
-      Request Quote for All Items
-    </button>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+      <button className="btn btn-primary btn-sm" onClick={handleClick} disabled={state === 'sending'}>
+        {state === 'sending' ? 'Submitting…' : 'Request Quote for All Items'}
+      </button>
+      {error && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</span>}
+    </span>
   )
 }
 
-export function ExportScheduleButton({ projectName }: { projectName: string }) {
-  const handleExport = () => {
-    window.open(`${window.location.pathname}/export`, '_blank')
-  }
+export function ExportScheduleButton() {
+  const csv = () => { window.location.href = `${window.location.pathname}/export?format=csv` }
+  const pdf = () => { window.open(`${window.location.pathname}/export?format=html`, '_blank') }
 
   return (
-    <button className="btn btn-secondary btn-sm" onClick={handleExport}>
-      Export Schedule
-    </button>
+    <span style={{ display: 'inline-flex', gap: 8 }}>
+      <button className="btn btn-secondary btn-sm" onClick={csv}>Export CSV</button>
+      <button className="btn btn-secondary btn-sm" onClick={pdf}>Export PDF</button>
+    </span>
   )
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase, supabaseAdmin } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
-import { isProductVisibleTo } from '@/lib/pricing'
+import { applyAudienceFilter } from '@/lib/productVisibility'
 
 export async function GET(req: NextRequest) {
   const session          = await getSession()
@@ -74,6 +74,10 @@ export async function GET(req: NextRequest) {
     query = query.in('audience', ['retail', 'retail_and_trade']) as typeof query
   }
 
+  // Role-based audience visibility applied in SQL so `count` (used for
+  // "N pieces available" + pagination) matches the returned list exactly.
+  query = applyAudienceFilter(query, session?.role) as typeof query
+
   if (search) {
     query = query.or(`name.ilike.%${search}%,short_description.ilike.%${search}%`) as typeof query
   }
@@ -92,8 +96,9 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
 
-  // Filter by visibility for the requesting user's role
-  const products = (data ?? []).filter(p => isProductVisibleTo(p as import('@/lib/types').Product, session))
+  // Audience/visibility filtering is now applied in SQL (above), so `data`
+  // and `count` are consistent — no post-fetch filtering needed.
+  const products = data ?? []
 
   return NextResponse.json({
     success: true,
