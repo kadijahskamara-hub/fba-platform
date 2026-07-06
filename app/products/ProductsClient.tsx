@@ -52,6 +52,8 @@ export function ProductsClient({ session, categories, heroImage, initialFilters 
   const [products,      setProducts]      = useState<Product[]>([])
   const [meta,          setMeta]          = useState({ total: 0, pages: 1, page: 1 })
   const [loading,       setLoading]       = useState(true)
+  const [fetchError,    setFetchError]    = useState(false)
+  const [perPage,       setPerPage]       = useState(20)
   const [quickView,     setQuickView]     = useState<Product | null>(null)
   const [saveProduct,   setSaveProduct]   = useState<Product | null>(null)
   const [searchInput,   setSearchInput]   = useState(initialFilters.q ?? '')
@@ -107,14 +109,22 @@ export function ProductsClient({ session, categories, heroImage, initialFilters 
     if (filters.finishType)              qs.set('finish_type',     filters.finishType)
     if (filters.region)                  qs.set('region',          filters.region)
     qs.set('page',  String(filters.page))
-    qs.set('limit', '24')
+    qs.set('limit', String(perPage))
 
-    const res  = await fetch('/api/products?' + qs)
-    const data = await res.json()
-    setProducts(data.data ?? [])
-    setMeta(data.meta ?? { total: 0, pages: 1, page: 1 })
-    setLoading(false)
-  }, [filters])
+    try {
+      const res  = await fetch('/api/products?' + qs)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setProducts(data.data ?? [])
+      setMeta(data.meta ?? { total: 0, pages: 1, page: 1 })
+      setFetchError(false)
+    } catch {
+      setProducts([])
+      setFetchError(true)
+    } finally {
+      setLoading(false)
+    }
+  }, [filters, perPage])
 
   useEffect(() => { fetchProducts() }, [fetchProducts])
 
@@ -248,8 +258,26 @@ export function ProductsClient({ session, categories, heroImage, initialFilters 
 
             {/* Grid */}
             {loading ? (
-              <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--stone)' }}>
-                Loading…
+              <div className="grid-4" aria-busy="true" aria-label="Loading products">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="product-card" aria-hidden>
+                    <div className="product-card-image" style={{ background: 'var(--sage-light, #e8ece5)', animation: 'fbaPulse 1.4s ease-in-out infinite' }} />
+                    <div className="product-card-meta">
+                      <div style={{ height: 10, width: '38%', background: 'var(--sage-light, #e8ece5)', marginBottom: 8, animation: 'fbaPulse 1.4s ease-in-out infinite' }} />
+                      <div style={{ height: 14, width: '72%', background: 'var(--sage-light, #e8ece5)', marginBottom: 8, animation: 'fbaPulse 1.4s ease-in-out infinite' }} />
+                      <div style={{ height: 12, width: '30%', background: 'var(--sage-light, #e8ece5)', animation: 'fbaPulse 1.4s ease-in-out infinite' }} />
+                    </div>
+                  </div>
+                ))}
+                <style>{`@keyframes fbaPulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.45 } }`}</style>
+              </div>
+            ) : fetchError ? (
+              <div className="empty-state">
+                <h3>Products could not be loaded.</h3>
+                <p>Please check your connection and try again.</p>
+                <button className="btn btn-primary btn-sm" onClick={() => fetchProducts()} style={{ marginTop: 16 }}>
+                  Retry
+                </button>
               </div>
             ) : products.length === 0 ? (
               <div className="empty-state">
@@ -275,18 +303,62 @@ export function ProductsClient({ session, categories, heroImage, initialFilters 
               </div>
             )}
 
-            {/* Pagination */}
-            {meta.pages > 1 && (
-              <div className="pagination">
-                {Array.from({ length: meta.pages }, (_, i) => i + 1).map(p => (
-                  <button
-                    key={p}
-                    className={'page-btn' + (meta.page === p ? ' active' : '')}
-                    onClick={() => setFilters(f => ({ ...f, page: p }))}
+            {/* Pagination — windowed (max 5 page numbers) + per-page selector */}
+            {(meta.pages > 1 || meta.total > 10) && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, flexWrap: 'wrap', marginTop: 32 }}>
+                {meta.pages > 1 && (
+                  <nav className="pagination" aria-label="Product pages" style={{ display: 'flex', alignItems: 'center', gap: 4, margin: 0 }}>
+                    <button
+                      className="page-btn"
+                      onClick={() => setFilters(f => ({ ...f, page: Math.max(1, meta.page - 1) }))}
+                      disabled={meta.page <= 1}
+                      aria-label="Previous page"
+                      style={meta.page <= 1 ? { opacity: 0.35, cursor: 'default' } : undefined}
+                    >
+                      ‹
+                    </button>
+                    {(() => {
+                      const start = Math.max(1, Math.min(meta.page - 2, meta.pages - 4))
+                      const end = Math.min(meta.pages, start + 4)
+                      const pages = []
+                      for (let p = start; p <= end; p++) pages.push(p)
+                      return pages.map(p => (
+                        <button
+                          key={p}
+                          className={'page-btn' + (meta.page === p ? ' active' : '')}
+                          onClick={() => setFilters(f => ({ ...f, page: p }))}
+                          aria-current={meta.page === p ? 'page' : undefined}
+                        >
+                          {p}
+                        </button>
+                      ))
+                    })()}
+                    <button
+                      className="page-btn"
+                      onClick={() => setFilters(f => ({ ...f, page: Math.min(meta.pages, meta.page + 1) }))}
+                      disabled={meta.page >= meta.pages}
+                      aria-label="Next page"
+                      style={meta.page >= meta.pages ? { opacity: 0.35, cursor: 'default' } : undefined}
+                    >
+                      ›
+                    </button>
+                    <span style={{ fontSize: 12, color: 'var(--stone)', marginLeft: 8 }}>
+                      Page {meta.page} of {meta.pages}
+                    </span>
+                  </nav>
+                )}
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--stone)' }}>
+                  View
+                  <select
+                    value={perPage}
+                    onChange={e => { setPerPage(parseInt(e.target.value, 10)); setFilters(f => ({ ...f, page: 1 })) }}
+                    aria-label="Products per page"
+                    style={{ padding: '6px 10px', border: '1px solid var(--light-line)', borderRadius: 4, fontSize: 12, background: 'var(--warm-white)', color: 'var(--forest)' }}
                   >
-                    {p}
-                  </button>
-                ))}
+                    {[10, 20, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                  per page
+                </label>
               </div>
             )}
 

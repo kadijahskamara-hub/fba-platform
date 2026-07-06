@@ -72,7 +72,8 @@ export function ProductCard({ product, session, onQuickView, onSaveToProject }: 
         <Link href={`/products/${product.slug}`}>
           <div className="product-card-name">{product.name}</div>
         </Link>
-        {product.artisan && (
+        {/* Brand/artisan hidden on public cards unless explicitly approved (site brief §7.4) */}
+        {product.artisan && ((product as unknown as Record<string, unknown>).public_brand_visible === true || product.publicBrandVisible === true) && (
           <Link href={`/artisans/${product.artisan.slug}`}>
             <div className="product-card-artisan">{product.artisan.name}</div>
           </Link>

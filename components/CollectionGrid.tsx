@@ -79,6 +79,7 @@ export function CollectionGrid({ isTradeUser }: CollectionGridProps) {
 
   const [products,      setProducts]      = useState<RawProduct[]>([])
   const [loading,       setLoading]       = useState(true)
+  const [fetchError,    setFetchError]    = useState(false)
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     artisans: [], materials: [], priceRange: { min: 0, max: 10000 },
   })
@@ -103,10 +104,18 @@ export function CollectionGrid({ isTradeUser }: CollectionGridProps) {
     if (maxPrice)       qs.set('max_price',   maxPrice)
     qs.set('limit', '60')
 
-    const res  = await fetch(`/api/products?${qs}`)
-    const data = await res.json()
-    setProducts(data.data ?? [])
-    setLoading(false)
+    try {
+      const res  = await fetch(`/api/products?${qs}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setProducts(data.data ?? [])
+      setFetchError(false)
+    } catch {
+      setProducts([])
+      setFetchError(true)
+    } finally {
+      setLoading(false)
+    }
   }, [tab, artisanId, material, minPrice, maxPrice])
 
   useEffect(() => { fetchProducts() }, [fetchProducts])
@@ -293,7 +302,23 @@ export function CollectionGrid({ isTradeUser }: CollectionGridProps) {
         </div>
 
       ) : loading ? (
-        <div style={{ textAlign: 'center', padding: 80, color: 'var(--stone)' }}>Loading…</div>
+        <div className="grid-4" aria-busy="true" aria-label="Loading collection">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="product-card" aria-hidden>
+              <div className="product-card-image" style={{ background: 'var(--sage-light, #e8ece5)', animation: 'fbaPulse 1.4s ease-in-out infinite' }} />
+              <div className="product-card-meta">
+                <div style={{ height: 12, width: '70%', background: 'var(--sage-light, #e8ece5)', animation: 'fbaPulse 1.4s ease-in-out infinite' }} />
+              </div>
+            </div>
+          ))}
+          <style>{`@keyframes fbaPulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.45 } }`}</style>
+        </div>
+
+      ) : fetchError ? (
+        <div style={{ textAlign: 'center', padding: 'clamp(60px, 8vw, 96px) 0' }}>
+          <p style={{ color: 'var(--stone)', fontSize: 15, marginBottom: 24 }}>The collection could not be loaded.</p>
+          <button className="btn btn-primary btn-sm" onClick={() => fetchProducts()}>Retry</button>
+        </div>
 
       ) : products.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 'clamp(60px, 8vw, 96px) 0' }}>

@@ -76,6 +76,41 @@ export default function CartPage() {
     }
   }
 
+  const [requestingQuote, setRequestingQuote] = useState(false)
+  const [quoteError, setQuoteError] = useState('')
+  const [quoteSuccess, setQuoteSuccess] = useState(false)
+
+  const handleRequestQuote = async () => {
+    setRequestingQuote(true)
+    setQuoteError('')
+    try {
+      const res = await fetch('/api/quote-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: items.map(i => ({ productId: i.id, quantity: i.quantity })),
+          notes: 'Submitted from Quote Basket',
+        }),
+      })
+      if (res.status === 401) {
+        router.push('/login?next=/cart')
+        return
+      }
+      const data = await res.json()
+      if (!data.success) {
+        setQuoteError(data.error ?? 'Something went wrong. Please try again.')
+        return
+      }
+      setQuoteSuccess(true)
+      setItems([])
+      saveCart([])
+    } catch {
+      setQuoteError('Connection error. Please try again.')
+    } finally {
+      setRequestingQuote(false)
+    }
+  }
+
   // Subtotal of fixed-price items only
   const subtotal = items.reduce((sum, i) => {
     const amt = (i.priceAmount ?? 0) / 100
@@ -110,20 +145,30 @@ export default function CartPage() {
       {/* Hero */}
       <div className="page-hero" style={{ paddingTop: 'calc(var(--nav-h) + 60px)', paddingBottom: 60 }}>
         <div className="page-hero-inner">
-          <div className="label page-hero-label">Shopping</div>
-          <h1 className="page-hero-title">Your Bag</h1>
+          <div className="label page-hero-label">Your Selection</div>
+          <h1 className="page-hero-title">Quote Basket</h1>
           <p className="page-hero-desc">
-            {items.length === 0 ? 'Your bag is empty.' : `${items.length} item${items.length !== 1 ? 's' : ''}`}
+            {items.length === 0 ? 'Your quote basket is empty.' : `${items.length} item${items.length !== 1 ? 's' : ''} awaiting your quote request`}
           </p>
         </div>
       </div>
 
       <div className="section">
         <div className="container">
-          {items.length === 0 ? (
+          {quoteSuccess ? (
+            <div className="empty-state">
+              <div style={{ fontSize: 36, marginBottom: 16 }}>✓</div>
+              <h3>Quote request submitted</h3>
+              <p>A member of our team will respond within 2 business days with pricing, availability, and lead times.</p>
+              <div style={{ marginTop: 24, display: 'flex', gap: 12, justifyContent: 'center' }}>
+                <Link href="/products" className="btn btn-primary">Continue Browsing</Link>
+                <Link href="/account" className="btn btn-secondary">My Account</Link>
+              </div>
+            </div>
+          ) : items.length === 0 ? (
             <div className="empty-state">
               <h3>Nothing here yet</h3>
-              <p>Browse the Edit and add pieces to your bag.</p>
+              <p>Browse the Edit and add pieces to your quote basket.</p>
               <div style={{ marginTop: 24, display: 'flex', gap: 12, justifyContent: 'center' }}>
                 <Link href="/products" className="btn btn-primary">Browse the Edit</Link>
                 <Link href="/account/projects" className="btn btn-secondary">My Projects</Link>
@@ -185,11 +230,6 @@ export default function CartPage() {
                         }}>
                           {item.name}
                         </Link>
-                        {item.artisan && (
-                          <p style={{ fontSize: 12, color: 'var(--stone)', marginBottom: 16 }}>
-                            by {item.artisan}
-                          </p>
-                        )}
 
                         {/* Quantity control */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -259,14 +299,14 @@ export default function CartPage() {
               {/* Summary panel */}
               <div style={{ position: 'sticky', top: 'calc(var(--nav-h) + 24px)' }}>
                 <div style={{ background: 'var(--warm-white)', border: '1px solid var(--light-line)', padding: 32 }}>
-                  <h3 className="h4" style={{ marginBottom: 24 }}>Order summary</h3>
+                  <h3 className="h4" style={{ marginBottom: 24 }}>Summary</h3>
 
                   {hasPOR && (
                     <div style={{ marginBottom: 20, fontSize: 13, color: 'var(--stone)', lineHeight: 1.7,
                                   background: 'var(--cream)', padding: '12px 16px',
                                   border: '1px solid var(--light-line)' }}>
-                      One or more items is priced on request. Our team will follow up within
-                      2 business days for those pieces.
+                      One or more items is priced on request — request a quote and our
+                      team will respond within 2 business days.
                     </div>
                   )}
 
@@ -288,28 +328,39 @@ export default function CartPage() {
                     </div>
                   </div>
 
-                  {checkoutError && (
+                  {(quoteError || checkoutError) && (
                     <p style={{ fontSize: 12, color: '#c0392b', marginBottom: 12, lineHeight: 1.5 }}>
-                      {checkoutError}
+                      {quoteError || checkoutError}
                     </p>
                   )}
 
                   <button
                     className="btn btn-primary btn-full"
                     style={{ marginBottom: 12 }}
-                    onClick={handleCheckout}
-                    disabled={checkingOut}
+                    onClick={handleRequestQuote}
+                    disabled={requestingQuote}
                   >
-                    {checkingOut ? 'Redirecting…' : 'Proceed to checkout'}
+                    {requestingQuote ? 'Submitting…' : 'Request Quote for these items'}
                   </button>
+
+                  {hasFixedPrice && (
+                    <button
+                      className="btn btn-secondary btn-full"
+                      style={{ marginBottom: 12 }}
+                      onClick={handleCheckout}
+                      disabled={checkingOut}
+                    >
+                      {checkingOut ? 'Redirecting…' : 'Checkout retail items'}
+                    </button>
+                  )}
 
                   <Link href="/account/projects" className="btn btn-secondary btn-full">
                     Save as project instead
                   </Link>
 
                   <p style={{ fontSize: 11, color: 'var(--stone)', textAlign: 'center', marginTop: 16, lineHeight: 1.6 }}>
-                    Need a quote or have trade pricing? Use the project folder flow
-                    or <Link href="/trade/apply" style={{ color: 'var(--caramel)' }}>apply for trade access</Link>.
+                    Trade pricing available to approved accounts —{' '}
+                    <Link href="/trade/apply" style={{ color: 'var(--caramel)' }}>apply for trade access</Link>.
                   </p>
                 </div>
               </div>

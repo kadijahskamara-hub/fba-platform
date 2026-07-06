@@ -83,7 +83,7 @@ export function Nav({ session, flags }: NavProps) {
             </Link>
           )}
 
-          <Link href="/cart" className="nav-icon-btn" aria-label="Shopping bag">
+          <Link href="/cart" className="nav-icon-btn" aria-label="Quote basket">
             <ShoppingBag size={20} strokeWidth={1.5} />
             {cartCount > 0 && (
               <span className="nav-badge">{cartCount > 9 ? '9+' : cartCount}</span>
