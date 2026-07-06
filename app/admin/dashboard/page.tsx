@@ -12,20 +12,39 @@ async function getMetrics() {
     { count: totalProducts },
     { count: totalContacts },
     { data: recentApps },
+    { count: missingImages },
+    { count: missingLeadTime },
+    { count: missingSpecDoc },
+    { count: lowCompleteness },
+    { count: draftProducts },
+    { count: archivedProducts },
+    { count: importedThisWeek },
   ] = await Promise.all([
     supabaseAdmin.from('trade_applications').select('*', { count: 'exact', head: true }),
     supabaseAdmin.from('trade_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
     supabaseAdmin.from('users').select('*', { count: 'exact', head: true }).eq('role', 'trade_user'),
     supabaseAdmin.from('quote_requests').select('*', { count: 'exact', head: true }).eq('status', 'new'),
-    supabaseAdmin.from('products').select('*', { count: 'exact', head: true }).eq('visibility', 'published'),
+    supabaseAdmin.from('products').select('*', { count: 'exact', head: true }).eq('visibility', 'published').is('archived_at', null).is('deleted_at', null),
     supabaseAdmin.from('contacts').select('*', { count: 'exact', head: true }),
     supabaseAdmin.from('trade_applications')
       .select('id, company_name, status, created_at, user:users(first_name, last_name, email)')
       .order('created_at', { ascending: false })
       .limit(5),
+    // Product data health (product_health view)
+    supabaseAdmin.from('product_health').select('*', { count: 'exact', head: true }).is('archived_at', null).is('deleted_at', null).eq('image_count', 0),
+    supabaseAdmin.from('product_health').select('*', { count: 'exact', head: true }).is('archived_at', null).is('deleted_at', null).eq('has_lead_time', false),
+    supabaseAdmin.from('product_health').select('*', { count: 'exact', head: true }).is('archived_at', null).is('deleted_at', null).eq('has_spec_doc', false),
+    supabaseAdmin.from('product_health').select('*', { count: 'exact', head: true }).is('archived_at', null).is('deleted_at', null).lt('completeness', 80),
+    supabaseAdmin.from('products').select('*', { count: 'exact', head: true }).eq('visibility', 'draft').is('archived_at', null),
+    supabaseAdmin.from('products').select('*', { count: 'exact', head: true }).not('archived_at', 'is', null),
+    supabaseAdmin.from('products').select('*', { count: 'exact', head: true }).gte('last_imported_at', new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString()),
   ])
 
-  return { totalApps, pendingApps, approvedTrade, openQuotes, totalProducts, totalContacts, recentApps }
+  return {
+    totalApps, pendingApps, approvedTrade, openQuotes, totalProducts, totalContacts, recentApps,
+    missingImages, missingLeadTime, missingSpecDoc, lowCompleteness,
+    draftProducts, archivedProducts, importedThisWeek,
+  }
 }
 
 interface Props {
@@ -81,6 +100,36 @@ export default async function AdminDashboardPage({ searchParams }: Props) {
             </div>
           </Link>
         ))}
+      </div>
+
+      {/* Product data health */}
+      <div style={{ background: 'var(--warm-white)', border: '1px solid var(--light-line)', padding: 28, marginBottom: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+          <h2 className="h3">Product Data Health</h2>
+          <Link href="/admin/imports" style={{ fontSize: 12, color: 'var(--caramel)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+            Import history →
+          </Link>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+          {[
+            { label: 'Missing images', value: m.missingImages ?? 0, link: '/admin/products?images=none', warn: true },
+            { label: 'Missing lead times', value: m.missingLeadTime ?? 0, link: '/admin/products', warn: true },
+            { label: 'Missing spec documents', value: m.missingSpecDoc ?? 0, link: '/admin/products', warn: true },
+            { label: 'Completeness below 80%', value: m.lowCompleteness ?? 0, link: '/admin/products?completeness=low', warn: true },
+            { label: 'Draft products', value: m.draftProducts ?? 0, link: '/admin/products?status=draft', warn: false },
+            { label: 'Archived products', value: m.archivedProducts ?? 0, link: '/admin/products?status=archived', warn: false },
+            { label: 'Imported this week', value: m.importedThisWeek ?? 0, link: '/admin/imports', warn: false },
+          ].map(card => (
+            <Link key={card.label} href={card.link} style={{ textDecoration: 'none' }}>
+              <div style={{ border: '1px solid var(--light-line)', padding: '14px 16px', background: card.warn && (card.value as number) > 0 ? '#FFFBEB' : 'var(--cream)' }}>
+                <div style={{ fontSize: 24, fontWeight: 700, color: card.warn && (card.value as number) > 0 ? '#B45309' : 'var(--forest)' }}>
+                  {card.value}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--stone)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{card.label}</div>
+              </div>
+            </Link>
+          ))}
+        </div>
       </div>
 
       {/* Main content */}

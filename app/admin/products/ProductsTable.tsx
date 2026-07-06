@@ -24,6 +24,7 @@ export interface ProductRow {
   category_name: string | null
   artisan_name: string | null
   created_at: string
+  completeness?: number | null
 }
 
 const BULK_ACTIONS = [
@@ -114,6 +115,7 @@ export default function ProductsTable({ products, isAdmin }: { products: Product
               <th>Trade</th>
               <th>Lead time</th>
               <th>Imgs</th>
+              <th>Complete</th>
               <th>Status</th>
               <th></th>
             </tr>
@@ -154,6 +156,16 @@ export default function ProductsTable({ products, isAdmin }: { products: Product
                   </td>
                   <td style={{ fontSize: 12, color: p.image_count === 0 ? '#B45309' : 'inherit' }}>
                     {p.image_count}
+                  </td>
+                  <td>
+                    {typeof p.completeness === 'number' ? (
+                      <span style={{
+                        fontSize: 12, fontWeight: 600,
+                        color: p.completeness >= 80 ? '#166534' : p.completeness >= 50 ? '#B45309' : '#B91C1C',
+                      }}>
+                        {p.completeness}%
+                      </span>
+                    ) : '—'}
                   </td>
                   <td>
                     {archived ? (

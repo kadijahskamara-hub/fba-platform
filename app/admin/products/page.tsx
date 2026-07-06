@@ -25,6 +25,7 @@ interface Params {
   artisan?: string
   price?: string
   images?: string
+  completeness?: string
   sort?: string
   page?: string
 }
@@ -42,6 +43,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
   const artisan  = UUID_RE.test(searchParams.artisan ?? '') ? searchParams.artisan! : ''
   const price    = ['por', 'has_trade', 'has_retail', 'missing'].includes(searchParams.price ?? '') ? searchParams.price! : ''
   const images   = ['none', 'few'].includes(searchParams.images ?? '') ? searchParams.images! : ''
+  const completeness = searchParams.completeness === 'low' ? 'low' : ''
   const sort     = ['newest', 'oldest', 'name', 'updated'].includes(searchParams.sort ?? '') ? searchParams.sort! : 'newest'
   const page     = Math.max(1, parseInt(searchParams.page ?? '1', 10) || 1)
 
@@ -99,10 +101,22 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
     created_at: p.created_at as string,
   }))
 
-  // Image-completeness filters are applied post-query (array length is not
-  // directly filterable via PostgREST) — applies to the current page of results.
+  // Attach completeness scores from the product_health view
+  const ids = products.map(p => p.id)
+  if (ids.length > 0) {
+    const { data: health } = await supabaseAdmin
+      .from('product_health')
+      .select('id, completeness')
+      .in('id', ids)
+    const scoreById = new Map((health ?? []).map((h: { id: string; completeness: number }) => [h.id, h.completeness]))
+    products = products.map(p => ({ ...p, completeness: scoreById.get(p.id) ?? null }))
+  }
+
+  // Image/completeness filters are applied post-query (not directly
+  // filterable via PostgREST) — applies to the current page of results.
   if (images === 'none') products = products.filter(p => p.image_count === 0)
   if (images === 'few')  products = products.filter(p => p.image_count <= 1)
+  if (completeness === 'low') products = products.filter(p => (p.completeness ?? 0) < 80)
 
   const total = count ?? products.length
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE))
@@ -114,6 +128,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
   if (artisan) baseParams.set('artisan', artisan)
   if (price) baseParams.set('price', price)
   if (images) baseParams.set('images', images)
+  if (completeness) baseParams.set('completeness', completeness)
   if (sort !== 'newest') baseParams.set('sort', sort)
 
   function href(overrides: Record<string, string | null>): string {
@@ -203,6 +218,10 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
           <option value="none">No images</option>
           <option value="few">1 image or fewer</option>
         </select>
+        <select name="completeness" defaultValue={completeness} aria-label="Filter by completeness" style={selectStyle}>
+          <option value="">Any completeness</option>
+          <option value="low">Below 80%</option>
+        </select>
         <select name="sort" defaultValue={sort} aria-label="Sort" style={selectStyle}>
           <option value="newest">Newest first</option>
           <option value="oldest">Oldest first</option>
@@ -210,7 +229,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
           <option value="updated">Recently updated</option>
         </select>
         <button type="submit" className="btn btn-primary btn-sm">Apply</button>
-        {(q || category || artisan || price || images || sort !== 'newest') && (
+        {(q || category || artisan || price || images || completeness || sort !== 'newest') && (
           <Link href={tab === 'all' ? '/admin/products' : `/admin/products?status=${tab}`} className="btn btn-ghost btn-sm">
             Clear
           </Link>
