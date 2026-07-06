@@ -12,7 +12,7 @@ type QuoteRequest = {
   notes: string | null
   created_at: string
   user: { first_name: string; last_name: string; email: string; role: string } | null
-  items: { id: string; quantity: number; product: { id: string; name: string; slug: string } | null }[]
+  items: { id: string; quantity: number; selected_finish: string | null; selected_fabric: string | null; selected_size: string | null; product: { id: string; name: string; slug: string } | null }[]
 }
 
 const STATUS_OPTIONS = ['new', 'reviewing', 'quoted', 'accepted', 'rejected', 'converted_to_order']
@@ -170,9 +170,20 @@ export default function AdminQuotesPage() {
                 <div className="label" style={{ marginBottom: 10 }}>Products requested</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {selected.items.map(item => (
-                    <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '8px 12px', background: 'var(--cream)' }}>
-                      <span>{item.product?.name ?? 'Unknown product'}</span>
-                      <span style={{ color: 'var(--stone)' }}>Qty: {item.quantity}</span>
+                    <div key={item.id} style={{ fontSize: 13, padding: '8px 12px', background: 'var(--cream)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>{item.product?.name ?? 'Unknown product'}</span>
+                        <span style={{ color: 'var(--stone)' }}>Qty: {item.quantity}</span>
+                      </div>
+                      {(item.selected_finish || item.selected_fabric || item.selected_size) && (
+                        <div style={{ fontSize: 12, color: 'var(--caramel)', marginTop: 4 }}>
+                          {[
+                            item.selected_finish ? `Finish: ${item.selected_finish}` : null,
+                            item.selected_fabric ? `Upholstery: ${item.selected_fabric}` : null,
+                            item.selected_size ? `Size: ${item.selected_size}` : null,
+                          ].filter(Boolean).join(' · ')}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

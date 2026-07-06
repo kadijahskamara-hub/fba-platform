@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
       *,
       user:users(first_name, last_name, email, role),
       items:quote_request_items(
-        id, quantity,
+        id, quantity, selected_finish, selected_fabric, selected_size,
         product:products(id, name, slug)
       )
     `, { count: 'exact' })

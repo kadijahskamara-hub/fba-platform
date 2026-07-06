@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { supabaseAdmin } from '@/lib/supabase'
 import AdminProductForm from '../AdminProductForm'
+import ProductExtrasPanel from './ProductExtrasPanel'
 
 export async function generateMetadata({ params }: { params: { slug: string } }) {
   const { data } = await supabaseAdmin.from('products').select('name').eq('slug', params.slug).single()
@@ -21,11 +22,26 @@ export default async function EditProductPage({ params }: { params: { slug: stri
   if (!product) notFound()
 
   return (
-    <AdminProductForm
-      mode="edit"
-      product={product}
-      categories={categories ?? []}
-      artisans={artisans ?? []}
-    />
+    <>
+      <AdminProductForm
+        mode="edit"
+        product={product}
+        categories={categories ?? []}
+        artisans={artisans ?? []}
+      />
+      <ProductExtrasPanel
+        productId={product.id}
+        slug={product.slug}
+        initialFulfilment={{
+          technicalDescription: product.technical_description ?? '',
+          customisationNote:    product.customisation_note ?? '',
+          madeToOrder:          product.made_to_order ?? false,
+          dispatchTimeLabel:    product.dispatch_time_label ?? '',
+          leadTime:             product.lead_time ?? '',
+          shippingNotes:        product.shipping_notes ?? '',
+          publicBrandVisible:   product.public_brand_visible ?? false,
+        }}
+      />
+    </>
   )
 }
