@@ -57,8 +57,9 @@ const PASSPORT_BULLETS = [
 
 const REGIONS = [
   { label: 'Southern Europe', desc: 'Italy · Portugal · Spain', img: 'https://images.pexels.com/photos/2422915/pexels-photo-2422915.jpeg?auto=compress&cs=tinysrgb&w=600' },
+  { label: 'Anatolia',        desc: 'Turkey',                   img: 'https://images.pexels.com/photos/2042109/pexels-photo-2042109.jpeg?auto=compress&cs=tinysrgb&w=600' },
   { label: 'South Asia',      desc: 'India · Sri Lanka',        img: 'https://images.pexels.com/photos/2387873/pexels-photo-2387873.jpeg?auto=compress&cs=tinysrgb&w=600' },
-  { label: 'East Asia',       desc: 'Indonesia · Vietnam',      img: 'https://images.pexels.com/photos/2506923/pexels-photo-2506923.jpeg?auto=compress&cs=tinysrgb&w=600' },
+  { label: 'Southeast Asia',  desc: 'Indonesia · Vietnam',      img: 'https://images.pexels.com/photos/2506923/pexels-photo-2506923.jpeg?auto=compress&cs=tinysrgb&w=600' },
   { label: 'North Africa',    desc: 'Morocco · Egypt',          img: 'https://images.pexels.com/photos/3889855/pexels-photo-3889855.jpeg?auto=compress&cs=tinysrgb&w=600' },
 ]
 
@@ -451,7 +452,7 @@ export default async function HomePage() {
             </p>
           </div>
 
-          <div className="fba-grid-4" style={{ gap: 2, marginBottom: 40 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2, marginBottom: 40 }}>
             {REGIONS.map(region => (
               <div key={region.label} style={{ position: 'relative', overflow: 'hidden' }}>
                 <div style={{ height: 200, position: 'relative', background: 'var(--sage-light)' }}>
