@@ -67,8 +67,6 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
     case 'missing':    query = query.eq('price_type', 'fixed').is('retail_price', null).is('trade_price', null); break
   }
 
-  if (images === 'none') query = query.eq('images', '{}')
-
   switch (sort) {
     case 'oldest':  query = query.order('created_at', { ascending: true }); break
     case 'name':    query = query.order('name', { ascending: true }); break
@@ -101,8 +99,10 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
     created_at: p.created_at as string,
   }))
 
-  // "1 image or fewer" filter is applied post-query (array length not filterable server-side)
-  if (images === 'few') products = products.filter(p => p.image_count <= 1)
+  // Image-completeness filters are applied post-query (array length is not
+  // directly filterable via PostgREST) — applies to the current page of results.
+  if (images === 'none') products = products.filter(p => p.image_count === 0)
+  if (images === 'few')  products = products.filter(p => p.image_count <= 1)
 
   const total = count ?? products.length
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE))
