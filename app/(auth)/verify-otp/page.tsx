@@ -14,12 +14,54 @@ function VerifyOtpPageContent() {
   const [error,  setError]    = useState('')
   const [isPending, startTransition] = useTransition()
 
+  // Token can be refreshed by a resend, so track it in state.
+  const [token, setToken]         = useState(tempToken)
+  const [resending, setResending] = useState(false)
+  const [resendMsg, setResendMsg] = useState('')
+  const [cooldown, setCooldown]   = useState(0)
+
   const inputRefs = useRef<(HTMLInputElement | null)[]>([])
 
   // Focus first box on mount
   useEffect(() => {
     inputRefs.current[0]?.focus()
   }, [])
+
+  // Keep token in sync with the URL param on first load.
+  useEffect(() => { setToken(tempToken) }, [tempToken])
+
+  // Resend cooldown countdown.
+  useEffect(() => {
+    if (cooldown <= 0) return
+    const t = setTimeout(() => setCooldown(c => c - 1), 1000)
+    return () => clearTimeout(t)
+  }, [cooldown])
+
+  async function handleResend() {
+    if (resending || cooldown > 0) return
+    setResending(true)
+    setResendMsg('')
+    setError('')
+    try {
+      const res  = await fetch('/api/auth/resend-otp', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ tempToken: token }),
+      })
+      const data = await res.json()
+      if (!data.success) {
+        setResendMsg(data.error ?? 'Could not resend the code.')
+        return
+      }
+      if (data.tempToken) setToken(data.tempToken)
+      setResendMsg('A new code is on its way — check your inbox (and spam).')
+      setCooldown(30)
+    } catch {
+      setResendMsg('Something went wrong. Please try again.')
+    } finally {
+      setResending(false)
+    }
+  }
 
   // If no token in URL, redirect to login
   useEffect(() => {
@@ -72,7 +114,7 @@ function VerifyOtpPageContent() {
       const res = await fetch('/api/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tempToken, code }),
+        body: JSON.stringify({ tempToken: token, code }),
       })
       const data = await res.json()
 
@@ -186,7 +228,25 @@ function VerifyOtpPageContent() {
           fontSize: 12, color: 'var(--stone)', lineHeight: 1.7, textAlign: 'center',
         }}>
           Didn&rsquo;t receive the code? Check your spam folder, or{' '}
-          <Link href="/login" style={{ color: 'var(--caramel)' }}>try logging in again</Link>.
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={resending || cooldown > 0}
+            style={{
+              background: 'none', border: 'none', padding: 0, font: 'inherit',
+              color: resending || cooldown > 0 ? 'var(--stone)' : 'var(--caramel)',
+              cursor: resending || cooldown > 0 ? 'default' : 'pointer',
+              textDecoration: 'underline',
+            }}
+          >
+            {resending ? 'sending…' : cooldown > 0 ? `resend in ${cooldown}s` : 'resend the code'}
+          </button>.
+          {resendMsg && (
+            <div style={{ marginTop: 10, color: 'var(--forest)' }}>{resendMsg}</div>
+          )}
+          <div style={{ marginTop: 10 }}>
+            <Link href="/login" style={{ color: 'var(--stone)' }}>Back to login</Link>
+          </div>
         </div>
       </div>
     </div>
