@@ -2,7 +2,8 @@ import type { Metadata } from 'next'
 import HomepageEnquiryForm from '@/app/HomepageEnquiryForm'
 
 export const metadata: Metadata = {
-  title: 'Contact — Full Bloom Artelier',
+  title: 'Contact',
+  alternates: { canonical: '/contact' },
   description: 'Get in touch with the Full Bloom Artelier studio for product sourcing, atelier commissions, trade access enquiries, and bespoke procurement.',
 }
 

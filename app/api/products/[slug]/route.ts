@@ -57,7 +57,7 @@ export async function PATCH(
       'images', 'seo_title', 'seo_description',
       'technical_description', 'customisation_note', 'made_to_order',
       'dispatch_time_label', 'lead_time_min_weeks', 'lead_time_max_weeks',
-      'min_order_quantity', 'public_brand_visible',
+      'min_order_quantity', 'public_brand_visible', 'hide_finish_options',
     ]
 
     const camelToSnake: Record<string, string> = {
@@ -80,6 +80,7 @@ export async function PATCH(
       leadTimeMaxWeeks: 'lead_time_max_weeks',
       minOrderQuantity: 'min_order_quantity',
       publicBrandVisible: 'public_brand_visible',
+      hideFinishOptions: 'hide_finish_options',
     }
 
     const productUpdates: Record<string, unknown> = {

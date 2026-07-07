@@ -12,8 +12,9 @@ export async function generateMetadata({ params }: { params: { slug: string } })
     .single()
   if (!data) return {}
   return {
-    title: `${data.name} — Full Bloom Artelier`,
+    title: data.name,
     description: data.short_bio ?? `Discover the work of ${data.name}, part of the FBA maker network.`,
+    alternates: { canonical: `/artisans/${params.slug}` },
   }
 }
 

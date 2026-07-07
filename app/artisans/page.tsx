@@ -6,7 +6,8 @@ import { getFlags } from '@/lib/flags'
 import { HeroImageOverlay } from '@/components/HeroImageOverlay'
 
 export const metadata = {
-  title: 'Our Artisans — Full Bloom Artelier',
+  title: 'Our Artisans',
+  alternates: { canonical: '/artisans' },
   description: 'Meet the makers and studios behind the FBA network — craftspeople from around the world creating exceptional furniture, lighting and objects.',
 }
 

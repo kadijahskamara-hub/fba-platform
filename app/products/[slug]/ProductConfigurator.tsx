@@ -39,6 +39,40 @@ interface Props {
   isLoggedIn: boolean
 }
 
+// Map free-text colour/finish names to a display colour for the swatch
+// circle. Conservative: only well-known material/colour words resolve;
+// anything else falls back to an initials circle rather than guessing.
+const COLOUR_TOKENS: [RegExp, string][] = [
+  [/\bblack\b|\bnoir\b|\bcharcoal\b|\banthracite\b/i, '#26241F'],
+  [/\bwhite\b|\bivory\b|\bchalk\b/i,                  '#F4F1EA'],
+  [/\bcream\b|\becru\b|\boff[- ]white\b/i,            '#EFE7D6'],
+  [/\bgrey\b|\bgray\b|\bstone\b|\bcement\b/i,         '#9C978D'],
+  [/\bnatural\b|\brattan\b|\bcane\b|\bwicker\b/i,     '#C9A86A'],
+  [/\boak\b|\bbeech\b|\bash\b|\bbirch\b/i,            '#B98F5C'],
+  [/\bwalnut\b|\bwenge\b|\bespresso\b/i,              '#5C4330'],
+  [/\bteak\b|\biroko\b|\bchestnut\b/i,                '#8A5F3C'],
+  [/\bbrass\b|\bgold\b|\bochre\b|\bmustard\b/i,       '#B08D3F'],
+  [/\bbronze\b|\bcopper\b|\brust\b|\bterracotta\b/i,  '#96562F'],
+  [/\bgreen\b|\bolive\b|\bsage\b|\bforest\b/i,        '#5A6B4F'],
+  [/\bblue\b|\bnavy\b|\bindigo\b|\bpetrol\b/i,        '#3E5468'],
+  [/\bred\b|\bburgundy\b|\bwine\b|\bbordeaux\b/i,     '#7A2E2A'],
+  [/\bpink\b|\bblush\b|\brose\b/i,                    '#C79A93'],
+  [/\bbeige\b|\bsand\b|\btaupe\b|\blinen\b|\bcamel\b/i, '#C7B299'],
+  [/\bbrown\b|\btan\b|\bcognac\b|\btobacco\b/i,       '#7E5A3C'],
+  [/\baluminium\b|\bsteel\b|\bchrome\b|\bsilver\b|\bnickel\b/i, '#B5B7B8'],
+  [/\bmarble\b|\btravertine\b/i,                      '#DDD6C8'],
+]
+
+function resolveSwatchColour(text: string | null | undefined): string | null {
+  if (!text) return null
+  for (const [re, hex] of COLOUR_TOKENS) if (re.test(text)) return hex
+  return null
+}
+
+function initialsOf(name: string): string {
+  return name.split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('')
+}
+
 export default function ProductConfigurator({ productId, slug, hardFinishes, upholstery, sizes, isLoggedIn }: Props) {
   const [finish, setFinish] = useState<FinishOption | null>(hardFinishes.find(f => f.available) ?? null)
   const [fabric, setFabric] = useState<FinishOption | null>(null)
@@ -62,7 +96,14 @@ export default function ProductConfigurator({ productId, slug, hardFinishes, uph
     color: 'var(--forest)', fontWeight: 600, marginBottom: 10, display: 'block',
   }
 
+  // ── Circular swatches (product card design reference, July 2026) ──
+  // Finish and colour options render as plain circles — swatch image if
+  // provided, otherwise a colour derived from the finish text, otherwise
+  // a neutral circle with the finish initials. Selected = ring offset.
+
   function swatchButton(opt: FinishOption, selected: boolean, onClick: () => void) {
+    const fill = opt.swatchUrl ? null : resolveSwatchColour(opt.colour ?? opt.finishName)
+    const label = opt.finishCode ? `${opt.finishName} (${opt.finishCode})` : opt.finishName
     return (
       <button
         key={opt.id}
@@ -70,51 +111,53 @@ export default function ProductConfigurator({ productId, slug, hardFinishes, uph
         onClick={onClick}
         disabled={!opt.available}
         aria-pressed={selected}
-        title={opt.available ? opt.finishName : `${opt.finishName} — currently unavailable`}
+        aria-label={label}
+        title={opt.available ? label : `${label} — currently unavailable`}
         style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          padding: '7px 12px', fontSize: 12, cursor: opt.available ? 'pointer' : 'not-allowed',
-          background: selected ? 'var(--forest)' : 'var(--warm-white)',
-          color: selected ? 'var(--cream)' : opt.available ? 'var(--forest)' : 'var(--stone)',
-          border: selected ? '1px solid var(--forest)' : '1px solid var(--light-line)',
-          opacity: opt.available ? 1 : 0.45,
+          width: 34, height: 34, borderRadius: '50%', padding: 0, flexShrink: 0,
+          cursor: opt.available ? 'pointer' : 'not-allowed',
+          background: fill ?? 'var(--warm-white)',
+          border: '1px solid rgba(0,0,0,0.18)',
+          outline: selected ? '2px solid var(--forest)' : 'none',
+          outlineOffset: 2,
+          opacity: opt.available ? 1 : 0.35,
+          overflow: 'hidden', position: 'relative',
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         }}
       >
         {opt.swatchUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={opt.swatchUrl} alt="" width={18} height={18} style={{ objectFit: 'cover', borderRadius: 2 }} />
-        ) : opt.colour ? (
-          <span aria-hidden style={{ width: 14, height: 14, borderRadius: 2, background: opt.colour, border: '1px solid rgba(0,0,0,0.15)' }} />
+          <img src={opt.swatchUrl} alt="" width={34} height={34} style={{ objectFit: 'cover', width: '100%', height: '100%' }} />
+        ) : !fill ? (
+          <span aria-hidden style={{ fontSize: 9, letterSpacing: '0.05em', color: 'var(--stone)', fontWeight: 600 }}>
+            {initialsOf(opt.finishName)}
+          </span>
         ) : null}
-        <span>
-          {opt.finishName}
-          {opt.finishCode && <span style={{ opacity: 0.7 }}> · {opt.finishCode}</span>}
-        </span>
       </button>
     )
   }
 
   return (
     <div style={{ marginBottom: 28 }}>
-      {/* Hard finish options */}
+      {/* Hard finish options — circular material swatches */}
       {hardFinishes.length > 0 && (
         <div style={{ marginBottom: 22 }}>
           <span style={sectionLabel}>
-            Hard finish options{finish ? <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'var(--stone)' }}> — {finish.finishName}</span> : null}
+            Hard finish option{finish ? <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'var(--stone)' }}>: {finish.finishCode ? `${finish.finishName} (${finish.finishCode})` : finish.finishName}</span> : null}
           </span>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, padding: '4px 2px' }}>
             {hardFinishes.map(o => swatchButton(o, finish?.id === o.id, () => setFinish(finish?.id === o.id ? null : o)))}
           </div>
         </div>
       )}
 
-      {/* Upholstery options */}
+      {/* Upholstery / colour options — circular colour swatches */}
       {upholstery.length > 0 && (
         <div style={{ marginBottom: 22 }}>
           <span style={sectionLabel}>
-            Upholstery options{fabric ? <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'var(--stone)' }}> — {fabric.finishName}</span> : null}
+            Colour / Fabric{fabric ? <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: 'var(--stone)' }}>: {fabric.finishCode ? `${fabric.finishName} (${fabric.finishCode})` : fabric.finishName}</span> : null}
           </span>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, padding: '4px 2px' }}>
             {upholstery.map(o => swatchButton(o, fabric?.id === o.id, () => setFabric(fabric?.id === o.id ? null : o)))}
           </div>
           {fabric && (fabric.comAccepted || fabric.rubCount || fabric.fireTreatment) && (

@@ -2,7 +2,8 @@ import type { Metadata } from 'next'
 import FaqsAccordion from './FaqsAccordion'
 
 export const metadata: Metadata = {
-  title: 'FAQs — Full Bloom Artelier',
+  title: 'FAQs',
+  alternates: { canonical: '/faqs' },
   description:
     'Answers to common questions about FBA trade access, procurement, the Technical Passport™, ordering, delivery, and working with our maker network.',
 }

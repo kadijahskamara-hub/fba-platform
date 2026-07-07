@@ -39,6 +39,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title:       data.seo_title ?? data.name,
     description: data.seo_description ?? `Discover ${data.name} — handcrafted with precision, available through Full Bloom Artelier.`,
+    alternates:  { canonical: `/products/${params.slug}` },
     openGraph: { images: data.images?.[0] ? [{ url: data.images[0] }] : [] },
   }
 }
@@ -82,10 +83,13 @@ export default async function ProductDetailPage({ params }: Props) {
   // without this gate every table/sofa wrongly showed "Dimmable: No".
   const isLighting = (product.category as { slug?: string } | null)?.slug === 'lighting'
 
-  const hardFinishes: FinishOption[] = (finishes ?? [])
+  // Admin can hide the swatch sections per product even when finish rows
+  // exist (products.hide_finish_options — see 20260709 migration).
+  const finishesHidden = product.hide_finish_options === true
+  const hardFinishes: FinishOption[] = finishesHidden ? [] : (finishes ?? [])
     .filter((f: Record<string, unknown>) => f.finish_category === 'hard_finish')
     .map(mapFinish)
-  const upholstery: FinishOption[] = (finishes ?? [])
+  const upholstery: FinishOption[] = finishesHidden ? [] : (finishes ?? [])
     .filter((f: Record<string, unknown>) => f.finish_category === 'upholstery')
     .map(mapFinish)
   const sizes: SizeOption[] = (variants ?? []).map((v: Record<string, unknown>) => ({

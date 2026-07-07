@@ -13,8 +13,9 @@ export async function generateMetadata({ params }: { params: { slug: string } })
     .single()
   if (!data) return {}
   return {
-    title: `${data.title} — The Journal — Full Bloom Artelier`,
+    title: `${data.title} — The Journal`,
     description: data.seo_description ?? data.excerpt ?? '',
+    alternates: { canonical: `/journal/${params.slug}` },
   }
 }
 
@@ -31,8 +32,24 @@ export default async function JournalPostPage({ params }: { params: { slug: stri
 
   if (!post) notFound()
 
+  const articleJsonLd = {
+    '@context': 'https://schema.org',
+    '@type':    'Article',
+    headline:   post.title,
+    image:      post.featured_image ?? undefined,
+    datePublished: post.published_at ?? post.created_at ?? undefined,
+    dateModified:  post.updated_at ?? undefined,
+    author:    { '@type': 'Organization', name: 'Full Bloom Artelier' },
+    publisher: { '@type': 'Organization', name: 'Full Bloom Artelier' },
+    description: post.seo_description ?? post.excerpt ?? undefined,
+  }
+
   return (
     <div className="page-body">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+      />
 
       {/* Hero */}
       <section style={{

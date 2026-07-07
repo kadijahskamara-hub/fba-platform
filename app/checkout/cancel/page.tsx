@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-export const metadata = { title: 'Checkout cancelled — Full Bloom Artelier' }
+export const metadata = { title: 'Checkout cancelled', robots: { index: false, follow: false } }
 
 export default function CheckoutCancelPage() {
   return (

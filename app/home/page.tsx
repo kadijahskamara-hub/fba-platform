@@ -8,9 +8,10 @@ import { resolvePrice, formatPrice } from '@/lib/pricing'
 import type { CurrencyCode } from '@/lib/types'
 
 export const metadata = {
-  title: 'FBA Home — Full Bloom Artelier',
+  title: 'FBA Home',
   description:
     'Curated home pieces — furniture, lighting and objects selected by Full Bloom Artelier for residential living. Available to retail and trade clients.',
+  alternates: { canonical: '/home' },
 }
 
 // ─── Data ────────────────────────────────────────────────────────────────────
@@ -349,8 +350,9 @@ export default async function FbaHomePage() {
             lineHeight: 1.85,
             marginBottom: 40,
           }}>
-            The Edit is our full FF&amp;E sourcing catalogue — thousands of pieces from vetted
-            maker studios, with Technical Passports and trade pricing for specifiers.
+            The Edit is our full FF&amp;E sourcing catalogue — a hand-selected, growing library
+            of pieces from vetted maker studios, each with a Technical Passport and trade
+            pricing for specifiers.
           </p>
           <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
             <Link href="/products" className="btn btn-primary" style={{

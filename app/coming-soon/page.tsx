@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 export const metadata: Metadata = {
-  title: 'Coming Soon — Full Bloom Artelier',
+  title: 'Coming Soon',
   description: 'This section of the Full Bloom Artelier platform is coming soon.',
   robots: { index: false, follow: false },
 }

@@ -44,6 +44,7 @@ interface Fulfilment {
   leadTime: string
   shippingNotes: string
   publicBrandVisible: boolean
+  hideFinishOptions: boolean
 }
 
 const DOC_TYPE_OPTIONS = [
@@ -442,6 +443,7 @@ function FulfilmentTab({ slug, initial, flash }: { slug: string; initial: Fulfil
           leadTime: f.leadTime || null,
           shippingNotes: f.shippingNotes || null,
           publicBrandVisible: f.publicBrandVisible,
+          hideFinishOptions: f.hideFinishOptions,
         }),
       })
       const json = await res.json()
@@ -474,6 +476,10 @@ function FulfilmentTab({ slug, initial, flash }: { slug: string; initial: Fulfil
         <label style={{ fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <input type="checkbox" checked={f.publicBrandVisible} onChange={e => setF({ ...f, publicBrandVisible: e.target.checked })} />
           Show artisan/brand name publicly
+        </label>
+        <label style={{ fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <input type="checkbox" checked={f.hideFinishOptions} onChange={e => setF({ ...f, hideFinishOptions: e.target.checked })} />
+          Hide material &amp; colour options on product page
         </label>
       </div>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>

@@ -15,9 +15,10 @@ async function getHeroImage(key: string, fallbackAlt: string) {
 }
 
 export const metadata = {
-  title: 'The FBA Collection — Full Bloom Artelier',
+  title: 'The FBA Collection',
   description:
-    'A curated selection of handcrafted furniture, lighting and objects — commissioned exclusively through Full Bloom Artelier and available in limited production runs.',
+    'Limited collaborations between Full Bloom Artelier and single maker studios — maximum 24 numbered units per piece, each with a Technical Passport™. Trade reservation open.',
+  alternates: { canonical: '/collection' },
 }
 
 // ─── Data ────────────────────────────────────────────────────────────────────
@@ -34,6 +35,24 @@ async function getStats(role: string | null | undefined) {
   return { total: data?.length ?? 0 }
 }
 
+// Server-side initial pieces so the grid is crawlable and paints without a
+// client round-trip (fix B4). Mirrors /api/products?collection=true&limit=60.
+async function getInitialPieces(role: string | null | undefined) {
+  let q = supabaseAdmin
+    .from('products')
+    .select(`
+      *,
+      category:categories(id, name, slug),
+      subcategory:subcategories(id, name, slug),
+      artisan:artisans(id, name, slug, location)
+    `)
+    .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
+    .eq('is_fba_collection', true)
+  q = applyAudienceFilter(q, role)
+  const { data } = await q.order('created_at', { ascending: false }).limit(60)
+  return data ?? []
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default async function CollectionPage() {
@@ -41,9 +60,10 @@ export default async function CollectionPage() {
   if (!flags.show_collection) redirect('/coming-soon')
 
   const session = await getSession()
-  const [stats, heroImage] = await Promise.all([
+  const [stats, heroImage, initialPieces] = await Promise.all([
     getStats(session?.role),
     getHeroImage('collection_hero_image', 'The FBA Collection — Limited Edition Pieces'),
+    getInitialPieces(session?.role),
   ])
   const isTradeUser = ['trade_user', 'admin', 'staff'].includes(session?.role ?? '')
 
@@ -270,7 +290,7 @@ export default async function CollectionPage() {
                 textTransform: 'uppercase',
                 color: 'rgba(196,168,130,0.6)',
               }}>
-                FBA Collection · Est. 2023 · London
+                FBA Collection · London · 2026
               </div>
             </div>
           </div>
@@ -307,7 +327,7 @@ export default async function CollectionPage() {
 
           {/* Interactive grid with tabs + filters */}
           <Suspense fallback={<div style={{ padding: 80, textAlign: 'center', color: 'var(--stone)' }}>Loading…</div>}>
-            <CollectionGrid isTradeUser={isTradeUser} />
+            <CollectionGrid isTradeUser={isTradeUser} initialProducts={initialPieces} />
           </Suspense>
         </div>
       </section>

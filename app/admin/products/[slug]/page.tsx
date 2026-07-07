@@ -40,6 +40,7 @@ export default async function EditProductPage({ params }: { params: { slug: stri
           leadTime:             product.lead_time ?? '',
           shippingNotes:        product.shipping_notes ?? '',
           publicBrandVisible:   product.public_brand_visible ?? false,
+          hideFinishOptions:    product.hide_finish_options ?? false,
         }}
       />
     </>

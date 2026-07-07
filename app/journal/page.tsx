@@ -6,7 +6,8 @@ import { getFlags } from '@/lib/flags'
 import { HeroImageOverlay } from '@/components/HeroImageOverlay'
 
 export const metadata = {
-  title: 'The Journal — Full Bloom Artelier',
+  title: 'The Journal',
+  alternates: { canonical: '/journal' },
   description: 'Thinking, making, and finding — stories from the studio, the makers we work with, and the projects we love.',
 }
 

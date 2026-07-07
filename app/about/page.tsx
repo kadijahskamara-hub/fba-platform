@@ -1,11 +1,16 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { supabaseAdmin } from '@/lib/supabase'
+import { getLiveStats } from '@/lib/liveStats'
 
 export const metadata = {
-  title: 'About — Full Bloom Artelier',
-  description: 'Full Bloom Artelier is a London-based FF&E procurement studio founded by Kadijahta Kamara.',
+  title: 'About',
+  description: 'Full Bloom Artelier is a London-based FF&E procurement studio founded by Kadijahta Kamara — curated global sourcing, Technical Passport™ compliance and end-to-end procurement for design professionals.',
+  alternates: { canonical: '/about' },
 }
+
+// Live stats must not be frozen at build time (fix A1)
+export const revalidate = 3600
 
 
 const SERVICES = [
@@ -97,46 +102,9 @@ const FOUNDER_DEFAULTS: Required<FounderSettings> = {
   previously:    'KCA International · SMC Design · GA Group · Russell Sage Studio',
 }
 
-/** Derive a clean country name from free-text origins like "Valencia, Spain". */
-function countryOf(raw: string | null): string | null {
-  if (!raw) return null
-  const last = raw.split(',').pop()?.trim()
-  if (!last || last.length < 3) return null
-  return last.replace(/\b\w/g, ch => ch.toUpperCase())
-}
-
 export default async function AboutPage() {
-  // Live stats — update automatically as the catalogue changes (site brief §4.1/§4.4)
-  const [
-    { count: productCount },
-    { count: artisanCount },
-    { data: originRows },
-    { data: artisanRows },
-  ] = await Promise.all([
-    supabaseAdmin.from('products').select('*', { count: 'exact', head: true })
-      .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null),
-    supabaseAdmin.from('artisans').select('*', { count: 'exact', head: true }).eq('is_active', true),
-    supabaseAdmin.from('products').select('shipping_origin, origin_region')
-      .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null).limit(2000),
-    supabaseAdmin.from('artisans').select('location').eq('is_active', true),
-  ])
-
-  const countrySet = new Set<string>()
-  for (const r of originRows ?? []) {
-    const c1 = countryOf(r.shipping_origin) ?? countryOf(r.origin_region)
-    if (c1) countrySet.add(c1)
-  }
-  for (const a of artisanRows ?? []) {
-    const c1 = countryOf(a.location)
-    if (c1) countrySet.add(c1)
-  }
-  const COUNTRIES = [...countrySet].sort()
-
-  const STATS = [
-    { value: String(artisanCount ?? 0),  label: 'Vetted Maker Studios' },
-    { value: String(COUNTRIES.length),   label: 'Countries of Origin'  },
-    { value: String(productCount ?? 0),  label: 'Products in the Edit' },
-  ]
+  // Live stats — shared with the homepage via lib/liveStats (fix A1/A4)
+  const { stats: STATS, countries: COUNTRIES } = await getLiveStats()
 
   const [heroImage, founderRaw, makerImage] = await Promise.all([
     getHeroImage('about_hero_image', 'About Full Bloom Artelier'),

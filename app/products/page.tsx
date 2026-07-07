@@ -7,6 +7,7 @@ import type { HeroImageSetting } from '@/lib/types'
 
 export const metadata: Metadata = {
   title: 'The Edit — Curated FF&E Catalogue',
+  alternates: { canonical: '/products' },
   description: 'Browse our curated collection of luxury furniture, lighting, textiles and artisan accessories. Trade pricing available to approved accounts.',
 }
 

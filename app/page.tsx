@@ -3,13 +3,18 @@ import Image from 'next/image'
 import { Check, ArrowRight } from 'lucide-react'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
+import { getLiveStats } from '@/lib/liveStats'
 import HomepageEnquiryForm from './HomepageEnquiryForm'
 
 export const metadata = {
-  title: 'Full Bloom Artelier — Design Procurement Studio',
+  title: { absolute: 'Full Bloom Artelier — Design Procurement Studio' },
   description:
     'A London-based design procurement studio connecting interior designers, architects and developers with exceptional handcrafted furniture, lighting and objects from our curated maker network.',
+  alternates: { canonical: '/' },
 }
+
+// Live studio stats must not be frozen at build time (fix A4)
+export const revalidate = 3600
 
 const CITIES = ['Milan', 'London', 'Paris', 'Delhi', 'Lagos', 'Shanghai']
 const TICKER_ITEMS = [
@@ -163,7 +168,7 @@ const FOUNDER_DEFAULTS = {
 }
 
 export default async function HomePage() {
-  const [session, featuredProducts, artisans, journalPosts, heroImage, founderRaw, heroSettingsRaw, regions, pillarsImage] = await Promise.all([
+  const [session, featuredProducts, artisans, journalPosts, heroImage, founderRaw, heroSettingsRaw, regions, pillarsImage, liveStats] = await Promise.all([
     getSession(),
     getFeaturedProducts(),
     getFeaturedArtisans(),
@@ -173,6 +178,7 @@ export default async function HomePage() {
     getHomeHeroSettings(),
     getNetworkRegions(),
     getHeroImage('home_pillars_image', 'Luxury hotel — Full Bloom Artelier'),
+    getLiveStats(),
   ])
   const f  = { ...FOUNDER_DEFAULTS, ...founderRaw }
   const hs = heroSettingsRaw as HomeHeroSettings
@@ -315,11 +321,7 @@ export default async function HomePage() {
             </div>
             <div>
               <div className="fba-grid-3" style={{ gap: 2, marginBottom: 40 }}>
-                {[
-                  { value: '10+', label: 'Years FF&E' },
-                  { value: '3',   label: 'Continents' },
-                  { value: '£20M+', label: 'Delivered' },
-                ].map(s => (
+                {liveStats.stats.map(s => (
                   <div key={s.label} style={{
                     padding: '28px 24px', background: 'var(--warm-white)',
                     border: '1px solid var(--light-line)', textAlign: 'center',

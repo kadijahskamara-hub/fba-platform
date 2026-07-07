@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -34,6 +34,9 @@ interface FilterOptions {
 
 interface CollectionGridProps {
   isTradeUser: boolean
+  /** Server-fetched pieces for the default view — lets the grid render
+   *  crawlable content immediately without a client round-trip (fix B4). */
+  initialProducts?: RawProduct[]
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
@@ -61,7 +64,7 @@ const ALL_TABS: { id: CollectionTab; label: string; locked?: boolean }[] = [
 
 // ─── Component ───────────────────────────────────────────────
 
-export function CollectionGrid({ isTradeUser }: CollectionGridProps) {
+export function CollectionGrid({ isTradeUser, initialProducts }: CollectionGridProps) {
   const router       = useRouter()
   const pathname     = usePathname()
   const searchParams = useSearchParams()
@@ -77,8 +80,16 @@ export function CollectionGrid({ isTradeUser }: CollectionGridProps) {
   const [minInput,    setMinInput]    = useState(searchParams.get('min_price') ?? '')
   const [maxInput,    setMaxInput]    = useState(searchParams.get('max_price') ?? '')
 
-  const [products,      setProducts]      = useState<RawProduct[]>([])
-  const [loading,       setLoading]       = useState(true)
+  // If the URL carries no filters, the server-provided pieces are exactly
+  // what the first fetch would return — start hydrated, not loading.
+  const startsWithDefaultView =
+    !searchParams.get('tab') && !searchParams.get('artisan') && !searchParams.get('material') &&
+    !searchParams.get('min_price') && !searchParams.get('max_price')
+  const hasInitial = Boolean(initialProducts && startsWithDefaultView)
+
+  const [products,      setProducts]      = useState<RawProduct[]>(hasInitial ? initialProducts! : [])
+  const [loading,       setLoading]       = useState(!hasInitial)
+  const skipFirstFetch = useRef(hasInitial)
   const [fetchError,    setFetchError]    = useState(false)
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     artisans: [], materials: [], priceRange: { min: 0, max: 10000 },
@@ -118,7 +129,10 @@ export function CollectionGrid({ isTradeUser }: CollectionGridProps) {
     }
   }, [tab, artisanId, material, minPrice, maxPrice])
 
-  useEffect(() => { fetchProducts() }, [fetchProducts])
+  useEffect(() => {
+    if (skipFirstFetch.current) { skipFirstFetch.current = false; return }
+    fetchProducts()
+  }, [fetchProducts])
 
   // Sync state → URL
   useEffect(() => {
