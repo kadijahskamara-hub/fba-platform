@@ -127,6 +127,44 @@ export function StaffEditor({ initialStaff, currentUserId, archivedCount = 0 }: 
     }
   }
 
+  // ── Admin password reset actions ─────────────────────────────
+  async function sendResetLink(member: StaffRow) {
+    if (!confirm(`Email a password reset link to ${member.email}?`)) return
+    try {
+      const res  = await fetch(`/api/admin/users/${member.id}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'link' }),
+      })
+      const json = await res.json()
+      if (json.success) showToast(`Reset link sent to ${member.email}`)
+      else alert(json.error ?? 'Failed to send reset link')
+    } catch {
+      alert('Network error — please try again.')
+    }
+  }
+
+  async function setTempPasswordFor(member: StaffRow) {
+    const pw = prompt(
+      `Set a temporary password for ${member.first_name} (min. 8 characters).\n` +
+      'Share it with them securely — they should change it after signing in.'
+    )
+    if (pw === null) return
+    if (pw.length < 8) { alert('Password must be at least 8 characters.'); return }
+    try {
+      const res  = await fetch(`/api/admin/users/${member.id}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'temp', tempPassword: pw }),
+      })
+      const json = await res.json()
+      if (json.success) showToast(`Temporary password set for ${member.email}`)
+      else alert(json.error ?? 'Failed to set password')
+    } catch {
+      alert('Network error — please try again.')
+    }
+  }
+
   // ── Toggle status (active ↔ suspended) ───────────────────────
 
   async function toggleStatus(member: StaffRow) {
@@ -350,6 +388,26 @@ export function StaffEditor({ initialStaff, currentUserId, archivedCount = 0 }: 
                       >
                         {isEditing ? 'Close' : 'Edit Permissions'}
                       </button>
+                    )}
+
+                    {/* Password reset — not self */}
+                    {!isSelf && (
+                      <>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          disabled={isSaving}
+                          onClick={() => sendResetLink(member)}
+                        >
+                          Send Reset Link
+                        </button>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          disabled={isSaving}
+                          onClick={() => setTempPasswordFor(member)}
+                        >
+                          Temp Password
+                        </button>
+                      </>
                     )}
 
                     {/* Suspend / Reactivate — not self */}

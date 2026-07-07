@@ -3,6 +3,7 @@
 import { useState, useTransition, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { PasswordInput } from '@/components/PasswordInput'
 
 function LoginPageContent() {
   const router  = useRouter()
@@ -90,9 +91,8 @@ function LoginPageContent() {
 
           <div className="form-group">
             <label htmlFor="password" className="form-label">Password</label>
-            <input
-              id="password" type="password" required
-              className="form-input"
+            <PasswordInput
+              id="password" required
               autoComplete="current-password"
               value={password}
               onChange={e => setPassword(e.target.value)}

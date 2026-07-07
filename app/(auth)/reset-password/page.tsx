@@ -1,5 +1,7 @@
 'use client'
 
+import { PasswordInput } from '@/components/PasswordInput'
+
 import { useState, useTransition, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -120,12 +122,10 @@ function ResetPasswordForm() {
 
         <div className="form-group">
           <label htmlFor="password" className="form-label">New password</label>
-          <input
+          <PasswordInput
             id="password"
-            type="password"
             required
             autoFocus
-            className="form-input"
             autoComplete="new-password"
             value={password}
             onChange={e => setPassword(e.target.value)}
@@ -135,11 +135,9 @@ function ResetPasswordForm() {
 
         <div className="form-group">
           <label htmlFor="confirm" className="form-label">Confirm new password</label>
-          <input
+          <PasswordInput
             id="confirm"
-            type="password"
             required
-            className="form-input"
             autoComplete="new-password"
             value={confirm}
             onChange={e => setConfirm(e.target.value)}

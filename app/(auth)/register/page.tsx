@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { PasswordInput } from '@/components/PasswordInput'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -104,7 +105,7 @@ export default function RegisterPage() {
 
           <div className="form-group">
             <label htmlFor="password" className="form-label">Password</label>
-            <input id="password" type="password" required className={`form-input${errors.password ? ' error' : ''}`}
+            <PasswordInput id="password" required className={`form-input${errors.password ? ' error' : ''}`}
               autoComplete="new-password" value={form.password} onChange={set('password')} />
             {errors.password && <p className="form-error">{errors.password}</p>}
             <p className="form-hint">Minimum 8 characters</p>
@@ -112,7 +113,7 @@ export default function RegisterPage() {
 
           <div className="form-group">
             <label htmlFor="confirmPassword" className="form-label">Confirm password</label>
-            <input id="confirmPassword" type="password" required
+            <PasswordInput id="confirmPassword" required
               className={`form-input${errors.confirmPassword ? ' error' : ''}`}
               autoComplete="new-password" value={form.confirmPassword} onChange={set('confirmPassword')} />
             {errors.confirmPassword && <p className="form-error">{errors.confirmPassword}</p>}

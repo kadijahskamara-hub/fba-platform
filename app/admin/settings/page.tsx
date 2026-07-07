@@ -153,6 +153,7 @@ export default async function AdminSettingsPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
         {[
           { title: 'Staff & Permissions', desc: 'Manage admin and staff user access levels.', href: '/admin/settings/staff', icon: '🔒' },
+          { title: 'Users', desc: 'Trade and retail customer accounts — status control and password resets.', href: '/admin/settings/users', icon: '👥' },
           { title: 'Product Categories',  desc: 'View and manage the product taxonomy.',      href: '/admin/products',        icon: '🗂' },
           { title: 'Database Schema',     desc: 'View the Supabase project configuration.',   href: 'https://supabase.com',   icon: '🗄', external: true },
         ].map(card => (
