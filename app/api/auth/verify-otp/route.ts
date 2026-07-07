@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
     // 5 — Fetch user and create a full session
     const { data: user } = await supabaseAdmin
       .from('users')
-      .select('id, first_name, last_name, email, role, status')
+      .select('*') // '*' tolerates must_change_password not being migrated yet
       .eq('id', userId)
       .single()
 
@@ -102,6 +102,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      mustChangePassword: user.must_change_password === true,
       data: { role: user.role, firstName: user.first_name },
     })
 

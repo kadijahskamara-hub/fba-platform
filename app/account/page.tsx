@@ -208,7 +208,10 @@ export default async function AccountPage() {
               <dt style={{ color: 'var(--stone)' }}>Account type</dt>
               <dd>{roleLabel[session.role] ?? session.role}</dd>
             </dl>
-            <div style={{ marginTop: 24, paddingTop: 24, borderTop: '1px solid var(--light-line)' }}>
+            <div style={{ marginTop: 24, paddingTop: 24, borderTop: '1px solid var(--light-line)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <Link href="/account/change-password" className="btn btn-secondary btn-sm">
+                Change password
+              </Link>
               <form action="/api/auth/logout" method="POST">
                 <button type="submit" className="btn btn-secondary btn-sm">
                   Sign out

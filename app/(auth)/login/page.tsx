@@ -44,6 +44,12 @@ function LoginPageContent() {
       // Do NOT call router.refresh() here: it races with router.push() and can
       // cause the login page to flash back. The destination page server-renders
       // with the newly-set cookie, so refresh is unnecessary.
+      // Temp-password sign-in: force a new password before anything else
+      if (data.mustChangePassword) {
+        router.push('/account/change-password?forced=1')
+        return
+      }
+
       const role = data.data?.role
       if (role === 'admin' || role === 'staff') {
         router.push('/admin/dashboard')

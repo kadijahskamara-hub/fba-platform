@@ -125,6 +125,12 @@ function VerifyOtpPageContent() {
         return
       }
 
+      // Temp-password sign-in: force a new password before anything else
+      if (data.mustChangePassword) {
+        router.push('/account/change-password?forced=1')
+        return
+      }
+
       const role = data.data?.role
       if (role === 'admin' || role === 'staff') {
         router.push('/admin/dashboard')

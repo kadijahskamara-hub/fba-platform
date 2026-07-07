@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
 
     const { data: user, error } = await supabaseAdmin
       .from('users')
-      .select('id, first_name, last_name, email, role, status, password_hash')
+      .select('*') // '*' tolerates must_change_password not being migrated yet
       .eq('email', email.toLowerCase().trim())
       .single()
 
@@ -128,6 +128,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      // True when an admin issued a temporary password — the client
+      // must send the user to /account/change-password before anything else.
+      mustChangePassword: user.must_change_password === true,
       data: { role: user.role, firstName: user.first_name },
     })
 

@@ -53,10 +53,25 @@ export async function POST(
       )
     }
     const passwordHash = await bcrypt.hash(tempPassword, 12)
-    const { error } = await supabaseAdmin
+
+    // Flag the account so the next login forces a password change.
+    // If the must_change_password column has not been migrated yet,
+    // retry without it so the temp password still gets set.
+    let { error } = await supabaseAdmin
       .from('users')
-      .update({ password_hash: passwordHash, updated_at: new Date().toISOString() })
+      .update({
+        password_hash: passwordHash,
+        must_change_password: true,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', user.id)
+
+    if (error) {
+      ;({ error } = await supabaseAdmin
+        .from('users')
+        .update({ password_hash: passwordHash, updated_at: new Date().toISOString() })
+        .eq('id', user.id))
+    }
 
     if (error) {
       console.error('Temp password set error:', error)
