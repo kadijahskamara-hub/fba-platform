@@ -77,11 +77,11 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // OTP branch: staff and admin require a second factor.
-    // DISABLE_OTP=true bypasses 2FA locally while DNS propagates, but is
-    // HARD-DISABLED in production so a stray env var can never ship the
-    // bypass to live. In prod, admin/staff 2FA is always enforced.
-    const otpDisabled = process.env.DISABLE_OTP === 'true' && process.env.NODE_ENV !== 'production'
+    // OTP branch: staff and admin second factor.
+    // OTP is DISABLED BY DEFAULT. To re-enable admin/staff 2FA, set the env var
+    // ENABLE_OTP=true (in Vercel + .env.local) and confirm Resend email delivery
+    // is working. Leaving ENABLE_OTP unset keeps 2FA off in all environments.
+    const otpDisabled = process.env.ENABLE_OTP !== 'true'
 
     if (!otpDisabled && (user.role === 'admin' || user.role === 'staff')) {
       const code      = generateOtpCode()
