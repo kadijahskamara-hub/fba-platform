@@ -1,215 +1,162 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { PROFORMA_STAGES, stageLabel } from '@/lib/pipeline'
 
-type QuoteRequest = {
-  id: string
-  status: string
-  project_name: string | null
-  project_location: string | null
-  budget: number | null
-  notes: string | null
-  created_at: string
-  user: { first_name: string; last_name: string; email: string; role: string } | null
-  items: { id: string; quantity: number; selected_finish: string | null; selected_fabric: string | null; selected_size: string | null; product: { id: string; name: string; slug: string } | null }[]
+type Item = { id: string; name: string; quantity: number; unit_price: number | null; manufacturer_id: string | null; manufacturer_name: string | null; is_bespoke: boolean }
+type Contact = { id: string; first_name: string | null; last_name: string | null; email: string } | null
+type Proforma = {
+  id: string; proforma_number: string; stage: string
+  client_name: string | null; client_company: string | null; client_email: string | null
+  project_name: string | null; project_location: string | null; currency: string
+  quote_request_id: string | null; updated_at: string
+  items: Item[]; contact: Contact
+}
+type QuoteReq = {
+  id: string; status: string; project_name: string | null; project_location: string | null
+  budget: number | null; created_at: string
+  user: { first_name: string; last_name: string; email: string } | null
+  items: { id: string }[]
 }
 
-const STATUS_OPTIONS = ['new', 'reviewing', 'quoted', 'accepted', 'rejected', 'converted_to_order']
-
-const STATUS_LABELS: Record<string, string> = {
-  new: 'New', reviewing: 'Reviewing', quoted: 'Quoted',
-  accepted: 'Accepted', rejected: 'Rejected', converted_to_order: 'Order',
+function money(n: number, cur: string) {
+  const sym = cur === 'EUR' ? '€' : cur === 'USD' ? '$' : '£'
+  return `${sym}${n.toLocaleString('en-GB')}`
 }
+const proformaTotal = (p: Proforma) =>
+  (p.items ?? []).reduce((s, it) => s + (Number(it.unit_price) || 0) * (Number(it.quantity) || 0), 0)
 
-export default function AdminQuotesPage() {
-  const [quotes, setQuotes]       = useState<QuoteRequest[]>([])
-  const [total, setTotal]         = useState(0)
-  const [loading, setLoading]     = useState(true)
-  const [statusFilter, setStatus] = useState('')
-  const [page, setPage]           = useState(1)
-  const [selected, setSelected]   = useState<QuoteRequest | null>(null)
-  const limit = 20
+export default function QuotePipelinePage() {
+  const router = useRouter()
+  const [proformas, setProformas] = useState<Proforma[]>([])
+  const [inbox, setInbox] = useState<QuoteReq[]>([])
+  const [loading, setLoading] = useState(true)
+  const [stage, setStage] = useState<string>('all')
+  const [creating, setCreating] = useState(false)
 
-  const fetchQuotes = useCallback(async () => {
+  const load = useCallback(async () => {
     setLoading(true)
-    const params = new URLSearchParams({ page: String(page), limit: String(limit) })
-    if (statusFilter) params.set('status', statusFilter)
-    const res  = await fetch(`/api/admin/quote-requests?${params}`)
-    const json = await res.json()
-    if (json.success) { setQuotes(json.data); setTotal(json.total ?? 0) }
+    const [pfRes, qrRes] = await Promise.all([
+      fetch('/api/admin/proformas').then(r => r.json()),
+      fetch('/api/admin/quote-requests?limit=100').then(r => r.json()),
+    ])
+    const pfs: Proforma[] = pfRes.success ? pfRes.data : []
+    setProformas(pfs)
+    // Inbox = quote requests not yet converted into a proforma.
+    const converted = new Set(pfs.map(p => p.quote_request_id).filter(Boolean))
+    const reqs: QuoteReq[] = qrRes.success ? qrRes.data : []
+    setInbox(reqs.filter(r => !converted.has(r.id)))
     setLoading(false)
-  }, [page, statusFilter])
+  }, [])
 
-  useEffect(() => { fetchQuotes() }, [fetchQuotes])
+  useEffect(() => { load() }, [load])
 
-  const updateStatus = async (id: string, status: string) => {
-    await fetch(`/api/admin/quote-requests/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
+  const counts: Record<string, number> = { all: proformas.length }
+  for (const s of PROFORMA_STAGES) counts[s.key] = proformas.filter(p => p.stage === s.key).length
+
+  const visible = stage === 'all' ? proformas : proformas.filter(p => p.stage === stage)
+
+  const newProforma = async (quoteRequestId?: string) => {
+    setCreating(true)
+    const res = await fetch('/api/admin/proformas', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(quoteRequestId ? { quoteRequestId } : {}),
     })
-    fetchQuotes()
-    if (selected?.id === id) setSelected(q => q ? { ...q, status } : null)
+    const json = await res.json()
+    setCreating(false)
+    if (json.success) router.push(`/admin/quotes/${json.data.id}`)
+    else alert(json.error ?? 'Could not create proforma')
   }
 
-  const totalPages = Math.ceil(total / limit)
+  const seedFromRequest = async (r: QuoteReq) => {
+    // Create proforma then patch header from the request's details.
+    setCreating(true)
+    const res = await fetch('/api/admin/proformas', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        quoteRequestId: r.id,
+        clientName: r.user ? `${r.user.first_name} ${r.user.last_name}`.trim() : null,
+        clientEmail: r.user?.email ?? null,
+        projectName: r.project_name,
+        projectLocation: r.project_location,
+      }),
+    })
+    const json = await res.json()
+    setCreating(false)
+    if (json.success) router.push(`/admin/quotes/${json.data.id}`)
+    else alert(json.error ?? 'Could not create proforma')
+  }
 
   return (
     <>
       <div className="admin-header">
         <div>
           <h1 className="admin-title">Quote Pipeline</h1>
-          <p className="admin-subtitle">{total} quote request{total !== 1 ? 's' : ''}</p>
+          <p className="admin-subtitle">{proformas.length} proforma{proformas.length !== 1 ? 's' : ''}{inbox.length ? ` · ${inbox.length} incoming request${inbox.length !== 1 ? 's' : ''}` : ''}</p>
         </div>
+        <button className="btn btn-primary btn-sm" disabled={creating} onClick={() => newProforma()}>
+          {creating ? 'Creating…' : '+ New Proforma'}
+        </button>
       </div>
 
-      {/* Status filter tabs */}
-      <div className="tab-bar" style={{ marginBottom: 24 }}>
-        <button className={`tab-btn${statusFilter === '' ? ' active' : ''}`} onClick={() => { setStatus(''); setPage(1) }}>
-          All
-        </button>
-        {STATUS_OPTIONS.map(s => (
-          <button key={s} className={`tab-btn${statusFilter === s ? ' active' : ''}`}
-            onClick={() => { setStatus(s); setPage(1) }}>
-            {STATUS_LABELS[s]}
+      {/* Incoming quote requests (entry point 2.1) */}
+      {inbox.length > 0 && (
+        <div style={{ marginBottom: 28, background: 'var(--cream, #f7f3ec)', border: '1px solid var(--light-line)', borderRadius: 6, padding: 16 }}>
+          <div className="label" style={{ marginBottom: 10 }}>Incoming quote requests</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {inbox.map(r => (
+              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, background: 'var(--warm-white)', padding: '8px 12px', border: '1px solid var(--light-line)' }}>
+                <div style={{ flex: 1 }}>
+                  <strong>{r.user ? `${r.user.first_name} ${r.user.last_name}` : '—'}</strong>
+                  <span style={{ color: 'var(--stone)' }}> · {r.project_name ?? 'Untitled'} · {r.items.length} item{r.items.length !== 1 ? 's' : ''}</span>
+                </div>
+                <button className="btn btn-secondary btn-sm" disabled={creating} onClick={() => seedFromRequest(r)}>
+                  Create proforma →
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Stage tabs */}
+      <div className="tab-bar" style={{ marginBottom: 18, flexWrap: 'wrap' }}>
+        <button className={`tab-btn${stage === 'all' ? ' active' : ''}`} onClick={() => setStage('all')}>All ({counts.all})</button>
+        {PROFORMA_STAGES.map(s => (
+          <button key={s.key} className={`tab-btn${stage === s.key ? ' active' : ''}`} onClick={() => setStage(s.key)}>
+            {s.label} ({counts[s.key]})
           </button>
         ))}
       </div>
 
-      <div style={{ background: 'var(--warm-white)', border: '1px solid var(--light-line)' }}>
-        {loading ? (
-          <div style={{ padding: 48, textAlign: 'center', color: 'var(--stone)', fontSize: 14 }}>Loading…</div>
-        ) : !quotes.length ? (
-          <div style={{ padding: 48, textAlign: 'center', color: 'var(--stone)', fontSize: 14 }}>No quotes found.</div>
-        ) : (
+      {loading ? (
+        <div style={{ padding: 48, textAlign: 'center', color: 'var(--stone)' }}>Loading…</div>
+      ) : visible.length === 0 ? (
+        <div className="empty-state"><h3>No proformas here</h3><p>Create one, or convert an incoming request above.</p></div>
+      ) : (
+        <div style={{ background: 'var(--warm-white)', border: '1px solid var(--light-line)' }}>
           <table className="data-table">
             <thead>
-              <tr>
-                <th>Applicant</th>
-                <th>Project</th>
-                <th>Items</th>
-                <th>Budget</th>
-                <th>Status</th>
-                <th>Date</th>
-                <th></th>
-              </tr>
+              <tr><th>Proforma</th><th>Client</th><th>Project</th><th>Items</th><th>Total</th><th>Stage</th><th>Updated</th></tr>
             </thead>
             <tbody>
-              {quotes.map(q => (
-                <tr key={q.id}>
+              {visible.map(p => (
+                <tr key={p.id} style={{ cursor: 'pointer' }} onClick={() => router.push(`/admin/quotes/${p.id}`)}>
+                  <td style={{ fontWeight: 500, fontSize: 13 }}>{p.proforma_number}</td>
                   <td style={{ fontSize: 13 }}>
-                    <div style={{ fontWeight: 500 }}>
-                      {q.user ? `${q.user.first_name} ${q.user.last_name}` : '—'}
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--stone)' }}>{q.user?.email}</div>
+                    {p.client_name || (p.contact ? `${p.contact.first_name ?? ''} ${p.contact.last_name ?? ''}`.trim() : '—')}
+                    {p.client_company && <div style={{ fontSize: 11, color: 'var(--stone)' }}>{p.client_company}</div>}
                   </td>
-                  <td style={{ fontSize: 13 }}>
-                    <div>{q.project_name ?? '—'}</div>
-                    {q.project_location && (
-                      <div style={{ fontSize: 11, color: 'var(--stone)' }}>📍 {q.project_location}</div>
-                    )}
-                  </td>
-                  <td style={{ fontSize: 13 }}>{q.items.length} piece{q.items.length !== 1 ? 's' : ''}</td>
-                  <td style={{ fontSize: 13 }}>
-                    {q.budget ? `£${Number(q.budget).toLocaleString()}` : '—'}
-                  </td>
-                  <td>
-                    <span className={`status-pill status-${q.status}`}>
-                      {STATUS_LABELS[q.status] ?? q.status}
-                    </span>
-                  </td>
-                  <td style={{ fontSize: 12, color: 'var(--stone)' }}>
-                    {new Date(q.created_at).toLocaleDateString('en-GB')}
-                  </td>
-                  <td>
-                    <button className="btn btn-ghost btn-sm" onClick={() => setSelected(q)} style={{ fontSize: 11 }}>
-                      View
-                    </button>
-                  </td>
+                  <td style={{ fontSize: 13 }}>{p.project_name ?? '—'}</td>
+                  <td style={{ fontSize: 13 }}>{p.items?.length ?? 0}</td>
+                  <td style={{ fontSize: 13 }}>{money(proformaTotal(p), p.currency)}</td>
+                  <td><span className={`status-pill status-${p.stage}`}>{stageLabel(p.stage)}</span></td>
+                  <td style={{ fontSize: 12, color: 'var(--stone)' }}>{new Date(p.updated_at).toLocaleDateString('en-GB')}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
-      </div>
-
-      {totalPages > 1 && (
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 24 }}>
-          <button className="btn btn-ghost btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>← Prev</button>
-          <span style={{ fontSize: 13, color: 'var(--stone)', padding: '6px 12px' }}>Page {page} of {totalPages}</span>
-          <button className="btn btn-ghost btn-sm" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Next →</button>
-        </div>
-      )}
-
-      {/* Detail modal */}
-      {selected && (
-        <div className="modal-overlay" onClick={() => setSelected(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 580 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
-              <div>
-                <h2 className="h3">{selected.project_name ?? 'Quote Request'}</h2>
-                <p style={{ fontSize: 13, color: 'var(--stone)', marginTop: 4 }}>
-                  {selected.user?.email} · {new Date(selected.created_at).toLocaleDateString('en-GB')}
-                </p>
-              </div>
-              <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--stone)' }}>×</button>
-            </div>
-
-            <dl style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '10px 0', fontSize: 13, marginBottom: 20 }}>
-              <dt style={{ color: 'var(--stone)' }}>Contact</dt>
-              <dd>{selected.user?.first_name} {selected.user?.last_name}</dd>
-              {selected.project_location && (<><dt style={{ color: 'var(--stone)' }}>Location</dt><dd>{selected.project_location}</dd></>)}
-              {selected.budget && (<><dt style={{ color: 'var(--stone)' }}>Budget</dt><dd>£{Number(selected.budget).toLocaleString()}</dd></>)}
-              <dt style={{ color: 'var(--stone)' }}>Status</dt>
-              <dd><span className={`status-pill status-${selected.status}`}>{STATUS_LABELS[selected.status]}</span></dd>
-            </dl>
-
-            {selected.items.length > 0 && (
-              <div style={{ marginBottom: 20 }}>
-                <div className="label" style={{ marginBottom: 10 }}>Products requested</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {selected.items.map(item => (
-                    <div key={item.id} style={{ fontSize: 13, padding: '8px 12px', background: 'var(--cream)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span>{item.product?.name ?? 'Unknown product'}</span>
-                        <span style={{ color: 'var(--stone)' }}>Qty: {item.quantity}</span>
-                      </div>
-                      {(item.selected_finish || item.selected_fabric || item.selected_size) && (
-                        <div style={{ fontSize: 12, color: 'var(--caramel)', marginTop: 4 }}>
-                          {[
-                            item.selected_finish ? `Finish: ${item.selected_finish}` : null,
-                            item.selected_fabric ? `Upholstery: ${item.selected_fabric}` : null,
-                            item.selected_size ? `Size: ${item.selected_size}` : null,
-                          ].filter(Boolean).join(' · ')}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {selected.notes && (
-              <div style={{ padding: 16, background: 'var(--cream)', borderLeft: '3px solid var(--sand)', marginBottom: 20 }}>
-                <div className="label" style={{ marginBottom: 6 }}>Notes</div>
-                <p style={{ fontSize: 13, color: 'var(--stone)', lineHeight: 1.7 }}>{selected.notes}</p>
-              </div>
-            )}
-
-            <div>
-              <div className="label" style={{ marginBottom: 10 }}>Update status</div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {STATUS_OPTIONS.filter(s => s !== selected.status).map(s => (
-                  <button key={s} className="btn btn-secondary btn-sm"
-                    onClick={() => updateStatus(selected.id, s)}
-                    style={{ fontSize: 11 }}>
-                    → {STATUS_LABELS[s]}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
         </div>
       )}
     </>
