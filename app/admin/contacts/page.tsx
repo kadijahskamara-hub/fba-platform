@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
+import { accountRoleLabel } from '@/lib/contactRoleLabel'
 
 type Contact = {
   id: string
@@ -15,6 +16,8 @@ type Contact = {
   message: string | null
   subscribed_marketing: boolean
   created_at: string
+  account_role: string | null
+  account_is_owner: boolean
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -67,6 +70,15 @@ export default function AdminContactsPage() {
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
 
+  const exportCsv = useCallback(() => {
+    const params = new URLSearchParams()
+    if (search)       params.set('search', search)
+    if (typeFilter)   params.set('type', typeFilter)
+    if (sourceFilter) params.set('source', sourceFilter)
+    const qs = params.toString()
+    window.location.href = `/api/admin/contacts/export${qs ? `?${qs}` : ''}`
+  }, [search, typeFilter, sourceFilter])
+
   const totalPages = Math.ceil(total / limit)
 
   return (
@@ -76,7 +88,7 @@ export default function AdminContactsPage() {
           <h1 className="admin-title">Contacts</h1>
           <p className="admin-subtitle">{total} contact{total !== 1 ? 's' : ''} in database</p>
         </div>
-        <button className="btn btn-secondary btn-sm">Export CSV</button>
+        <button className="btn btn-secondary btn-sm" onClick={exportCsv} disabled={loading || total === 0}>Export CSV</button>
       </div>
 
       {/* Filters */}
@@ -148,9 +160,16 @@ export default function AdminContactsPage() {
                   </td>
                   <td style={{ fontSize: 13, color: 'var(--stone)' }}>{c.company_name ?? '—'}</td>
                   <td>
-                    <span className={`status-pill status-${c.contact_type}`}>
-                      {TYPE_LABELS[c.contact_type] ?? c.contact_type}
-                    </span>
+                    {accountRoleLabel(c.account_role, c.account_is_owner) ? (
+                      <span className="status-pill" style={{ background: 'var(--forest, #2d3a2e)', color: '#fff' }}
+                        title="Appointed account status">
+                        {accountRoleLabel(c.account_role, c.account_is_owner)}
+                      </span>
+                    ) : (
+                      <span className={`status-pill status-${c.contact_type}`}>
+                        {TYPE_LABELS[c.contact_type] ?? c.contact_type}
+                      </span>
+                    )}
                   </td>
                   <td style={{ fontSize: 12, color: 'var(--stone)' }}>
                     {SOURCE_LABELS[c.source ?? ''] ?? c.source ?? '—'}
@@ -214,7 +233,7 @@ export default function AdminContactsPage() {
                   {[selected.first_name, selected.last_name].filter(Boolean).join(' ') || selected.email}
                 </h2>
                 <p style={{ fontSize: 13, color: 'var(--stone)', marginTop: 4 }}>
-                  {TYPE_LABELS[selected.contact_type] ?? selected.contact_type}
+                  {accountRoleLabel(selected.account_role, selected.account_is_owner) ?? TYPE_LABELS[selected.contact_type] ?? selected.contact_type}
                   {selected.source ? ` · via ${SOURCE_LABELS[selected.source] ?? selected.source}` : ''}
                 </p>
               </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { isStaff } from '@/lib/auth'
+import { buildAccountInfoMap } from '@/lib/contactAccounts'
 
 export async function GET(req: NextRequest) {
   if (!(await isStaff())) {
@@ -32,5 +33,13 @@ export async function GET(req: NextRequest) {
   const { data, error, count } = await query
 
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
-  return NextResponse.json({ success: true, data: data ?? [], total: count ?? 0 })
+
+  // Enrich each contact with its matching user account's real role (Phase 4.1).
+  const accountMap = await buildAccountInfoMap()
+  const enriched = (data ?? []).map((c: Record<string, unknown>) => {
+    const info = accountMap.get(String(c.email ?? '').toLowerCase())
+    return { ...c, account_role: info?.role ?? null, account_is_owner: info?.isOwner ?? false }
+  })
+
+  return NextResponse.json({ success: true, data: enriched, total: count ?? 0 })
 }
