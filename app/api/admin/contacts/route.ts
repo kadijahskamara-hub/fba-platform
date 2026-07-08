@@ -43,3 +43,31 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ success: true, data: enriched, total: count ?? 0 })
 }
+
+// POST /api/admin/contacts — create a contact record (Phase 4.3)
+export async function POST(req: NextRequest) {
+  if (!(await isStaff())) {
+    return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+  }
+  const body = await req.json()
+  if (!body.email?.trim()) {
+    return NextResponse.json({ success: false, error: 'Email is required.' }, { status: 400 })
+  }
+  const { data, error } = await supabaseAdmin
+    .from('contacts')
+    .insert({
+      first_name:        body.firstName?.trim() || null,
+      last_name:         body.lastName?.trim() || null,
+      email:             body.email.toLowerCase().trim(),
+      phone:             body.phone?.trim() || null,
+      company_name:      body.companyName?.trim() || null,
+      contact_type:      body.contactType || 'general',
+      source:            body.source || 'manual',
+      consent_marketing: body.consentMarketing ?? false,
+      notes:             body.notes || null,
+    })
+    .select()
+    .single()
+  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+  return NextResponse.json({ success: true, data })
+}
