@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomBytes } from 'crypto'
+import bcrypt from 'bcryptjs'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getSession, isStaffRole } from '@/lib/auth'
 import { Resend } from 'resend'
@@ -77,7 +79,7 @@ export async function PATCH(
   // Fetch full application for email context
   const { data: appBefore, error: fetchErr } = await supabaseAdmin
     .from('trade_applications')
-    .select('*, user:users(id, first_name, last_name, email)')
+    .select('*, user:users(id, first_name, last_name, email, password_hash)')
     .eq('id', id)
     .single()
 
@@ -98,6 +100,34 @@ export async function PATCH(
       .eq('id', appBefore.user_id)
   }
 
+  // On approval, if the applicant has no password yet (net-new account created
+  // by the public application form), issue a one-time set-password link so they
+  // can log in and access their trade pricing. Reuses the password-reset flow.
+  let setPasswordUrl: string | null = null
+  if (action === 'approve' && appBefore?.user_id) {
+    const applicantUser = appBefore.user as Record<string, unknown> | null
+    const hasPassword = !!applicantUser?.password_hash && String(applicantUser.password_hash).length > 0
+    if (!hasPassword) {
+      await supabaseAdmin
+        .from('password_reset_tokens')
+        .update({ used: true })
+        .eq('user_id', appBefore.user_id)
+        .eq('used', false)
+
+      const rawToken  = randomBytes(48).toString('base64url')
+      const tokenHash = await bcrypt.hash(rawToken, 10)
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+
+      const { error: tokenErr } = await supabaseAdmin
+        .from('password_reset_tokens')
+        .insert({ user_id: appBefore.user_id, token_hash: tokenHash, expires_at: expiresAt.toISOString(), used: false })
+
+      if (!tokenErr) {
+        setPasswordUrl = `${SITE_URL}/reset-password?token=${encodeURIComponent(rawToken)}&email=${encodeURIComponent(String(applicantUser?.email ?? ''))}`
+      }
+    }
+  }
+
   // Send notification email
   if (resend && appBefore?.user) {
     const applicant = appBefore.user as Record<string, string>
@@ -105,6 +135,7 @@ export async function PATCH(
       firstName: applicant.first_name,
       email:     applicant.email,
       companyName: appBefore.company_name as string,
+      setPasswordUrl,
     })
   }
 
@@ -115,11 +146,20 @@ export async function PATCH(
 
 async function sendNotificationEmail(
   action: string,
-  ctx: { firstName: string; email: string; companyName: string }
+  ctx: { firstName: string; email: string; companyName: string; setPasswordUrl?: string | null }
 ) {
   if (!resend) return
 
-  const { firstName, email, companyName } = ctx
+  const { firstName, email, companyName, setPasswordUrl } = ctx
+
+  // On approval, net-new applicants get a set-password CTA; returning
+  // account holders get a plain sign-in link.
+  const approveCta = setPasswordUrl
+    ? `<a href="${setPasswordUrl}" style="background:#4A6741;color:#F7F3EE;padding:14px 32px;text-decoration:none;font-size:13px;letter-spacing:0.1em;text-transform:uppercase">Set your password &amp; sign in</a>`
+    : `<a href="${SITE_URL}/account" style="background:#4A6741;color:#F7F3EE;padding:14px 32px;text-decoration:none;font-size:13px;letter-spacing:0.1em;text-transform:uppercase">Access your account</a>`
+  const approveSetPwLine = setPasswordUrl
+    ? `<p style="font-size:15px;line-height:1.8;color:#5E6E5B">To activate your account, set your password using the button below. This link is valid for 7 days.</p>`
+    : ''
 
   const templates: Record<string, { subject: string; html: string } | null> = {
     approve: {
@@ -135,10 +175,9 @@ async function sendNotificationEmail(
             We are delighted to confirm that your trade account application for <strong>${companyName}</strong> has been approved.
             You now have access to trade pricing, exclusive collections, and our FF&amp;E procurement services.
           </p>
+          ${approveSetPwLine}
           <div style="margin:32px 0">
-            <a href="${SITE_URL}/account" style="background:#4A6741;color:#F7F3EE;padding:14px 32px;text-decoration:none;font-size:13px;letter-spacing:0.1em;text-transform:uppercase">
-              Access your account
-            </a>
+            ${approveCta}
           </div>
           <p style="font-size:14px;line-height:1.8;color:#9CA89A">
             If you have any questions, please reach out to us at <a href="mailto:info@fullbloom.uk.com" style="color:#4A6741">info@fullbloom.uk.com</a>.
