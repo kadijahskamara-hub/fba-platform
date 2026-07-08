@@ -93,6 +93,10 @@ export async function PATCH(
       }
     }
 
+    if ('category_id' in productUpdates && !productUpdates.category_id) {
+      return NextResponse.json({ success: false, error: 'Category is required.' }, { status: 400 })
+    }
+
     const { data, error } = await supabaseAdmin
       .from('products')
       .update(productUpdates)

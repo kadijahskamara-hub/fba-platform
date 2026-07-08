@@ -346,8 +346,8 @@ export default function AdminProductForm({ mode, product, categories: initCats =
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.name || !form.slug || !form.description) {
-      setError('Name, slug and description are required.')
+    if (!form.name || !form.slug || !form.description || !form.categoryId) {
+      setError('Name, slug, description and category are required.')
       return
     }
     setError('')
@@ -465,8 +465,9 @@ export default function AdminProductForm({ mode, product, categories: initCats =
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Category</label>
-                  <select className="form-select" value={form.categoryId} onChange={set('categoryId')}>
+                  <label className="form-label">Category *</label>
+                  <select className="form-select" required value={form.categoryId} onChange={set('categoryId')}
+                    style={!form.categoryId ? { borderColor: '#B00020' } : undefined}>
                     <option value="">Select category</option>
                     {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>

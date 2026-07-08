@@ -116,6 +116,10 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
 
+    if (!body.categoryId) {
+      return NextResponse.json({ success: false, error: 'Category is required.' }, { status: 400 })
+    }
+
     const { data: product, error } = await supabaseAdmin
       .from('products')
       .insert({
