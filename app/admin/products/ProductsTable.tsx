@@ -59,6 +59,7 @@ export default function ProductsTable({ products, isAdmin }: { products: Product
       unpublish: `Unpublish ${selected.size} selected product(s)? They will be hidden from the public catalogue.`,
       archive: `Archive ${selected.size} selected product(s)?\n\nThey will be hidden from the public catalogue but retained in admin history.`,
       restore: `Restore ${selected.size} selected product(s)?`,
+      delete: `Permanently delete ${selected.size} selected product(s)?\n\nThis cannot be undone. Products referenced by projects, quotes or orders are kept automatically. Use Archive unless these are test or duplicate records.`,
     }
     if (!confirm(labels[action])) return
     setBusy(true)
@@ -71,6 +72,7 @@ export default function ProductsTable({ products, isAdmin }: { products: Product
       const json = await res.json()
       if (!json.success) alert(json.error ?? 'Bulk action failed')
       else {
+        if (action === 'delete' && json.message) alert(json.message)
         setSelected(new Set())
         router.refresh()
       }
@@ -95,6 +97,11 @@ export default function ProductsTable({ products, isAdmin }: { products: Product
               {a.label}
             </button>
           ))}
+          {isAdmin && (
+            <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => runBulk('delete')} style={{ color: '#a03030' }}>
+              Delete
+            </button>
+          )}
           <button className="btn btn-ghost btn-sm" onClick={() => setSelected(new Set())} style={{ marginLeft: 'auto' }}>
             Clear
           </button>

@@ -15,8 +15,8 @@ import { logAudit } from '@/lib/audit'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-type LifecycleAction = 'archive' | 'unarchive' | 'publish' | 'unpublish' | 'duplicate' | 'delete'
-const ACTIONS: LifecycleAction[] = ['archive', 'unarchive', 'publish', 'unpublish', 'duplicate', 'delete']
+type LifecycleAction = 'archive' | 'unarchive' | 'publish' | 'unpublish' | 'draft' | 'clear' | 'duplicate' | 'delete'
+const ACTIONS: LifecycleAction[] = ['archive', 'unarchive', 'publish', 'unpublish', 'draft', 'clear', 'duplicate', 'delete']
 
 export async function POST(
   req: NextRequest,
@@ -85,7 +85,7 @@ export async function POST(
 
     case 'publish':
     case 'unpublish': {
-      const visibility = action === 'publish' ? 'published' : 'hidden'
+      const visibility = action === 'publish' ? 'published' : 'draft'
       const { error } = await supabaseAdmin
         .from('products')
         .update({ visibility, last_updated_by: session.id, updated_at: now })
@@ -94,6 +94,55 @@ export async function POST(
 
       await logAudit({ actor: session, action: `product.${action}ed`, entityType: 'product', entityId: product.id, before: { visibility: product.visibility }, after: { visibility } })
       return NextResponse.json({ success: true, message: `"${product.name}" ${action}ed.` })
+    }
+
+    case 'draft': {
+      const { error } = await supabaseAdmin
+        .from('products')
+        .update({ visibility: 'draft', last_updated_by: session.id, updated_at: now })
+        .eq('id', product.id)
+      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+
+      await logAudit({ actor: session, action: 'product.drafted', entityType: 'product', entityId: product.id, before: { visibility: product.visibility }, after: { visibility: 'draft' } })
+      return NextResponse.json({ success: true, message: `"${product.name}" moved to Draft.` })
+    }
+
+    case 'clear': {
+      // Reset a product to a blank draft: wipe all editable content but keep
+      // the record's identity (id, name, slug) so links and references survive.
+      const cleared: Record<string, unknown> = {
+        description: '', short_description: null,
+        category_id: null, subcategory_id: null, artisan_id: null,
+        retail_price: null, trade_price: null, supplier_cost: null,
+        price_type: 'fixed',
+        images: [], seo_title: null, seo_description: null,
+        reference_code: null, sku: null,
+        lead_time: null, lead_time_weeks: null,
+        shipping_origin: null, shipping_notes: null,
+        technical_description: null, customisation_note: null,
+        made_to_order: null, dispatch_time_label: null,
+        lead_time_min_weeks: null, lead_time_max_weeks: null,
+        min_order_quantity: null, public_brand_visible: null, hide_finish_options: null,
+        is_fba_collection: false, is_fba_home: false,
+        fire_retardant: false, stain_proofed: false, rub_count_40k: false,
+        finish_type: null, origin_region: null,
+        visibility: 'draft',
+        last_updated_by: session.id, updated_at: now,
+      }
+      const { error } = await supabaseAdmin
+        .from('products')
+        .update(cleared)
+        .eq('id', product.id)
+      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+
+      // Remove dependent detail records (specs, variants, finishes, documents).
+      await supabaseAdmin.from('product_specifications').delete().eq('product_id', product.id)
+      await supabaseAdmin.from('product_variants').delete().eq('product_id', product.id)
+      await supabaseAdmin.from('product_finishes').delete().eq('product_id', product.id)
+      await supabaseAdmin.from('product_documents').delete().eq('product_id', product.id)
+
+      await logAudit({ actor: session, action: 'product.cleared', entityType: 'product', entityId: product.id, before: { name: product.name, visibility: product.visibility }, after: { reset: true } })
+      return NextResponse.json({ success: true, message: `"${product.name}" reset to a blank draft. Its name and link are kept; all other fields were cleared.` })
     }
 
     case 'duplicate': {

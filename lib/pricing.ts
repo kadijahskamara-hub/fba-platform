@@ -43,7 +43,8 @@ export function resolvePrice(
 
   const role = session?.role ?? 'guest'
 
-  if (role === 'trade_user' || role === 'admin') {
+  // Admins get full visibility: trade price, falling back to retail.
+  if (role === 'admin') {
     const price = tradePrice ?? retailPrice
     if (price == null) return { type: 'request', label: 'Price on request' }
     return {
@@ -54,7 +55,19 @@ export function resolvePrice(
     }
   }
 
-  // Guest, retail_customer, trade_applicant
+  // Trade accounts see the Trade Price, or "Price on request" where no trade
+  // price is set — never the retail price.
+  if (role === 'trade_user') {
+    if (tradePrice == null) return { type: 'request', label: 'Price on request' }
+    return {
+      type: 'fixed',
+      amount: tradePrice,
+      currency: currency as CurrencyCode,
+      label: formatPrice(tradePrice, currency as CurrencyCode),
+    }
+  }
+
+  // Guest, retail_customer, trade_applicant: Retail Price or "Price on request".
   if (retailPrice == null) return { type: 'request', label: 'Price on request' }
   return {
     type: 'fixed',

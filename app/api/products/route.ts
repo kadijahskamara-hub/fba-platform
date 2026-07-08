@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase, supabaseAdmin } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
 import { applyAudienceFilter } from '@/lib/productVisibility'
+import { resolveSubcategoryId } from '@/lib/subcategories'
 
 export async function GET(req: NextRequest) {
   const session          = await getSession()
@@ -120,6 +121,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Category is required.' }, { status: 400 })
     }
 
+    const resolvedSubcategoryId = await resolveSubcategoryId(body.categoryId, {
+      subcategoryId: body.subcategoryId,
+      subcategoryName: body.subcategoryName,
+    })
+
     const { data: product, error } = await supabaseAdmin
       .from('products')
       .insert({
@@ -128,7 +134,7 @@ export async function POST(req: NextRequest) {
         sku:               body.sku || null,
         reference_code:    body.referenceCode || null,
         category_id:       body.categoryId || null,
-        subcategory_id:    body.subcategoryId || null,
+        subcategory_id:    resolvedSubcategoryId,
         artisan_id:        body.artisanId || null,
         description:       body.description,
         short_description: body.shortDescription || null,

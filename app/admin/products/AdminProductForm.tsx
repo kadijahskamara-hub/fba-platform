@@ -6,12 +6,12 @@ import { useRouter } from 'next/navigation'
 type FormData = {
   // ── Core product ──────────────────────────────────────────
   name: string; slug: string; sku: string; referenceCode: string
-  categoryId: string; subcategoryId: string; artisanId: string
+  categoryId: string; subcategoryId: string; subcategoryName: string; artisanId: string
   description: string; shortDescription: string
   retailPrice: string; tradePrice: string; supplierCost: string
   priceType: 'fixed' | 'price_on_request'
   currency: 'GBP' | 'EUR' | 'USD'
-  visibility: 'draft' | 'published' | 'hidden'
+  visibility: 'draft' | 'published'
   audience: 'retail' | 'trade' | 'retail_and_trade'
   isFbaCollection: boolean
   isFbaHome: boolean
@@ -58,7 +58,7 @@ type FormData = {
 
 const EMPTY: FormData = {
   name: '', slug: '', sku: '', referenceCode: '',
-  categoryId: '', subcategoryId: '', artisanId: '',
+  categoryId: '', subcategoryId: '', subcategoryName: '', artisanId: '',
   description: '', shortDescription: '',
   retailPrice: '', tradePrice: '', supplierCost: '',
   priceType: 'fixed', currency: 'GBP',
@@ -118,6 +118,7 @@ function productToForm(p: Record<string, unknown>, spec: Record<string, unknown>
     referenceCode:    String(p.reference_code ?? ''),
     categoryId:       String(p.category_id ?? ''),
     subcategoryId:    String(p.subcategory_id ?? ''),
+    subcategoryName:  '',
     artisanId:        String(p.artisan_id ?? ''),
     description:      String(p.description ?? ''),
     shortDescription: String(p.short_description ?? ''),
@@ -126,7 +127,7 @@ function productToForm(p: Record<string, unknown>, spec: Record<string, unknown>
     supplierCost:     p.supplier_cost != null ? String(p.supplier_cost) : '',
     priceType:        (p.price_type as FormData['priceType']) ?? 'fixed',
     currency:         (p.currency as FormData['currency']) ?? 'GBP',
-    visibility:       (p.visibility as FormData['visibility']) ?? 'draft',
+    visibility:       (p.visibility === 'published' ? 'published' : 'draft'),
     audience:         (p.audience as FormData['audience']) ?? 'retail_and_trade',
     isFbaCollection:  Boolean(p.is_fba_collection),
     isFbaHome:        Boolean(p.is_fba_home),
@@ -322,7 +323,8 @@ export default function AdminProductForm({ mode, product, categories: initCats =
     sku:              form.sku           || undefined,
     referenceCode:    form.referenceCode || undefined,
     categoryId:       form.categoryId   || undefined,
-    subcategoryId:    form.subcategoryId || undefined,
+    subcategoryId:    form.subcategoryId && form.subcategoryId !== '__new__' ? form.subcategoryId : undefined,
+    subcategoryName:  form.subcategoryId === '__new__' && form.subcategoryName.trim() ? form.subcategoryName.trim() : undefined,
     artisanId:        form.artisanId    || undefined,
     description:      form.description,
     shortDescription: form.shortDescription || undefined,
@@ -475,10 +477,27 @@ export default function AdminProductForm({ mode, product, categories: initCats =
                 <div className="form-group">
                   <label className="form-label">Subcategory</label>
                   <select className="form-select" value={form.subcategoryId} onChange={set('subcategoryId')}
-                    disabled={!selectedCategory?.subcategories?.length}>
+                    disabled={!form.categoryId}>
                     <option value="">Select subcategory</option>
                     {selectedCategory?.subcategories?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    <option value="__new__">+ Add new subcategory…</option>
                   </select>
+                  {form.subcategoryId === '__new__' && (
+                    <input
+                      type="text"
+                      className="form-input"
+                      style={{ marginTop: 8 }}
+                      placeholder="New subcategory name (e.g. Sideboard)"
+                      value={form.subcategoryName}
+                      onChange={set('subcategoryName')}
+                      autoFocus
+                    />
+                  )}
+                  {form.subcategoryId === '__new__' && (
+                    <p style={{ fontSize: 11, color: 'var(--stone)', marginTop: 4 }}>
+                      Saved as a reusable subcategory under {selectedCategory?.name ?? 'this category'} for future products.
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="form-group">
@@ -763,7 +782,6 @@ export default function AdminProductForm({ mode, product, categories: initCats =
                   <select className="form-select" value={form.visibility} onChange={set('visibility')}>
                     <option value="draft">Draft (not visible)</option>
                     <option value="published">Published</option>
-                    <option value="hidden">Hidden</option>
                   </select>
                 </div>
                 <div className="form-group">

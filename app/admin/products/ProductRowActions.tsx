@@ -103,6 +103,12 @@ export default function ProductRowActions({ productId, slug, name, visibility, i
     }
   }
 
+  function onClear() {
+    if (confirm(`Reset "${name}" to a blank draft?\n\nThis clears the description, pricing, category, images and all specs — but keeps the product's name and link. Use this to start a product record over. It cannot be undone.`)) {
+      run('clear')
+    }
+  }
+
   function onDelete() {
     const typed = prompt(`Permanently delete "${name}"?\n\nThis cannot be undone. Use Archive unless this is a mistaken test product or duplicate import.\n\nType DELETE to confirm:`)
     if (typed === null) return
@@ -137,11 +143,19 @@ export default function ProductRowActions({ productId, slug, name, visibility, i
       {!isArchived && visibility === 'published' && (
         <button style={itemStyle} role="menuitem" onClick={() => run('unpublish')}>Unpublish</button>
       )}
+      {!isArchived && visibility !== 'draft' && (
+        <button style={itemStyle} role="menuitem" onClick={() => run('draft')}>Move to Draft</button>
+      )}
       <button style={itemStyle} role="menuitem" onClick={() => run('duplicate')}>Duplicate</button>
       {!isArchived ? (
         <button style={{ ...itemStyle, color: 'var(--caramel, #a05a2c)' }} role="menuitem" onClick={onArchive}>Archive</button>
       ) : (
         <button style={itemStyle} role="menuitem" onClick={() => run('unarchive')}>Restore</button>
+      )}
+      {isAdmin && !isArchived && (
+        <button style={{ ...itemStyle, color: 'var(--caramel, #a05a2c)', borderTop: '1px solid var(--light-line, #e5e0d8)' }} role="menuitem" onClick={onClear}>
+          Clear (reset to blank draft)
+        </button>
       )}
       {isAdmin && (
         <button style={{ ...itemStyle, color: '#a03030', borderTop: '1px solid var(--light-line, #e5e0d8)' }} role="menuitem" onClick={onDelete}>

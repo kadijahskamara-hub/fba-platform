@@ -11,7 +11,7 @@ import { logAudit } from '@/lib/audit'
 // ============================================================
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const ACTIONS = ['publish', 'unpublish', 'archive', 'restore'] as const
+const ACTIONS = ['publish', 'unpublish', 'archive', 'restore', 'delete'] as const
 type BulkAction = (typeof ACTIONS)[number]
 
 export async function POST(req: NextRequest) {
@@ -37,12 +37,62 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Provide between 1 and 100 valid product ids.' }, { status: 400 })
   }
 
+  // Bulk permanent delete — admin only, with dependency protection.
+  if (action === 'delete') {
+    if (session.role !== 'admin') {
+      return NextResponse.json({ success: false, error: 'Only admins can permanently delete products.' }, { status: 403 })
+    }
+
+    // Find ids referenced by projects, quotes or orders — these are skipped.
+    const [proj, quote, order] = await Promise.all([
+      supabaseAdmin.from('project_items').select('product_id').in('product_id', ids),
+      supabaseAdmin.from('quote_request_items').select('product_id').in('product_id', ids),
+      supabaseAdmin.from('retail_order_items').select('product_id').in('product_id', ids),
+    ])
+    const referenced = new Set<string>()
+    for (const r of [...(proj.data ?? []), ...(quote.data ?? []), ...(order.data ?? [])]) {
+      if (r && typeof (r as { product_id?: unknown }).product_id === 'string') {
+        referenced.add((r as { product_id: string }).product_id)
+      }
+    }
+    const deletable = ids.filter(id => !referenced.has(id))
+
+    let deleted = 0
+    if (deletable.length > 0) {
+      const { data, error } = await supabaseAdmin
+        .from('products')
+        .delete()
+        .in('id', deletable)
+        .select('id')
+      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+      deleted = data?.length ?? 0
+    }
+
+    await logAudit({
+      actor: session,
+      action: 'product.bulk_delete',
+      entityType: 'product',
+      entityId: null,
+      after: { deleted, skipped: referenced.size, ids: deletable },
+    })
+
+    const skipped = ids.length - deleted
+    return NextResponse.json({
+      success: true,
+      affected: deleted,
+      skipped,
+      message: skipped > 0
+        ? `Deleted ${deleted} product(s). ${skipped} were kept because they are referenced by projects, quotes or orders — archive those instead.`
+        : `Deleted ${deleted} product(s).`,
+    })
+  }
+
   const now = new Date().toISOString()
   const updates: Record<string, unknown> = { updated_at: now, last_updated_by: session.id }
 
   switch (action) {
     case 'publish':   updates.visibility = 'published'; break
-    case 'unpublish': updates.visibility = 'hidden'; break
+    case 'unpublish': updates.visibility = 'draft'; break
     case 'archive':   updates.archived_at = now; updates.archived_by = session.id; break
     case 'restore':   updates.archived_at = null; updates.archived_by = null; break
   }

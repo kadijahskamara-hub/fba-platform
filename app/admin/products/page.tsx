@@ -12,7 +12,6 @@ const TABS = [
   { key: 'all',         label: 'All' },
   { key: 'published',   label: 'Published' },
   { key: 'draft',       label: 'Draft' },
-  { key: 'unpublished', label: 'Unpublished' },
   { key: 'archived',    label: 'Archived' },
 ] as const
 
@@ -54,7 +53,6 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
   switch (tab) {
     case 'published':   query = query.eq('visibility', 'published').is('archived_at', null); break
     case 'draft':       query = query.eq('visibility', 'draft').is('archived_at', null); break
-    case 'unpublished': query = query.eq('visibility', 'hidden').is('archived_at', null); break
     case 'archived':    query = query.not('archived_at', 'is', null); break
   }
 

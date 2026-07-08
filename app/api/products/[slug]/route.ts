@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase, supabaseAdmin } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
+import { resolveSubcategoryId } from '@/lib/subcategories'
 import { isPubliclyVisible } from '@/lib/productVisibility'
 import { logAudit } from '@/lib/audit'
 
@@ -95,6 +96,13 @@ export async function PATCH(
 
     if ('category_id' in productUpdates && !productUpdates.category_id) {
       return NextResponse.json({ success: false, error: 'Category is required.' }, { status: 400 })
+    }
+
+    // Resolve a newly typed subcategory name into an id (creates it if new).
+    if (body.subcategoryName && !body.subcategoryId) {
+      const catId = (productUpdates.category_id as string | undefined) ?? body.categoryId
+      const newSubId = await resolveSubcategoryId(catId, { subcategoryName: body.subcategoryName })
+      if (newSubId) productUpdates.subcategory_id = newSubId
     }
 
     const { data, error } = await supabaseAdmin
