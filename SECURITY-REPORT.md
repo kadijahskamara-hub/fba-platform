@@ -1,8 +1,8 @@
 # FBA Platform — Security Audit Report
 
-**Date:** 2026-05-27  
+**Date:** 2026-05-27 (updated 2026-07-11 — Commercial Pipeline Sprint 1)  
 **Scope:** Full codebase — `fba-platform/` (Next.js 14, Supabase, Resend, custom JWT auth)  
-**Status:** All findings fixed. ✅
+**Status:** All findings fixed. ✅ See the Sprint 1 addendum at the end for new controls and residual risks.
 
 ---
 
@@ -244,5 +244,30 @@ if (file.size > MAX_SIZE) {
 | `app/api/admin/integrations/[id]/route.ts` | Fixed mass assignment with field allowlist |
 | `app/api/admin/integrations/[id]/csv/route.ts` | Added 20MB file size limit |
 | `app/api/admin/staff/[id]/route.ts` | Added runtime role/status validation |
-| `app/api/quote-requests/route.ts` | Fixed ownership check order (check before fetch) |
-| `app/api/service-enquiries/route.ts` | Added email format validation |
+| `app/api/quote-requests/route.ts
+---
+
+## Addendum — Commercial Pipeline Sprint 1 (2026-07-11)
+
+### New security controls introduced
+
+| Area | Control |
+|------|---------|
+| Ultra Admin | `users.is_ultra_admin` flag, read live from the DB on every request (never carried in the JWT). Ordinary admins cannot grant it: the staff-permissions path ignores `ultra_admin` / `commercial_settings_manage` keys entirely (`lib/commercial/permissions.ts`). |
+| Granular permissions | 14 commercial permissions replace the single `quote_pipeline` key. Every commercial API route enforces them server-side via `requireCommercial()`; UI hiding is never relied on. Legacy `quote_pipeline` maps to view/create/edit only — pricing, discounts, approval, settings and issue rights are NOT inherited. |
+| Protected settings | `commercial_settings` is served only by `/api/admin/commercial/settings` (never the generic site-settings route). Bank numbers are masked for non-Ultra viewers. Bank/VAT/company-identity changes require Ultra Admin + password re-confirmation (bcrypt compare, rate-limited 5/15min) + a mandatory reason. A 7-day session cookie alone is NOT sufficient. |
+| Immutable audit | `commercial_setting_changes` and `issued_documents` have DB triggers that reject UPDATE/DELETE even under the service role. Bank values are masked before being written to the change log. General audit-list entries record field names only, never bank values. |
+| Issued-document integrity | Issuing freezes a full JSON snapshot; documents always render from snapshots, never live rows. Locked records reject all mutation routes (409). Amendments require an explicit new revision; originals are preserved. |
+| Server-authoritative money | One calculation engine (`lib/commercial/calculations.ts`, integer minor units) reruns on the server before every save/approval/issue. Client-supplied totals are cross-checked and rejected on mismatch (422). Prices/totals from the browser are never stored directly. |
+| Approval gates | Threshold-driven approvals (margin/discount/cost-override) are computed server-side; issue is blocked at the API while approval is outstanding. Negative margins are blocked pending Ultra Admin. |
+| Cost/margin confidentiality | Users without `quote_price_edit` receive API responses with cost/margin fields stripped. Client documents never contain cost, margin, markup, internal notes, or approval data (renderer reads only client-safe fields). |
+| RLS | All new tables (`commercial_settings`, `commercial_setting_changes`, `service_catalogue`, `issued_documents`) have RLS enabled with no anon policies (service-role only), and the previously unmanaged `proformas` tables are baselined with RLS enabled in the repo migration. |
+| Input validation | All commercial endpoints validate via typed helpers (`lib/commercial/validation.ts`): UUID/date/number/enum/percent checks, bounded strings, safe generic error messages. |
+
+### Residual risks / limitations
+
+1. **Reauthentication is password-based, not OTP-based.** The confirm-password flow satisfies "re-auth" but does not re-run the OTP factor. Adding an OTP challenge to sensitive settings changes is recommended in a later sprint.
+2. **`contenteditable` reference documents.** The two standalone HTML reference files remain browser-editable by design but are documentation artefacts only; the operational renderer contains no `contenteditable` and no client-editable totals.
+3. **Legacy manufacturer copies** still derive from the client pro forma (filtered, no totals for maker audience). They are explicitly marked transitional and must be replaced by purchase orders with supplier costs in a later sprint.
+4. **In-memory rate limiting** (existing pattern) resets on server restart and is per-instance; acceptable at current scale.
+5. **Settings-page gating**: the `/admin/settings` layout still requires the legacy `settings` staff permission for page access; the commercial settings API enforces its own permissions regardless.

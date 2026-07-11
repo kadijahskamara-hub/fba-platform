@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "es2020",
+    "lib": ["es2020"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "outDir": ".test-dist",
+    "noEmit": false,
+    "types": ["node"]
+  },
+  "include": [
+    "lib/commercial/types.ts",
+    "lib/commercial/calculations.ts",
+    "tests/**/*.ts"
+  ]
+}

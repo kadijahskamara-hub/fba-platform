@@ -13,11 +13,24 @@ const PERMISSION_LABELS: Record<StaffPermission, string> = {
   artisans:            'Artisans',
   retail_orders:       'Retail Orders',
   commercial_orders:   'Commercial Orders',
-  quote_pipeline:      'Quote Pipeline',
+  quote_pipeline:      'Quote Pipeline (legacy: view/create/edit)',
   journals:            'Journals',
   settings:            'Settings',
   users:               'Users',
   contacts:            'Contacts',
+  // Granular commercial permissions (Sprint 1)
+  quote_pipeline_view:     'Quotes — view pipeline',
+  quote_create:            'Quotes — create',
+  quote_edit:              'Quotes — edit lines & details',
+  quote_price_edit:        'Quotes — edit costs & pricing',
+  quote_discount_override: 'Quotes — apply discounts',
+  quote_approve:           'Quotes — approve (Commercial Admin)',
+  commercial_settings_view: 'Commercial settings — view',
+  invoice_create:          'Invoices — create',
+  invoice_issue:           'Invoices — issue',
+  payment_view:            'Payments — view',
+  purchase_order_prepare:  'Purchase orders — prepare (future)',
+  purchase_order_approve:  'Purchase orders — approve (future)',
 }
 
 const ALL_PERMISSIONS = Object.keys(PERMISSION_LABELS) as StaffPermission[]

@@ -545,6 +545,14 @@ export type StaffPermission =
   | 'dashboard' | 'trade_applications' | 'products' | 'artisans'
   | 'retail_orders' | 'commercial_orders' | 'quote_pipeline'
   | 'journals' | 'settings' | 'users' | 'contacts'
+  // Granular commercial permissions (Sprint 1). 'quote_pipeline' is the
+  // legacy broad key and maps to view/create/edit for compatibility.
+  // 'ultra_admin' and 'commercial_settings_manage' are NOT grantable via
+  // the staff permissions array — they flow only from users.is_ultra_admin.
+  | 'quote_pipeline_view' | 'quote_create' | 'quote_edit'
+  | 'quote_price_edit' | 'quote_discount_override' | 'quote_approve'
+  | 'commercial_settings_view' | 'invoice_create' | 'invoice_issue'
+  | 'payment_view' | 'purchase_order_prepare' | 'purchase_order_approve'
 
 export interface StaffPermissions {
   id: string

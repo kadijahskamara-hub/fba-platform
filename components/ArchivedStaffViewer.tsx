@@ -6,7 +6,7 @@ import type { StaffPermission, StaffRow } from '@/lib/types'
 
 // ── Constants ─────────────────────────────────────────────────
 
-const PERMISSION_LABELS: Record<StaffPermission, string> = {
+const PERMISSION_LABELS: Partial<Record<StaffPermission, string>> = {
   dashboard:           'Dashboard',
   trade_applications:  'Trade Applications',
   products:            'Products',
