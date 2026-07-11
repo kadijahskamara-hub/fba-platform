@@ -835,3 +835,270 @@ alter table commercial_settings        enable row level security;
 alter table commercial_setting_changes enable row level security;
 alter table service_catalogue          enable row level security;
 alter table issued_documents           enable row level security;
+
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- SUPPLIER PROCUREMENT (Sprint 2, 2026-07)
+-- Canonical definitions matching migration 20260711_supplier_purchase_orders.sql
+-- ═════════════════════════════════════════════════════════════════════════════
+
+-- ── ARTISANS: supplier/manufacturer identity fields ──────────────────────────
+-- (added by migration; canonical for fresh databases)
+alter table artisans
+  add column legal_name                  text,
+  add column trading_name                text,
+  add column primary_contact_name        text,
+  add column order_email                 text,
+  add column finance_email               text,
+  add column telephone                   text,
+  add column address                     text,
+  add column country                     text,
+  add column default_currency            text not null default 'GBP',
+  add column default_payment_terms       text,
+  add column default_lead_time           text,
+  add column minimum_order_value         numeric,
+  add column incoterms                   text,
+  add column vat_or_tax_number           text,
+  add column company_registration_number text,
+  add column ordering_notes              text,
+  add column delivery_notes              text;
+
+-- ── PRODUCTS: supplier ordering fields ───────────────────────────────────────
+alter table products
+  add column supplier_currency text,
+  add column supplier_sku      text,
+  add column min_order_qty     numeric,
+  add column ordering_notes    text;
+
+-- ── COMMERCIAL SETTINGS: procurement thresholds ──────────────────────────────
+alter table commercial_settings
+  add column po_value_approval_threshold   numeric,
+  add column po_freight_approval_threshold numeric,
+  add column default_acknowledgement_days  integer not null default 5;
+
+-- ── COMMERCIAL ORDERS (sales-order boundary) ─────────────────────────────────
+
+create sequence if not exists sales_order_number_seq;
+
+create or replace function next_sales_order_number()
+returns text language sql security definer set search_path to 'public'
+as $$
+  select 'FBA-SO-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('sales_order_number_seq')::text, 4, '0')
+$$;
+
+create table commercial_orders (
+  id                     uuid primary key default uuid_generate_v4(),
+  order_number           text not null unique,
+  source_proforma_id     uuid not null references proformas(id) on delete restrict,
+  source_quote_number    text,
+  source_revision_number integer not null default 1,
+  client_id              uuid references users(id) on delete set null,
+  project_id             uuid references projects(id) on delete set null,
+  status                 text not null default 'accepted'
+    check (status in ('draft','pending_acceptance','accepted','procurement_ready','partially_ordered','fully_ordered','in_progress','partially_delivered','completed','cancelled')),
+  currency               text not null default 'GBP',
+  client_snapshot        jsonb,
+  project_snapshot       jsonb,
+  commercial_snapshot    jsonb not null,          -- immutable conversion snapshot
+  duplicate_override_reason text,                 -- Ultra Admin only
+  accepted_at            timestamptz,
+  cancelled_at           timestamptz,
+  cancel_reason          text,
+  created_by             uuid references users(id) on delete set null,
+  created_at             timestamptz not null default now(),
+  updated_at             timestamptz not null default now()
+);
+
+-- One order per accepted source revision unless Ultra Admin overrides.
+create unique index uq_commercial_orders_source_revision
+  on commercial_orders (source_proforma_id, source_revision_number)
+  where duplicate_override_reason is null and status <> 'cancelled';
+create index idx_commercial_orders_status on commercial_orders(status);
+create index idx_commercial_orders_source on commercial_orders(source_proforma_id);
+
+-- ── SUPPLIER ALLOCATIONS (client line → manufacturer) ────────────────────────
+
+create table supplier_allocations (
+  id                        uuid primary key default uuid_generate_v4(),
+  commercial_order_id       uuid not null references commercial_orders(id) on delete cascade,
+  source_line_item_id       uuid not null references proforma_line_items(id) on delete restrict,
+  manufacturer_id           uuid not null references artisans(id) on delete restrict,
+  supplier_product_id       uuid references products(id) on delete set null,
+  supplier_sku              text,
+  quantity                  numeric not null check (quantity > 0),
+  unit_of_measure           text not null default 'each',
+  supplier_currency         text,               -- null = unknown (blocks PO); never fabricated
+  supplier_cost_unit        numeric,            -- null = unknown (blocks PO); never fabricated
+  supplier_cost_total       numeric,
+  required_by_date          date,
+  delivery_destination_type text not null default 'client_site'
+    check (delivery_destination_type in ('client_site','fba_studio','warehouse','other')),
+  delivery_address_snapshot text,
+  specification_snapshot    jsonb,
+  allocation_status         text not null default 'allocated'
+    check (allocation_status in ('unallocated','allocated','ready_for_po','included_in_po','superseded','cancelled')),
+  created_by                uuid references users(id) on delete set null,
+  created_at                timestamptz not null default now(),
+  updated_at                timestamptz not null default now()
+);
+
+create index idx_supplier_allocations_order on supplier_allocations(commercial_order_id);
+create index idx_supplier_allocations_manufacturer on supplier_allocations(manufacturer_id);
+create index idx_supplier_allocations_status on supplier_allocations(allocation_status);
+create index idx_supplier_allocations_source_line on supplier_allocations(source_line_item_id);
+
+-- ── PURCHASE ORDERS (one manufacturer per PO) ────────────────────────────────
+
+create sequence if not exists purchase_order_number_seq;
+
+create or replace function next_purchase_order_number()
+returns text language sql security definer set search_path to 'public'
+as $$
+  select 'FBA-PO-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('purchase_order_number_seq')::text, 4, '0')
+$$;
+
+create table purchase_orders (
+  id                         uuid primary key default uuid_generate_v4(),
+  purchase_order_number      text not null unique,
+  revision_number            integer not null default 1,
+  commercial_order_id        uuid not null references commercial_orders(id) on delete restrict,
+  manufacturer_id            uuid not null references artisans(id) on delete restrict,
+  status                     text not null default 'draft'
+    check (status in ('draft','pending_approval','approved','issued','viewed','acknowledged','supplier_amendment_requested','revised','confirmed','in_production','ready_for_dispatch','dispatched','partially_received','received','cancelled')),
+  supplier_currency          text not null default 'GBP',
+  order_date                 date,
+  required_by_date           date,
+  acknowledgement_due_date   date,
+  supplier_contact_snapshot  jsonb,
+  delivery_address_snapshot  text,
+  payment_terms_snapshot     text,
+  incoterms_snapshot         text,
+  shipping_total             numeric not null default 0,
+  packaging_total            numeric not null default 0,
+  other_charges_total        numeric not null default 0,
+  other_charges_description  text,
+  discount_total             numeric not null default 0,
+  subtotal                   numeric,
+  tax_total                  numeric,
+  grand_total                numeric,
+  totals                     jsonb,               -- server calculation cache
+  internal_notes             text,
+  supplier_notes             text,
+  approval_status            text not null default 'none'
+    check (approval_status in ('none','required','approved','blocked')),
+  approval_reason            text,
+  approval_requested_by      uuid references users(id) on delete set null,
+  approved_by                uuid references users(id) on delete set null,
+  approved_at                timestamptz,
+  issued_by                  uuid references users(id) on delete set null,
+  issued_at                  timestamptz,
+  margin_at_risk             boolean not null default false,
+  margin_analysis            jsonb,               -- INTERNAL: never in supplier output
+  margin_resolution          text
+    check (margin_resolution is null or margin_resolution in ('accepted_internal_reduction','client_variation_required','supplier_negotiation_required','alternative_supplier_required','cancelled')),
+  margin_resolution_note     text,
+  acknowledged_by_name       text,
+  acknowledged_by_email      text,
+  acknowledged_at            timestamptz,
+  acknowledgement_notes      text,
+  expected_completion_date   date,
+  supplier_recipient_email   text,
+  cc_emails                  text[] not null default '{}',
+  send_status                text not null default 'not_prepared'
+    check (send_status in ('not_prepared','approved_not_sent','sent')),
+  locked_at                  timestamptz,         -- set on issue; blocks mutation
+  superseded_by_revision     integer,
+  cancelled_at               timestamptz,
+  cancel_reason              text,
+  created_by                 uuid references users(id) on delete set null,
+  created_at                 timestamptz not null default now(),
+  updated_at                 timestamptz not null default now()
+);
+
+create index idx_purchase_orders_manufacturer on purchase_orders(manufacturer_id);
+create index idx_purchase_orders_commercial_order on purchase_orders(commercial_order_id);
+create index idx_purchase_orders_status on purchase_orders(status);
+create index idx_purchase_orders_issued_at on purchase_orders(issued_at);
+
+create table purchase_order_lines (
+  id                     uuid primary key default uuid_generate_v4(),
+  purchase_order_id      uuid not null references purchase_orders(id) on delete cascade,
+  supplier_allocation_id uuid references supplier_allocations(id) on delete set null,
+  source_line_item_id    uuid references proforma_line_items(id) on delete set null,
+  product_id             uuid references products(id) on delete set null,
+  supplier_sku           text,
+  fba_sku                text,
+  product_name_snapshot  text not null,
+  description_snapshot   text,
+  specification_snapshot text,
+  finish_snapshot        text,
+  fabric_snapshot        text,
+  dimensions_snapshot    text,
+  image_snapshot         text,
+  quantity               numeric not null check (quantity > 0),
+  unit_of_measure        text not null default 'each',
+  supplier_cost_unit     numeric not null check (supplier_cost_unit >= 0),
+  cost_overridden        boolean not null default false,
+  cost_override_reason   text,
+  discount_amount        numeric not null default 0,
+  tax_category           text not null default 'unknown'
+    check (tax_category in ('standard','reduced','zero','exempt','outside_scope','reverse_charge','unknown')),
+  tax_rate_snapshot      numeric,
+  line_net_total         numeric,
+  line_tax_total         numeric,
+  line_gross_total       numeric,
+  required_by_date       date,
+  sort_order             integer not null default 0,
+  internal_notes         text,
+  supplier_notes         text,
+  created_at             timestamptz not null default now(),
+  updated_at             timestamptz not null default now()
+);
+
+create index idx_po_lines_po on purchase_order_lines(purchase_order_id);
+create index idx_po_lines_allocation on purchase_order_lines(supplier_allocation_id);
+
+-- ── PO ISSUE SNAPSHOTS (immutable) ───────────────────────────────────────────
+
+create table purchase_order_snapshots (
+  id                uuid primary key default uuid_generate_v4(),
+  purchase_order_id uuid not null references purchase_orders(id) on delete cascade,
+  revision          integer not null default 1,
+  document_number   text not null,              -- FBA-PO-YYYY-NNNN[-Rnn]
+  snapshot          jsonb not null,             -- supplier-safe frozen document
+  issued_by         uuid references users(id) on delete set null,
+  issued_at         timestamptz not null default now(),
+  unique (purchase_order_id, revision)
+);
+
+create index idx_po_snapshots_po on purchase_order_snapshots(purchase_order_id);
+
+create trigger purchase_order_snapshots_immutable
+  before update or delete on purchase_order_snapshots
+  for each row execute function reject_mutation();
+
+-- ── SUPPLIER ACKNOWLEDGEMENT TOKENS (hashed, expiring, revocable) ────────────
+
+create table purchase_order_ack_tokens (
+  id                uuid primary key default uuid_generate_v4(),
+  purchase_order_id uuid not null references purchase_orders(id) on delete cascade,
+  revision          integer not null,
+  token_hash        text not null unique,       -- sha-256; raw token never stored
+  expires_at        timestamptz not null,
+  revoked_at        timestamptz,                -- set on revision/cancel
+  first_viewed_at   timestamptz,
+  used_at           timestamptz,                -- acknowledge / amendment request
+  created_by        uuid references users(id) on delete set null,
+  created_at        timestamptz not null default now()
+);
+
+create index idx_po_ack_tokens_po on purchase_order_ack_tokens(purchase_order_id);
+
+-- ── SPRINT 2 RLS (service-role only; no anon policies) ───────────────────────
+
+alter table commercial_orders         enable row level security;
+alter table supplier_allocations      enable row level security;
+alter table purchase_orders           enable row level security;
+alter table purchase_order_lines      enable row level security;
+alter table purchase_order_snapshots  enable row level security;
+alter table purchase_order_ack_tokens enable row level security;

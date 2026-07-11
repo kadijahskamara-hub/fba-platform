@@ -31,13 +31,20 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     return new NextResponse('Invalid document type', { status: 400 })
   }
 
-  // ── LEGACY manufacturer copy (transitional) ──
-  // Manufacturer documents will become purchase orders in a later sprint;
-  // until then the previous filtered pro forma remains available so the
-  // studio can keep working. It never contains client pricing decisions
-  // beyond the legacy unit price, and never cost/margin data.
+  // ── RETIRED: manufacturer maker copies (Sprint 2) ──
+  // Manufacturer instructions are now proper purchase orders with
+  // supplier costs. New filtered client pro formas are no longer
+  // generated for suppliers; historic download records remain
+  // auditable in the downloads log. Historic re-renders stay possible
+  // ONLY via the explicit legacy flag so past documents can be audited.
   if (sp.get('audience') === 'manufacturer') {
-    return legacyManufacturerCopy(req, params.id)
+    if (sp.get('legacy') === '1') {
+      return legacyManufacturerCopy(req, params.id)
+    }
+    return new NextResponse(
+      'Maker copies have been replaced by purchase orders. Create the order under Commercial Orders → Procurement and issue a PO instead. (Historic maker copies remain available for audit via the download history.)',
+      { status: 410 },
+    )
   }
 
   const issuedId = sp.get('issuedId')

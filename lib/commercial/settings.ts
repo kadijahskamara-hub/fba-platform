@@ -28,6 +28,8 @@ export const COMMERCIAL_RULE_FIELDS = [
   'default_currency', 'default_payment_terms', 'default_lead_time',
   'procurement_fee_type', 'procurement_fee_basis', 'procurement_fee_value',
   'procurement_fee_tiers', 'approval_thresholds',
+  // Sprint 2 — procurement thresholds
+  'po_value_approval_threshold', 'po_freight_approval_threshold', 'default_acknowledgement_days',
 ] as const
 
 export async function getCommercialSettings(): Promise<CommercialSettings> {

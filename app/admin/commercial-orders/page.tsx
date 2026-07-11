@@ -2,30 +2,36 @@ import Link from 'next/link'
 import { supabaseAdmin } from '@/lib/supabase'
 
 export const metadata = { title: 'Commercial Orders' }
+export const dynamic = 'force-dynamic'
 
-async function getCommercialOrders() {
-  // Commercial orders = quote requests that have been converted to orders or accepted
+// Sprint 2: commercial orders are now real sales-order records created
+// by explicit conversion from issued quotes/pro formas (the previous
+// page listed filtered quote requests).
+async function getOrders() {
   const { data } = await supabaseAdmin
-    .from('quote_requests')
+    .from('commercial_orders')
     .select(`
-      id, project_name, project_location, budget, status,
-      required_by, notes, created_at,
-      user:users(first_name, last_name, email, company_name)
+      id, order_number, status, currency, source_quote_number, source_revision_number,
+      accepted_at, created_at, client_snapshot, project_snapshot,
+      pos:purchase_orders(id, purchase_order_number, status, margin_at_risk)
     `)
-    .in('status', ['accepted', 'converted_to_order', 'quoted'])
     .order('created_at', { ascending: false })
   return data ?? []
 }
 
-const STATUS_COLOURS: Record<string, string> = {
-  quoted:             'status-form-sent',
-  accepted:           'status-approved',
-  converted_to_order: 'status-approved',
-  rejected:           'status-declined',
+const STATUS_LABEL: Record<string, string> = {
+  draft: 'Draft', pending_acceptance: 'Pending acceptance', accepted: 'Accepted',
+  procurement_ready: 'Procurement ready', partially_ordered: 'Partially ordered',
+  fully_ordered: 'Fully ordered', in_progress: 'In progress',
+  partially_delivered: 'Partially delivered', completed: 'Completed', cancelled: 'Cancelled',
 }
 
-export default async function AdminCommercialOrdersPage() {
-  const orders = await getCommercialOrders()
+export default async function CommercialOrdersPage() {
+  const orders = await getOrders()
+
+  const active = orders.filter((o: Record<string, unknown>) => !['completed', 'cancelled'].includes(o.status as string))
+  const atRisk = orders.filter((o: Record<string, unknown>) =>
+    ((o.pos as Array<{ margin_at_risk: boolean }>) ?? []).some(p => p.margin_at_risk))
 
   return (
     <>
@@ -33,20 +39,20 @@ export default async function AdminCommercialOrdersPage() {
         <div>
           <h1 className="admin-title">Commercial Orders</h1>
           <p className="admin-subtitle">
-            Trade project orders — accepted and converted quotes
+            Sales orders converted from issued quotes — procurement &amp; manufacturer purchase orders
           </p>
         </div>
-        <Link href="/admin/quotes" className="btn btn-secondary btn-sm">
-          View Quote Pipeline →
-        </Link>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Link href="/admin/purchase-orders" className="btn btn-secondary btn-sm">Purchase Orders →</Link>
+          <Link href="/admin/quotes" className="btn btn-ghost btn-sm">Quote Pipeline →</Link>
+        </div>
       </div>
 
-      {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 32 }}>
         {[
-          { label: 'Active Projects',   value: orders.filter((o: Record<string, unknown>) => o.status === 'accepted').length, colour: '#155724' },
-          { label: 'Orders Placed',     value: orders.filter((o: Record<string, unknown>) => o.status === 'converted_to_order').length, colour: 'var(--caramel)' },
-          { label: 'Quoted (pending)',  value: orders.filter((o: Record<string, unknown>) => o.status === 'quoted').length, colour: '#004085' },
+          { label: 'Active Orders', value: active.length, colour: '#155724' },
+          { label: 'Margin At Risk', value: atRisk.length, colour: '#a03030' },
+          { label: 'All Orders', value: orders.length, colour: 'var(--caramel)' },
         ].map(s => (
           <div key={s.label} className="stat-card">
             <div className="stat-card-label">{s.label}</div>
@@ -56,72 +62,51 @@ export default async function AdminCommercialOrdersPage() {
       </div>
 
       {orders.length === 0 ? (
-        <div className="empty-state">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <rect x="2" y="7" width="20" height="14"/>
-            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
-          </svg>
-          <h3>No commercial orders yet</h3>
-          <p>Accepted and converted trade quotes will appear here.</p>
-          <Link href="/admin/quotes" className="btn btn-secondary btn-sm" style={{ marginTop: 24 }}>
-            Review Quote Pipeline
-          </Link>
+        <div className="empty-state" style={{ padding: 48, textAlign: 'center', color: 'var(--stone)' }}>
+          <p style={{ marginBottom: 8 }}>No commercial orders yet.</p>
+          <p style={{ fontSize: 13 }}>
+            Issue a quote or pro forma in the <Link href="/admin/quotes" style={{ color: 'var(--forest)' }}>Quote Pipeline</Link>,
+            then use “Convert to commercial order” to begin procurement.
+          </p>
         </div>
       ) : (
-        <div style={{ background: 'var(--warm-white)', border: '1px solid var(--light-line)' }}>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Project</th>
-                <th>Client</th>
-                <th>Location</th>
-                <th>Budget</th>
-                <th>Required By</th>
-                <th>Status</th>
-                <th>Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((o: Record<string, unknown>) => {
-                const user = o.user as Record<string, string> | null
-                return (
-                  <tr key={o.id as string}>
-                    <td>
-                      <div style={{ fontWeight: 500, fontFamily: 'var(--font-serif)', fontSize: 15 }}>
-                        {o.project_name as string ?? 'Unnamed Project'}
-                      </div>
-                    </td>
-                    <td style={{ fontSize: 13 }}>
-                      <div>{user?.first_name} {user?.last_name}</div>
-                      <div style={{ color: 'var(--stone)', fontSize: 12 }}>{user?.email}</div>
-                    </td>
-                    <td style={{ fontSize: 13, color: 'var(--stone)' }}>
-                      {o.project_location as string ?? '—'}
-                    </td>
-                    <td style={{ fontSize: 13 }}>
-                      {o.budget
-                        ? `£${Number(o.budget).toLocaleString('en-GB', { minimumFractionDigits: 0 })}`
-                        : '—'}
-                    </td>
-                    <td style={{ fontSize: 12, color: 'var(--stone)' }}>
-                      {o.required_by
-                        ? new Date(o.required_by as string).toLocaleDateString('en-GB')
-                        : '—'}
-                    </td>
-                    <td>
-                      <span className={`status-pill ${STATUS_COLOURS[o.status as string] ?? 'status-pending'}`}>
-                        {(o.status as string).replace(/_/g, ' ')}
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Order</th><th>Client</th><th>Project</th><th>Source</th>
+              <th>Status</th><th>Purchase Orders</th><th>Accepted</th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.map((o: Record<string, unknown>) => {
+              const client = (o.client_snapshot ?? {}) as Record<string, unknown>
+              const project = (o.project_snapshot ?? {}) as Record<string, unknown>
+              const pos = (o.pos ?? []) as Array<Record<string, unknown>>
+              return (
+                <tr key={o.id as string}>
+                  <td>
+                    <Link href={`/admin/commercial-orders/${o.id}/procurement`} style={{ color: 'var(--forest)', fontWeight: 500 }}>
+                      {o.order_number as string}
+                    </Link>
+                  </td>
+                  <td>{(client.client_company as string) || (client.client_name as string) || '—'}</td>
+                  <td style={{ fontSize: 13, color: 'var(--stone)' }}>{(project.project_name as string) || '—'}</td>
+                  <td style={{ fontSize: 12, color: 'var(--stone)' }}>{o.source_quote_number as string} · R{String(o.source_revision_number).padStart(2, '0')}</td>
+                  <td><span className="status-pill">{STATUS_LABEL[o.status as string] ?? (o.status as string)}</span></td>
+                  <td style={{ fontSize: 12 }}>
+                    {pos.length === 0 ? <span style={{ color: 'var(--stone)' }}>none</span> : pos.map(p => (
+                      <span key={p.id as string} style={{ marginRight: 8 }}>
+                        {p.purchase_order_number as string}
+                        {p.margin_at_risk ? <strong style={{ color: '#a03030' }}> ⚠</strong> : null}
                       </span>
-                    </td>
-                    <td style={{ fontSize: 12, color: 'var(--stone)' }}>
-                      {new Date(o.created_at as string).toLocaleDateString('en-GB')}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                    ))}
+                  </td>
+                  <td style={{ fontSize: 12, color: 'var(--stone)' }}>{o.accepted_at ? new Date(o.accepted_at as string).toLocaleDateString('en-GB') : '—'}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       )}
     </>
   )

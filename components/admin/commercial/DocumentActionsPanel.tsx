@@ -106,23 +106,28 @@ export function DocumentActionsPanel({ doc, perms, onIssue, onRevise }: {
         </>
       )}
 
-      <div className="label" style={{ marginBottom: 8, fontSize: 11 }}>Manufacturer copies (legacy — replaced by purchase orders in a later sprint)</div>
-      {groups.size === 0 ? (
-        <p style={{ fontSize: 13, color: 'var(--stone)' }}>Add product lines to split by manufacturer.</p>
+      <div className="label" style={{ marginBottom: 8, fontSize: 11 }}>Manufacturer ordering (Sprint 2 — purchase orders)</div>
+      <p style={{ fontSize: 12.5, color: 'var(--stone)', marginBottom: 10 }}>
+        Maker copies have been retired: manufacturers now receive proper purchase orders with supplier
+        costs. Convert this issued record to a commercial order, then allocate lines and issue POs from
+        the procurement screen.{groups.size > 0 ? <> ({groups.size} manufacturer{groups.size !== 1 ? 's' : ''} on this record: {[...groups.values()].map(g => g.name).join(', ')}.)</> : null}
+      </p>
+      {locked ? (
+        <button className="btn btn-primary btn-sm" disabled={busy}
+          onClick={async () => {
+            setBusy(true)
+            const res = await fetch('/api/admin/commercial-orders', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ proformaId: doc.id }),
+            }).then(r => r.json())
+            setBusy(false)
+            if (!res.success) { alert(res.error ?? 'Conversion failed'); return }
+            window.location.href = `/admin/commercial-orders/${res.data.id}/procurement`
+          }}>
+          Convert to commercial order →
+        </button>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {[...groups.values()].map(g => (
-            <div key={g.key} style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, padding: '8px 12px', border: '1px solid var(--light-line)' }}>
-              <div style={{ flex: 1 }}><strong>{g.name}</strong> · {g.items.length} item{g.items.length !== 1 ? 's' : ''} · {money(g.subtotal, cur)}</div>
-              <button className="btn btn-secondary btn-sm" disabled={g.manufacturerId === null && g.name === 'Unassigned'}
-                onClick={() => openDoc('proforma', g.manufacturerId
-                  ? { audience: 'manufacturer', manufacturerId: g.manufacturerId }
-                  : { audience: 'manufacturer', manufacturerName: g.name })}>
-                Maker copy PDF ↧
-              </button>
-            </div>
-          ))}
-        </div>
+        <p style={{ fontSize: 12, color: 'var(--stone)' }}>Issue the quote or pro forma first — only issued, approved records convert to commercial orders.</p>
       )}
 
       {doc.downloads.length > 0 && (

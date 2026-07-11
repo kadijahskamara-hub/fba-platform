@@ -108,6 +108,11 @@ export async function PUT(req: NextRequest) {
           updates[field] = vNumber(v, field, { min: 1, max: 365, required: true }); break
         case 'procurement_fee_value':
           updates[field] = vNumber(v, field, { min: 0, required: true }); break
+        case 'po_value_approval_threshold':
+        case 'po_freight_approval_threshold':
+          updates[field] = v === null ? null : vNumber(v, field, { min: 0 }); break
+        case 'default_acknowledgement_days':
+          updates[field] = vNumber(v, field, { min: 1, max: 60, required: true }); break
         case 'vat_registered':
           updates[field] = vBoolean(v, field, settings.vat_registered); break
         case 'deposit_value_rules':

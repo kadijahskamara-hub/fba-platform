@@ -98,6 +98,10 @@ export interface CommercialSettings {
   bank_account_name: string | null
   bank_account_number: string | null
   bank_sort_code: string | null
+  // Sprint 2 — procurement thresholds
+  po_value_approval_threshold: number | null
+  po_freight_approval_threshold: number | null
+  default_acknowledgement_days: number
   updated_at: string
   updated_by: string | null
 }

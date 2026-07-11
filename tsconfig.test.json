@@ -14,6 +14,7 @@
   "include": [
     "lib/commercial/types.ts",
     "lib/commercial/calculations.ts",
+    "lib/commercial/poCalculations.ts",
     "tests/**/*.ts"
   ]
 }

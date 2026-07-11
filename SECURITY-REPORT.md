@@ -271,3 +271,27 @@ if (file.size > MAX_SIZE) {
 3. **Legacy manufacturer copies** still derive from the client pro forma (filtered, no totals for maker audience). They are explicitly marked transitional and must be replaced by purchase orders with supplier costs in a later sprint.
 4. **In-memory rate limiting** (existing pattern) resets on server restart and is per-instance; acceptable at current scale.
 5. **Settings-page gating**: the `/admin/settings` layout still requires the legacy `settings` staff permission for page access; the commercial settings API enforces its own permissions regardless.
+
+---
+
+## Addendum — Sprint 2: Supplier Purchase Orders (2026-07-11)
+
+### New controls
+
+| Area | Control |
+|------|---------|
+| Client/supplier separation | Purchase orders are a separate transaction chain (commercial_orders → supplier_allocations → purchase_orders). PO snapshots and the supplier acknowledgement page are built exclusively from supplier-side fields; client selling prices, FBA markup/margin, client fees/deposits, margin analysis, internal notes and other manufacturers never enter supplier payloads. A deep-scan guard (`findForbiddenSupplierFields`) exists and is unit-tested. |
+| Acknowledgement tokens | 256-bit random tokens (base64url), stored **hashed** (SHA-256) with expiry and revocation. One active token per PO revision; issuing a new revision or cancelling revokes prior tokens. Public routes are rate-limited (view 30/10min/IP, acknowledge 10/10min/IP), single-use for responses, send `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex`, and `X-Frame-Options: DENY`. Tokens grant access to exactly one PO revision snapshot — nothing else. |
+| Immutability | `purchase_order_snapshots` rejects UPDATE/DELETE at the DB level (trigger). Issued POs are locked; all mutation routes return 409; amendments require an explicit new revision with a recorded reason. Issued POs can only be *cancelled* (Ultra Admin + reason), never deleted. |
+| Approval & segregation of duties | Threshold-driven approval (configurable PO-value/freight thresholds in commercial_settings — not hard-coded), inactive manufacturer, cost/quantity/currency deviations, manual cost overrides (reason required), and margin-at-risk all require `purchase_order_approve` (staff-grantable) or Ultra Admin. Preparers cannot approve their own POs (unless Ultra Admin). Ordinary admins are NOT granted approve rights implicitly. |
+| Unknown supplier tax | Supplier tax defaults to `unknown` and blocks issue until explicitly confirmed — client VAT treatment is never assumed for suppliers. |
+| Margin-at-risk | Supplier-cost deterioration against the source client order triggers internal flags and approval; analysis is stored in `margin_analysis` (internal only) and requires a resolution note before issue. Never exposed to suppliers or clients. |
+| Honest send state | Issue sets `send_status = approved_not_sent`; nothing is marked "sent" without an actual dispatch (email automation deferred). |
+| RLS | All six new tables have RLS enabled with no anon policies (service-role only). |
+| Retired maker copies | New manufacturer-filtered client pro formas return 410; historic copies remain auditable via an explicit legacy flag and preserved download records. |
+
+### Residual risks (carried forward / noted)
+
+1. In-memory rate limits remain per-instance (documented in Sprint 1) — applies to the public acknowledgement routes; acceptable at current scale, Redis recommended before high-volume use.
+2. Password reauthentication (Sprint 1 settings flow) is still not OTP-backed.
+3. The acknowledgement link itself is the supplier's credential: anyone holding the URL within its validity window can view that one PO revision. Mitigations: hashing at rest, expiry, revocation on revision, no-referrer, rate limiting, audit logging of views. A per-supplier portal with authentication is deferred scope.
