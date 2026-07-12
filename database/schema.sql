@@ -1102,3 +1102,165 @@ alter table purchase_orders           enable row level security;
 alter table purchase_order_lines      enable row level security;
 alter table purchase_order_snapshots  enable row level security;
 alter table purchase_order_ack_tokens enable row level security;
+
+-- ============================================================
+-- SPRINT 3 — Client Acceptance, Payments, Invoices, Credit Control
+-- (canonical; applied via 20260712_client_invoices_payments.sql
+--  and 20260712_lock_down_definer_functions.sql)
+-- ============================================================
+
+-- commercial_settings additions:
+--   default_deposit_basis text ('gross_total'|'net_subtotal'),
+--   default_payment_terms_days int, payment_backdate_approval_days int
+-- proformas addition:
+--   acceptance_status text ('unknown'|'not_sent'|'sent'|'viewed'|'accepted'|'declined'|'expired'|'superseded')
+
+create table commercial_acceptances (
+  id uuid primary key default uuid_generate_v4(),
+  proforma_id uuid not null references proformas(id) on delete restrict,
+  issued_document_id uuid not null references issued_documents(id) on delete restrict,
+  document_type text not null, document_number text not null, revision integer not null,
+  accepted_by_name text not null, accepted_by_email text not null,
+  acceptance_method text not null default 'secure_link'
+    check (acceptance_method in ('secure_link','email_confirmation','signed_document','admin_recorded','other')),
+  acceptance_notes text, acceptance_evidence text, accepted_at timestamptz not null default now(),
+  ip_hash text, user_agent text, token_id uuid, recorded_by uuid references users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+create unique index uq_acceptance_source_revision on commercial_acceptances (issued_document_id, revision);
+-- RLS enabled, no anon policy.
+
+create table commercial_acceptance_tokens (
+  id uuid primary key default uuid_generate_v4(),
+  issued_document_id uuid not null references issued_documents(id) on delete cascade,
+  proforma_id uuid not null references proformas(id) on delete cascade,
+  revision integer not null, token_hash text not null unique, expires_at timestamptz not null,
+  revoked_at timestamptz, first_viewed_at timestamptz, used_at timestamptz,
+  created_by uuid references users(id) on delete set null, created_at timestamptz not null default now()
+); -- RLS enabled, no anon policy.
+
+create table sales_invoices (
+  id uuid primary key default uuid_generate_v4(),
+  invoice_number text unique,
+  invoice_type text not null default 'final' check (invoice_type in ('deposit','stage','final','service','adjustment')),
+  commercial_order_id uuid references commercial_orders(id) on delete restrict,
+  source_proforma_id uuid references proformas(id) on delete set null,
+  source_issued_document_id uuid references issued_documents(id) on delete set null,
+  source_revision integer, client_id uuid references users(id) on delete set null,
+  project_id uuid references projects(id) on delete set null, currency text not null default 'GBP',
+  status text not null default 'draft'
+    check (status in ('draft','pending_approval','approved','issued','partially_paid','paid','overdue','void','credited','cancelled')),
+  issue_date date, due_date date, tax_point_date date,
+  billing_address_snapshot text, delivery_address_snapshot text,
+  client_snapshot jsonb, project_snapshot jsonb, company_snapshot jsonb, bank_snapshot jsonb, payment_terms_snapshot text,
+  subtotal numeric not null default 0, tax_total numeric not null default 0, gross_total numeric not null default 0,
+  amount_paid numeric not null default 0,   -- DERIVED
+  credit_total numeric not null default 0,  -- DERIVED
+  balance_due numeric not null default 0,   -- DERIVED
+  approval_status text not null default 'none' check (approval_status in ('none','required','approved')),
+  approval_reason text, approved_by uuid references users(id) on delete set null, approved_at timestamptz,
+  locked_at timestamptz, issued_by uuid references users(id) on delete set null, issued_at timestamptz,
+  voided_at timestamptz, void_reason text,
+  reminder_status text not null default 'none' check (reminder_status in ('none','first_sent','second_sent','final_sent')),
+  created_by uuid references users(id) on delete set null,
+  created_at timestamptz not null default now(), updated_at timestamptz not null default now()
+); -- RLS enabled, no anon policy. Trigger guard_issued_invoice() blocks post-issue mutation of commercial fields.
+
+create table sales_invoice_lines (
+  id uuid primary key default uuid_generate_v4(),
+  sales_invoice_id uuid not null references sales_invoices(id) on delete cascade,
+  source_line_item_id uuid references proforma_line_items(id) on delete set null,
+  line_type text not null default 'product', product_id uuid references products(id) on delete set null,
+  service_catalogue_id uuid references service_catalogue(id) on delete set null,
+  name_snapshot text not null, description_snapshot text, specification_snapshot text,
+  quantity numeric not null default 1 check (quantity > 0), unit_of_measure text not null default 'each',
+  unit_price numeric not null default 0,   -- client selling price only (no supplier cost/margin)
+  discount_amount numeric not null default 0,
+  tax_category text not null default 'standard' check (tax_category in ('standard','reduced','zero','exempt','outside_scope')),
+  tax_rate_snapshot numeric, line_net_total numeric not null default 0, line_tax_total numeric not null default 0,
+  line_gross_total numeric not null default 0, sort_order integer not null default 0, created_at timestamptz not null default now()
+); -- RLS enabled, no anon policy.
+
+create table sales_invoice_snapshots (  -- immutable (reject_mutation trigger); one per invoice
+  id uuid primary key default uuid_generate_v4(),
+  sales_invoice_id uuid not null references sales_invoices(id) on delete cascade unique,
+  invoice_number text not null, snapshot jsonb not null,
+  issued_by uuid references users(id) on delete set null, issued_at timestamptz not null default now()
+);
+
+create table payments (
+  id uuid primary key default uuid_generate_v4(), payment_reference text not null unique,
+  client_id uuid references users(id) on delete set null,
+  commercial_order_id uuid references commercial_orders(id) on delete set null,
+  currency text not null default 'GBP', amount numeric not null check (amount > 0),
+  payment_date date not null default current_date,
+  payment_method text not null default 'bank_transfer' check (payment_method in ('bank_transfer','card','cash','cheque','credit','other')),
+  external_reference text, bank_reference text,
+  status text not null default 'pending' check (status in ('pending','confirmed','reversed','refunded','failed')),
+  notes text, recorded_by uuid references users(id) on delete set null, approved_by uuid references users(id) on delete set null,
+  confirmed_at timestamptz, reversed_at timestamptz, reversal_reason text,
+  created_at timestamptz not null default now(), updated_at timestamptz not null default now()
+); -- RLS enabled, no anon policy.
+
+create table payment_allocations (
+  id uuid primary key default uuid_generate_v4(),
+  payment_id uuid not null references payments(id) on delete cascade,
+  sales_invoice_id uuid not null references sales_invoices(id) on delete restrict,
+  amount numeric not null check (amount > 0),
+  allocated_by uuid references users(id) on delete set null, allocated_at timestamptz not null default now()
+); -- RLS enabled, no anon policy.
+
+create table payment_receipts (  -- immutable (reject_mutation trigger)
+  id uuid primary key default uuid_generate_v4(), receipt_number text not null unique,
+  payment_id uuid not null references payments(id) on delete cascade, snapshot jsonb not null,
+  issued_by uuid references users(id) on delete set null, issued_at timestamptz not null default now()
+);
+
+create table credit_notes (
+  id uuid primary key default uuid_generate_v4(), credit_note_number text unique,
+  sales_invoice_id uuid not null references sales_invoices(id) on delete restrict,
+  client_id uuid references users(id) on delete set null, currency text not null default 'GBP',
+  status text not null default 'draft' check (status in ('draft','pending_approval','approved','issued','allocated','void')),
+  reason text, subtotal numeric not null default 0, tax_total numeric not null default 0, gross_total numeric not null default 0,
+  allocated_total numeric not null default 0,  -- DERIVED
+  approval_status text not null default 'none' check (approval_status in ('none','required','approved')),
+  approved_by uuid references users(id) on delete set null, approved_at timestamptz,
+  locked_at timestamptz, issued_by uuid references users(id) on delete set null, issued_at timestamptz,
+  created_by uuid references users(id) on delete set null,
+  created_at timestamptz not null default now(), updated_at timestamptz not null default now()
+); -- RLS enabled, no anon policy.
+
+create table credit_note_lines (
+  id uuid primary key default uuid_generate_v4(),
+  credit_note_id uuid not null references credit_notes(id) on delete cascade,
+  source_invoice_line_id uuid references sales_invoice_lines(id) on delete set null,
+  name_snapshot text not null, description_snapshot text, quantity numeric not null default 1,
+  unit_price numeric not null default 0, discount_amount numeric not null default 0,
+  tax_category text not null default 'standard' check (tax_category in ('standard','reduced','zero','exempt','outside_scope')),
+  tax_rate_snapshot numeric, line_net_total numeric not null default 0, line_tax_total numeric not null default 0,
+  line_gross_total numeric not null default 0, sort_order integer not null default 0, created_at timestamptz not null default now()
+);
+
+create table credit_note_allocations (
+  id uuid primary key default uuid_generate_v4(),
+  credit_note_id uuid not null references credit_notes(id) on delete cascade,
+  sales_invoice_id uuid not null references sales_invoices(id) on delete restrict,
+  amount numeric not null check (amount > 0),
+  allocated_by uuid references users(id) on delete set null, allocated_at timestamptz not null default now()
+);
+
+create table credit_note_snapshots (  -- immutable (reject_mutation trigger)
+  id uuid primary key default uuid_generate_v4(),
+  credit_note_id uuid not null references credit_notes(id) on delete cascade unique,
+  credit_note_number text not null, snapshot jsonb not null,
+  issued_by uuid references users(id) on delete set null, issued_at timestamptz not null default now()
+);
+
+-- Sequences: credit_note_number_seq, receipt_number_seq (FBA-INV reused from Sprint 1)
+-- Numbering: next_credit_note_number() → FBA-CN-YYYY-NNNN, next_receipt_number() → FBA-RCPT-YYYY-NNNN
+-- Atomic SECURITY DEFINER functions (service_role EXECUTE only):
+--   accept_commercial_document, allocate_payment, reverse_payment,
+--   issue_sales_invoice, issue_credit_note, allocate_credit_note,
+--   recompute_invoice_financials, acknowledge_purchase_order (Sprint 2 atomicity fix)
+-- Triggers: guard_issued_invoice (immutability of issued invoice content),
+--   reject_mutation on sales_invoice_snapshots / payment_receipts / credit_note_snapshots

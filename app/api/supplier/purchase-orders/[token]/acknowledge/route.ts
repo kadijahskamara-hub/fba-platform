@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { hashAckToken } from '@/lib/commercial/purchaseOrders'
 import { supabaseAdmin } from '@/lib/supabase'
-import { resolveAckToken } from '@/lib/commercial/purchaseOrders'
 import { logAudit } from '@/lib/audit'
 import { checkRateLimit, getClientIp } from '@/lib/rateLimit'
 import { vString, vDate, ValidationError } from '@/lib/commercial/validation'
@@ -10,22 +10,17 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 // POST /api/supplier/purchase-orders/:token/acknowledge
 //   { action: 'accept' | 'amend', name, email, expectedDate?, note? }
 //
-// Public, token-authenticated, rate-limited. Records acknowledgement
-// name/email/timestamp or an amendment request. Single-use per token.
+// Public, token-authenticated, rate-limited. Token consumption and the PO
+// status update are performed ATOMICALLY by acknowledge_purchase_order()
+// (Sprint 3 correction) so a race cannot produce a duplicate response.
 export async function POST(req: NextRequest, { params }: { params: { token: string } }) {
   const ip = getClientIp(req)
   const rl = checkRateLimit(`supplier-po-ack:${ip}`, 10, 10 * 60 * 1000)
   if (!rl.allowed) return NextResponse.json({ success: false, error: 'Too many attempts. Please try again shortly.' }, { status: 429 })
 
-  const resolved = await resolveAckToken(params.token)
-  if ('error' in resolved) return NextResponse.json({ success: false, error: resolved.error }, { status: resolved.status })
-  const { po, tokenRow } = resolved
-
-  if (tokenRow.used_at) {
-    return NextResponse.json({ success: false, error: 'This purchase order has already been responded to.' }, { status: 409 })
-  }
-  if (po.acknowledged_at) {
-    return NextResponse.json({ success: false, error: 'This purchase order is already acknowledged.' }, { status: 409 })
+  const raw = params.token
+  if (!raw || raw.length < 20 || raw.length > 100 || !/^[A-Za-z0-9_-]+$/.test(raw)) {
+    return NextResponse.json({ success: false, error: 'Invalid link.' }, { status: 400 })
   }
 
   try {
@@ -37,37 +32,32 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
     const note = vString(body.note, 'note', { max: 2000 })
     const expectedDate = vDate(body.expectedDate, 'expectedDate')
 
-    await supabaseAdmin.from('purchase_order_ack_tokens')
-      .update({ used_at: new Date().toISOString() }).eq('id', tokenRow.id as string)
+    const { data, error } = await supabaseAdmin.rpc('acknowledge_purchase_order', {
+      p_token_hash: hashAckToken(raw), p_action: action,
+      p_name: name, p_email: email, p_note: note, p_expected: expectedDate,
+    })
+    if (error) return NextResponse.json({ success: false, error: 'Submission failed.' }, { status: 500 })
 
-    if (action === 'accept') {
-      await supabaseAdmin.from('purchase_orders').update({
-        status: 'acknowledged',
-        acknowledged_by_name: name,
-        acknowledged_by_email: email,
-        acknowledged_at: new Date().toISOString(),
-        acknowledgement_notes: note,
-        expected_completion_date: expectedDate,
-        updated_at: new Date().toISOString(),
-      }).eq('id', po.id as string)
-
-      await logAudit({
-        actor: null, action: 'commercial.po_acknowledged', entityType: 'purchase_order', entityId: po.id as string,
-        after: { name, email, expectedDate, revision: tokenRow.revision },
-      })
-    } else {
-      await supabaseAdmin.from('purchase_orders').update({
-        status: 'supplier_amendment_requested',
-        acknowledgement_notes: note ?? 'Amendment requested',
-        updated_at: new Date().toISOString(),
-      }).eq('id', po.id as string)
-
-      await logAudit({
-        actor: null, action: 'commercial.po_amendment_requested', entityType: 'purchase_order', entityId: po.id as string,
-        after: { name, email, note, revision: tokenRow.revision },
-      })
+    const res = data as { ok: boolean; error?: string; action?: string; po_id?: string }
+    if (!res?.ok) {
+      const map: Record<string, [string, number]> = {
+        not_found: ['This link is not valid.', 404],
+        revoked: ['This link has been superseded. Please use the most recent purchase order link.', 410],
+        used: ['This purchase order has already been responded to.', 409],
+        expired: ['This link has expired. Please contact Full Bloom Artelier for a new one.', 410],
+        cancelled: ['This purchase order has been cancelled.', 410],
+        already_acknowledged: ['This purchase order is already acknowledged.', 409],
+      }
+      const [msg, status] = map[res?.error ?? ''] ?? ['Submission failed.', 409]
+      return NextResponse.json({ success: false, error: msg }, { status })
     }
 
+    await logAudit({
+      actor: null,
+      action: res.action === 'amend' ? 'commercial.po_amendment_requested' : 'commercial.po_acknowledged',
+      entityType: 'purchase_order', entityId: res.po_id ?? null,
+      after: { name, email, expectedDate },
+    })
     return NextResponse.json({ success: true })
   } catch (e) {
     if (e instanceof ValidationError) return NextResponse.json({ success: false, error: e.message }, { status: 400 })

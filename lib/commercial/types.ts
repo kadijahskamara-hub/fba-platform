@@ -37,9 +37,17 @@ export type CommercialPermission =
   | 'quote_approve'
   | 'commercial_settings_view'
   | 'commercial_settings_manage'
+  | 'invoice_view'
   | 'invoice_create'
+  | 'invoice_approve'
   | 'invoice_issue'
   | 'payment_view'
+  | 'payment_record'
+  | 'payment_confirm'
+  | 'payment_allocate'
+  | 'payment_reverse'
+  | 'credit_note_create'
+  | 'credit_note_approve'
   | 'purchase_order_prepare'
   | 'purchase_order_approve'
   | 'ultra_admin'
@@ -47,8 +55,10 @@ export type CommercialPermission =
 export const COMMERCIAL_PERMISSIONS: CommercialPermission[] = [
   'quote_pipeline_view', 'quote_create', 'quote_edit', 'quote_price_edit',
   'quote_discount_override', 'quote_approve', 'commercial_settings_view',
-  'commercial_settings_manage', 'invoice_create', 'invoice_issue',
-  'payment_view', 'purchase_order_prepare', 'purchase_order_approve', 'ultra_admin',
+  'commercial_settings_manage', 'invoice_view', 'invoice_create', 'invoice_approve',
+  'invoice_issue', 'payment_view', 'payment_record', 'payment_confirm',
+  'payment_allocate', 'payment_reverse', 'credit_note_create', 'credit_note_approve',
+  'purchase_order_prepare', 'purchase_order_approve', 'ultra_admin',
 ]
 
 // ── Approval thresholds (stored in commercial_settings) ──────
@@ -102,6 +112,10 @@ export interface CommercialSettings {
   po_value_approval_threshold: number | null
   po_freight_approval_threshold: number | null
   default_acknowledgement_days: number
+  // Sprint 3 — client invoicing / payments
+  default_deposit_basis: DepositBasis
+  default_payment_terms_days: number
+  payment_backdate_approval_days: number
   updated_at: string
   updated_by: string | null
 }

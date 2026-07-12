@@ -295,3 +295,28 @@ if (file.size > MAX_SIZE) {
 1. In-memory rate limits remain per-instance (documented in Sprint 1) — applies to the public acknowledgement routes; acceptable at current scale, Redis recommended before high-volume use.
 2. Password reauthentication (Sprint 1 settings flow) is still not OTP-backed.
 3. The acknowledgement link itself is the supplier's credential: anyone holding the URL within its validity window can view that one PO revision. Mitigations: hashing at rest, expiry, revocation on revision, no-referrer, rate limiting, audit logging of views. A per-supplier portal with authentication is deferred scope.
+
+---
+
+## Addendum — Sprint 3: Client Acceptance, Payments, Invoices and Credit Control (2026-07-12)
+
+| Control | Implementation |
+| --- | --- |
+| Dedicated invoices | Invoices are now their own records (`sales_invoices` / `sales_invoice_lines`), never the `proformas` working record. Client invoice lines carry selling prices only; supplier cost, FBA markup and margin are never written to, or rendered from, an invoice. A unit-tested deep-scan guard (`findForbiddenClientInvoiceFields`) is invoked at render time and refuses to emit a document if any forbidden field is present. |
+| Explicit client acceptance | Acceptance is a first-class, revision-specific record (`commercial_acceptances`) bound to an immutable issued snapshot. `issued` is never treated as `accepted`. Stage/final invoicing is blocked until the source record is accepted. Admin-recorded acceptance requires a reason and an evidence note. |
+| Acceptance tokens | 256-bit random tokens, stored SHA-256 hashed, expiring, revocable, one active per revision (a new revision revokes the prior token). Public routes are rate-limited, `noindex`, `no-referrer`, `no-store`, `X-Frame-Options: DENY`. IP is stored hashed, never raw. |
+| Atomic financial operations | Acceptance, payment allocation, payment reversal, invoice issue, credit-note issue and credit-note allocation are performed by `SECURITY DEFINER` SQL functions in a single transaction. The **Sprint 2 supplier acknowledgement** was migrated to the atomic `acknowledge_purchase_order()` function (token consumption + PO update can no longer race into a duplicate response). |
+| Derived balances | Invoice `amount_paid`, `credit_total` and `balance_due` are derived by `recompute_invoice_financials()` from confirmed payment allocations and issued credit-note allocations. They are never edited directly; the payment ledger is the source of truth. |
+| Over-invoicing prevention | Stage/final invoices are checked against remaining invoiceable value (order gross + approved variations − prior invoices − credits). Allocation caps (payment balance, invoice balance, currency match) are enforced in the atomic functions **and** mirrored in unit-tested pure guards. |
+| Invoice immutability | Issue freezes an immutable snapshot (`sales_invoice_snapshots`, `reject_mutation` trigger). A `guard_issued_invoice()` trigger rejects any post-issue change to invoice number, type, totals, currency, dates or company/bank/client snapshots — only derived money fields and void state may change. Issued invoices render only from their snapshot. Corrections use void-before-issue or credit notes. |
+| Segregation of duties | New granular permissions: `invoice_view/create/approve/issue`, `payment_view/record/confirm/allocate/reverse`, `credit_note_create/approve`. Approval, confirmation, reversal and credit approval are Ultra-Admin-by-default and explicitly grantable to staff; ordinary admins cannot self-serve them. A recorder cannot confirm their own payment (unless Ultra Admin); a creator cannot approve their own credit note. Backdated payments beyond a configurable threshold require Ultra Admin. |
+| Credit notes | Reference an issued invoice, cannot exceed the eligible invoice value, preserve tax treatment, require approval, freeze an immutable snapshot at issue, and reduce invoice balance only through allocation. |
+| Audit | 21 new `commercial.*` events (acceptance, invoice, payment, receipt, credit-note lifecycle). Raw tokens and full bank data are never logged. |
+| RLS | All twelve new tables have RLS enabled with no anon policies (service-role only). |
+
+### Residual risks (Sprint 3)
+
+1. In-memory rate limits remain per-instance — now also applies to the public client-acceptance routes. Redis recommended before high volume.
+2. The acceptance link is the client's credential for one revision, mitigated as for PO tokens (hashed, expiring, revocable, rate-limited, no-referrer, audited).
+3. Multi-currency payment allocation is blocked outright (no conversion workflow) — intentional for this sprint.
+4. Reminder-email delivery, gateway/bank-feed integration and accounting sync remain deferred (`reminder_status` fields are prepared but no email is sent).

@@ -26,7 +26,14 @@ export interface CommercialSession {
 const ADMIN_IMPLIED: CommercialPermission[] = [
   'quote_pipeline_view', 'quote_create', 'quote_edit', 'quote_price_edit',
   'quote_discount_override', 'quote_approve', 'commercial_settings_view',
-  'invoice_create', 'invoice_issue', 'payment_view', 'purchase_order_prepare',
+  'invoice_view', 'invoice_create', 'invoice_issue', 'payment_view',
+  'payment_record', 'payment_allocate', 'credit_note_create', 'purchase_order_prepare',
+]
+
+// Segregated finance controls — Ultra Admin by default, explicitly grantable
+// to staff. Ordinary admins do NOT self-serve approval/confirmation/reversal.
+const ULTRA_FINANCE_IMPLIED: CommercialPermission[] = [
+  'invoice_approve', 'payment_confirm', 'payment_reverse', 'credit_note_approve',
 ]
 
 /** Legacy broad permission → granular working permissions. */
@@ -54,6 +61,7 @@ export async function getCommercialSession(): Promise<CommercialSession | null> 
     permissions.add('commercial_settings_manage')
     permissions.add('purchase_order_approve')
     for (const p of ADMIN_IMPLIED) permissions.add(p)
+    for (const p of ULTRA_FINANCE_IMPLIED) permissions.add(p)
   } else if (session.role === 'admin') {
     for (const p of ADMIN_IMPLIED) permissions.add(p)
   } else {
