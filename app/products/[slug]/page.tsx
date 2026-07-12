@@ -10,7 +10,7 @@ import { AddToBagButton } from '@/components/AddToBagButton'
 import ProductConfigurator, { type FinishOption, type SizeOption } from './ProductConfigurator'
 
 interface Props {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
 const DEFAULT_SHIPPING_NOTE =
@@ -26,7 +26,8 @@ const DOC_LABELS: Record<string, string> = {
   warranty:              'Download Warranty',
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata(props: Props): Promise<Metadata> {
+  const params = await props.params
   const { data } = await supabase
     .from('products')
     .select('name, seo_title, seo_description, images')
@@ -44,7 +45,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-export default async function ProductDetailPage({ params }: Props) {
+export default async function ProductDetailPage(props: Props) {
+  const params = await props.params
   const session = await getSession()
 
   const { data: product } = await supabase

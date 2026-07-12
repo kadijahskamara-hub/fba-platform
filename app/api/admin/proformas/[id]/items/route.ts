@@ -11,7 +11,8 @@ import { LINE_TYPES, TAX_CATEGORIES } from '@/lib/commercial/types'
 // POST /api/admin/proformas/:id/items — add a line item.
 // Supports: catalogue product, bespoke product, catalogue service,
 // off-catalogue service, and fee/delivery/installation/adjustment lines.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('quote_edit')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 

@@ -5,8 +5,8 @@ import { getSession } from '@/lib/auth'
 // POST /api/projects/:id/items — add product to project
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const session = await getSession()
   if (!session) return NextResponse.json({ success: false, error: 'Unauthorised' }, { status: 401 })
 
@@ -41,8 +41,8 @@ export async function POST(
 // GET /api/projects/:id/items — list items in project
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const session = await getSession()
   if (!session) return NextResponse.json({ success: false, error: 'Unauthorised' }, { status: 401 })
 

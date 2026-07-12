@@ -6,8 +6,8 @@ import type { StaffPermission } from '@/lib/types'
 // PATCH /api/admin/staff/[id] — update role, status, or permissions
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   try {
     await requireAdmin()
   } catch {
@@ -70,8 +70,8 @@ export async function PATCH(
 // DELETE /api/admin/staff/[id] — suspend a staff member
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   try {
     const session = await requireAdmin()
     if (session.id === params.id) {

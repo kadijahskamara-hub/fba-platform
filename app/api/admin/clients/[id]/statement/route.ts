@@ -7,7 +7,8 @@ import { isOverdue } from '@/lib/commercial/invoiceCalculations'
 // GET /api/admin/clients/:id/statement?from=&to=&format=json|html
 // Client account statement: invoices, payments, credits, running balance.
 // No supplier or margin data is exposed.
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('invoice_view')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
   const sp = req.nextUrl.searchParams

@@ -48,10 +48,11 @@ async function getMetrics() {
 }
 
 interface Props {
-  searchParams: { error?: string }
+  searchParams: Promise<{ error?: string }>
 }
 
-export default async function AdminDashboardPage({ searchParams }: Props) {
+export default async function AdminDashboardPage(props: Props) {
+  const searchParams = await props.searchParams
   const m = await getMetrics()
 
   const statCards = [

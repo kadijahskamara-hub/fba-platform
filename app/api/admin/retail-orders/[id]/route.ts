@@ -3,7 +3,7 @@ import { requireAdmin } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 import { sendEmail } from '@/lib/email'
 
-type Params = { params: { id: string } }
+type Params = { params: Promise<{ id: string }> }
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   paid:        ['processing', 'cancelled'],
@@ -24,7 +24,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { id } = params
+  const { id } = await params
   const { status: newStatus, tracking_number } = await req.json()
 
   // Fetch current order

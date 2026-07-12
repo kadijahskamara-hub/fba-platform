@@ -4,7 +4,8 @@ import { reversePayment } from '@/lib/commercial/payments'
 import { ValidationError, vUuid, vString } from '@/lib/commercial/validation'
 
 // POST /api/admin/payments/:id/reverse { reason } — Finance Admin / Ultra Admin only.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('payment_reverse')
   if (!cs) return NextResponse.json({ success: false, error: 'Reversal requires the payment_reverse permission (Finance Admin / Ultra Admin).' }, { status: 403 })
   try {

@@ -11,7 +11,8 @@ import { verifyClientTotals } from '@/lib/commercial/calculations'
 
 // GET /api/admin/proformas/:id — full document with items, downloads,
 // issued document history, and contact.
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('quote_pipeline_view')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 
@@ -68,7 +69,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
 // PATCH /api/admin/proformas/:id — update header / stage.
 // Issued (locked) documents reject all edits.
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('quote_edit')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 
@@ -193,7 +195,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
 // DELETE /api/admin/proformas/:id — drafts only; issued documents are
 // permanent records and cannot be deleted.
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('quote_edit')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 

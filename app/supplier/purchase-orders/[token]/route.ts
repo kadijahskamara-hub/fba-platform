@@ -11,7 +11,8 @@ import { checkRateLimit, getClientIp } from '@/lib/rateLimit'
 // stored hashed, bound to one PO revision, expiring and revocable.
 // This page contains supplier costs only — never client selling
 // prices, margins, fees, or other manufacturers.
-export async function GET(req: NextRequest, { params }: { params: { token: string } }) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ token: string }> }) {
+  const params = await ctx.params
   const ip = getClientIp(req)
   const rl = checkRateLimit(`supplier-po-view:${ip}`, 30, 10 * 60 * 1000)
   if (!rl.allowed) return new NextResponse('Too many requests. Please try again shortly.', { status: 429 })

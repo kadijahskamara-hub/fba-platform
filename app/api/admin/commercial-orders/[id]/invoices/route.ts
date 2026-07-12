@@ -7,7 +7,8 @@ const TYPES = ['deposit', 'stage', 'final', 'service', 'adjustment'] as const
 
 // GET  /api/admin/commercial-orders/:id/invoices — invoiceable position + invoices
 // POST /api/admin/commercial-orders/:id/invoices — create a draft invoice
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('invoice_view')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
   try { vUuid(params.id, 'id') } catch { return NextResponse.json({ success: false, error: 'Invalid id' }, { status: 400 }) }
@@ -16,7 +17,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json({ success: true, data: state })
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('invoice_create')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
   try {

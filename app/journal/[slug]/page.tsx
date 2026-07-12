@@ -5,7 +5,8 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { getFlags } from '@/lib/flags'
 import { MarkdownBody } from '@/components/MarkdownBody'
 
-export async function generateMetadata({ params }: { params: { slug: string } }) {
+export async function generateMetadata(ctx: { params: Promise<{ slug: string }> }) {
+  const params = await ctx.params
   const { data } = await supabaseAdmin
     .from('journal_posts')
     .select('title, seo_description, excerpt')
@@ -19,7 +20,8 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   }
 }
 
-export default async function JournalPostPage({ params }: { params: { slug: string } }) {
+export default async function JournalPostPage(ctx: { params: Promise<{ slug: string }> }) {
+  const params = await ctx.params
   const flags = await getFlags()
   if (!flags.show_journal) redirect('/coming-soon')
 

@@ -6,7 +6,8 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { resolvePrice, formatPrice, canSeeTradePricing } from '@/lib/pricing'
 import { RemoveItemButton, RequestQuoteButton, ExportScheduleButton } from './ProjectActions'
 
-export default async function ProjectDetailPage({ params }: { params: { id: string } }) {
+export default async function ProjectDetailPage(ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const session = await getSession()
   if (!session) redirect('/login?next=/account/projects')
 

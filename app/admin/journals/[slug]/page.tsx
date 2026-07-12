@@ -4,11 +4,10 @@ import { JournalPostForm } from '../JournalPostForm'
 
 export const metadata = { title: 'Edit Journal Post' }
 
-export default async function EditJournalPostPage({
-  params,
-}: {
-  params: { slug: string }
+export default async function EditJournalPostPage(props: {
+  params: Promise<{ slug: string }>
 }) {
+  const params = await props.params
   const { data: post } = await supabaseAdmin
     .from('journal_posts')
     .select('*')

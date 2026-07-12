@@ -5,6 +5,6 @@ import { destroySession } from '@/lib/auth'
 // NOTE: GET is intentionally not exposed — a GET /logout endpoint is a CSRF vector
 // (a malicious link can silently log users out). Always use POST for state-changing operations.
 export async function POST() {
-  destroySession()
+  await destroySession()
   return NextResponse.redirect(new URL('/', process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'))
 }

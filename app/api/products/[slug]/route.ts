@@ -7,8 +7,8 @@ import { logAudit } from '@/lib/audit'
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { slug: string } }
-) {
+  ctx: { params: Promise<{ slug: string }> }) {
+  const params = await ctx.params
   const session = await getSession()
   const client  = session?.role === 'admin' ? supabaseAdmin : supabase
 
@@ -39,8 +39,8 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { slug: string } }
-) {
+  ctx: { params: Promise<{ slug: string }> }) {
+  const params = await ctx.params
   const session = await getSession()
   if (session?.role !== 'admin') {
     return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })

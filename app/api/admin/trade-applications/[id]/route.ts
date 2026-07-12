@@ -12,8 +12,8 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.fullbloom.uk.c
 // ── GET /api/admin/trade-applications/:id ─────────────────────
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const session = await getSession()
   if (!session || !isStaffRole(session)) {
     return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
@@ -36,8 +36,8 @@ export async function GET(
 // ── PATCH /api/admin/trade-applications/:id ───────────────────
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const session = await getSession()
   if (!session || !isStaffRole(session)) {
     return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })

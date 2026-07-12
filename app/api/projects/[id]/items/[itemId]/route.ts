@@ -5,8 +5,8 @@ import { getSession } from '@/lib/auth'
 // DELETE /api/projects/:id/items/:itemId
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string; itemId: string } }
-) {
+  ctx: { params: Promise<{ id: string; itemId: string }> }) {
+  const params = await ctx.params
   const session = await getSession()
   if (!session) return NextResponse.json({ success: false, error: 'Unauthorised' }, { status: 401 })
 
@@ -33,8 +33,8 @@ export async function DELETE(
 // PATCH /api/projects/:id/items/:itemId — update quantity or notes
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string; itemId: string } }
-) {
+  ctx: { params: Promise<{ id: string; itemId: string }> }) {
+  const params = await ctx.params
   const session = await getSession()
   if (!session) return NextResponse.json({ success: false, error: 'Unauthorised' }, { status: 401 })
 

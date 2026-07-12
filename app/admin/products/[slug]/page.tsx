@@ -3,12 +3,14 @@ import { supabaseAdmin } from '@/lib/supabase'
 import AdminProductForm from '../AdminProductForm'
 import ProductExtrasPanel from './ProductExtrasPanel'
 
-export async function generateMetadata({ params }: { params: { slug: string } }) {
+export async function generateMetadata(ctx: { params: Promise<{ slug: string }> }) {
+  const params = await ctx.params
   const { data } = await supabaseAdmin.from('products').select('name').eq('slug', params.slug).single()
   return { title: data ? `Edit — ${data.name}` : 'Edit Product' }
 }
 
-export default async function EditProductPage({ params }: { params: { slug: string } }) {
+export default async function EditProductPage(ctx: { params: Promise<{ slug: string }> }) {
+  const params = await ctx.params
   const [{ data: product }, { data: categories }, { data: artisans }] = await Promise.all([
     supabaseAdmin
       .from('products')

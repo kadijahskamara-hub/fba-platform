@@ -19,8 +19,8 @@ function h(str: unknown): string {
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { slug: string } }
-) {
+  ctx: { params: Promise<{ slug: string }> }) {
+  const params = await ctx.params
   const { data: product } = await supabase
     .from('products')
     .select(`

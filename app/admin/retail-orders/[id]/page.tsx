@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { supabaseAdmin } from '@/lib/supabase'
 import { OrderStatusActions } from './OrderStatusActions'
 
-interface Props { params: { id: string } }
+interface Props { params: Promise<{ id: string }> }
 
 const STATUS_COLOURS: Record<string, string> = {
   pending:    'status-pending',
@@ -35,7 +35,8 @@ async function getOrder(id: string) {
   return data
 }
 
-export default async function AdminOrderDetailPage({ params }: Props) {
+export default async function AdminOrderDetailPage(props: Props) {
+  const params = await props.params
   const order = await getOrder(params.id)
   if (!order) notFound()
 

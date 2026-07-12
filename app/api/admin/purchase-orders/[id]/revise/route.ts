@@ -9,7 +9,8 @@ import { ValidationError, vUuid, vString } from '@/lib/commercial/validation'
 // next revision, preserves the original issued snapshot verbatim,
 // revokes the previous acknowledgement token, and requires approval
 // again where relevant. The supplier must be re-issued the new revision.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('purchase_order_prepare')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 

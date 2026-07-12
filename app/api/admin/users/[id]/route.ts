@@ -6,8 +6,8 @@ import { supabaseAdmin } from '@/lib/supabase'
 // Staff and admin accounts are managed via /api/admin/staff/[id].
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   let session
   try {
     session = await requireAdmin()

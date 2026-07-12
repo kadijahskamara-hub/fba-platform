@@ -5,7 +5,8 @@ import { UUID_RE } from '@/lib/commercial/validation'
 
 // POST /api/admin/purchase-orders/:id/downloaded — download-event log
 // (fired by the PO document's Download button).
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('purchase_order_prepare')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
   if (!UUID_RE.test(params.id)) return NextResponse.json({ success: false, error: 'Invalid id' }, { status: 400 })

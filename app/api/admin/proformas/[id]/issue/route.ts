@@ -12,7 +12,8 @@ import type { IssuedDocType } from '@/lib/commercial/types'
 // be issued (enforced inside issueDocument).
 //   quote / proforma        → quote_edit
 //   invoice / service_invoice → invoice_issue
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   let docType: IssuedDocType
   try {
     vUuid(params.id, 'id')

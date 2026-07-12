@@ -12,7 +12,8 @@ import { vUuid, ValidationError } from '@/lib/commercial/validation'
 // the working record re-opens as the NEXT revision. Originals are
 // preserved verbatim; the old revision number is recorded as
 // superseded on the working record.
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('quote_edit')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 

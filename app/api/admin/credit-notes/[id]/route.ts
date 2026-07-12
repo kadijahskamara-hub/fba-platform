@@ -6,7 +6,8 @@ import { ValidationError, vUuid, vNumber } from '@/lib/commercial/validation'
 
 // GET  /api/admin/credit-notes/:id — detail
 // POST /api/admin/credit-notes/:id { action:'approve'|'issue'|'allocate', invoiceId?, amount? }
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('invoice_view')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
   const { data: creditNote } = await supabaseAdmin.from('credit_notes').select('*').eq('id', params.id).single()
@@ -16,7 +17,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json({ success: true, data: { creditNote, lines: lines ?? [], allocations: allocations ?? [] } })
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   try {
     vUuid(params.id, 'id')
     const body = await req.json().catch(() => ({}))

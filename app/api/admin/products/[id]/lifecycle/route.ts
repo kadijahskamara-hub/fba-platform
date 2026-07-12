@@ -20,8 +20,8 @@ const ACTIONS: LifecycleAction[] = ['archive', 'unarchive', 'publish', 'unpublis
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const session = await getSession()
   if (!session || !['admin', 'staff'].includes(session.role)) {
     return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })

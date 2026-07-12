@@ -4,7 +4,8 @@ import { notFound, redirect } from 'next/navigation'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getFlags } from '@/lib/flags'
 
-export async function generateMetadata({ params }: { params: { slug: string } }) {
+export async function generateMetadata(ctx: { params: Promise<{ slug: string }> }) {
+  const params = await ctx.params
   const { data } = await supabaseAdmin
     .from('artisans')
     .select('name, short_bio')
@@ -18,7 +19,8 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   }
 }
 
-export default async function ArtisanDetailPage({ params }: { params: { slug: string } }) {
+export default async function ArtisanDetailPage(ctx: { params: Promise<{ slug: string }> }) {
+  const params = await ctx.params
   const flags = await getFlags()
   if (!flags.show_artisans) redirect('/coming-soon')
 

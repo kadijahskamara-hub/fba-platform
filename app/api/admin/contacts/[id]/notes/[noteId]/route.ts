@@ -3,7 +3,8 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { isStaff } from '@/lib/auth'
 
 // DELETE /api/admin/contacts/:id/notes/:noteId
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string; noteId: string } }) {
+export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string; noteId: string }> }) {
+  const params = await ctx.params
   if (!(await isStaff())) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
   const { error } = await supabaseAdmin
     .from('contact_notes').delete().eq('id', params.noteId).eq('contact_id', params.id)

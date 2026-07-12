@@ -26,7 +26,8 @@ const DOC_TYPES = [
   'tear_sheet', 'technical_passport', 'care_maintenance', 'installation_guide', 'warranty',
 ]
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const session = await getSession()
   if (!session || !['admin', 'staff'].includes(session.role)) {
     return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })

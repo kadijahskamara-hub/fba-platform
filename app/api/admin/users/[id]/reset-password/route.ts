@@ -12,8 +12,8 @@ import { sendPasswordResetEmail } from '@/lib/email'
 //              (for users locked out of their email).
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   let session
   try {
     session = await requireAdmin()

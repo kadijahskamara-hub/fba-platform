@@ -5,7 +5,8 @@ import type { BrandIntegration } from '@/lib/syncEngine'
 
 export const metadata = { title: 'Edit Integration' }
 
-export default async function EditIntegrationPage({ params }: { params: { id: string } }) {
+export default async function EditIntegrationPage(ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const { data, error } = await supabaseAdmin
     .from('brand_integrations')
     .select('*')

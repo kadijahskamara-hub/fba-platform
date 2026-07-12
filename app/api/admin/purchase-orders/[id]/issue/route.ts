@@ -11,7 +11,8 @@ import { ValidationError, vUuid } from '@/lib/commercial/validation'
 // stored) — the preparer shares the link with the manufacturer.
 // Send-status is recorded honestly as approved_not_sent: no email is
 // dispatched by this action (email automation is a later sprint).
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('purchase_order_prepare')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 

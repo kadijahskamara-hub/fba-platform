@@ -20,7 +20,8 @@ import type { IssuedDocType } from '@/lib/commercial/types'
 // issued_documents — never from live data. When no snapshot exists the
 // route renders a watermarked DRAFT preview from a freshly recalculated
 // snapshot-shaped payload (nothing is persisted or numbered).
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('quote_pipeline_view')
   if (!cs) return new NextResponse('Forbidden', { status: 403 })
   if (!UUID_RE.test(params.id)) return new NextResponse('Invalid id', { status: 400 })

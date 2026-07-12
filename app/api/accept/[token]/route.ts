@@ -8,7 +8,8 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 // POST /api/accept/:token — public accept/decline. Form-encoded (from the
 // acceptance page) or JSON. Rate-limited, single-use (enforced atomically by
 // accept_commercial_document). IP is hashed, never stored raw.
-export async function POST(req: NextRequest, { params }: { params: { token: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ token: string }> }) {
+  const params = await ctx.params
   const ip = getClientIp(req)
   const rl = checkRateLimit(`accept-submit:${ip}`, 10, 10 * 60 * 1000)
   if (!rl.allowed) return respond(req, false, 'Too many attempts. Please try again shortly.', 429)

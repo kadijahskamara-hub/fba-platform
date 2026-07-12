@@ -5,7 +5,8 @@ export const dynamic = 'force-dynamic'
 
 // Renders the immutable statement document (built server-side by the API
 // route) inside the admin shell. No supplier or margin data is exposed.
-export default function ClientStatementPage({ params }: { params: { id: string } }) {
+export default async function ClientStatementPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   const src = `/api/admin/clients/${params.id}/statement?format=html`
   return (
     <>

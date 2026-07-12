@@ -9,7 +9,8 @@ import { resolvePrice, formatPrice, canSeeTradePricing } from '@/lib/pricing'
  *  - csv  (default): downloadable spreadsheet
  *  - html:           print-friendly page (browser "Save as PDF")
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 

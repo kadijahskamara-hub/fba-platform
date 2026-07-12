@@ -8,7 +8,8 @@ import { logAudit } from '@/lib/audit'
 // GET /api/admin/invoices/:id/document — render the invoice.
 // Issued invoices render ONLY from their frozen snapshot; drafts render a
 // live preview. Client selling values only (no supplier cost / margin).
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('invoice_view')
   if (!cs) return new NextResponse('Forbidden', { status: 403 })
 
