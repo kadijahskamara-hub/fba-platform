@@ -67,13 +67,15 @@ export function RequestQuoteButton({ projectId }: { projectId: string }) {
 }
 
 export function ExportScheduleButton() {
-  const csv = () => { window.location.href = `${window.location.pathname}/export?format=csv` }
-  const pdf = () => { window.open(`${window.location.pathname}/export?format=html`, '_blank') }
+  const csv  = () => { window.location.href = `${window.location.pathname}/export?format=csv` }
+  const pdf  = () => { window.open(`${window.location.pathname}/export?format=pdf`, '_blank') }
+  const html = () => { window.open(`${window.location.pathname}/export?format=html`, '_blank') }
 
   return (
     <span style={{ display: 'inline-flex', gap: 8 }}>
       <button className="btn btn-secondary btn-sm" onClick={csv}>Export CSV</button>
       <button className="btn btn-secondary btn-sm" onClick={pdf}>Export PDF</button>
+      <button className="btn btn-secondary btn-sm" onClick={html}>Print</button>
     </span>
   )
 }

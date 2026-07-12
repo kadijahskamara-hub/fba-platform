@@ -1,25 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
-/** Escape user-supplied values before interpolating into HTML */
-function h(str: unknown): string {
-  if (str === null || str === undefined) return ''
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
+// GET /api/products/:slug/tear-sheet
+// Generates a one-page A4 product tear sheet as a real PDF (jsPDF).
+// The product image is fetched and transcoded to JPEG via sharp so any
+// source format (WebP/AVIF/PNG/JPEG) embeds reliably.
+
+export const runtime = 'nodejs'
+
+type RGB = [number, number, number]
+const forest:  RGB = [26, 43, 24]
+const caramel: RGB = [163, 112, 67]
+const stone:   RGB = [158, 149, 137]
+const ink:     RGB = [38, 32, 28]
+
+// Fetch a remote image and return base64 JPEG (or null on any failure).
+async function fetchImageJpeg(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(7000) })
+    if (!res.ok) return null
+    const input = Buffer.from(await res.arrayBuffer())
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const sharp = require('sharp')
+    const out = await sharp(input)
+      .rotate() // honour EXIF orientation
+      .resize({ width: 900, height: 1200, fit: 'inside', withoutEnlargement: true })
+      .flatten({ background: '#ffffff' }) // drop alpha -> white
+      .jpeg({ quality: 82 })
+      .toBuffer()
+    return out.toString('base64')
+  } catch {
+    return null
+  }
 }
 
-// GET /api/products/:slug/tear-sheet
-// Returns a simple HTML page suitable for printing/PDF.
-// The front-end can trigger window.print() or use jsPDF to convert to PDF.
-// NOTE: For production, use a headless PDF generator (Puppeteer, WeasyPrint, etc.)
-
-export async function GET(
-  _req: NextRequest,
-  ctx: { params: Promise<{ slug: string }> }) {
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
   const params = await ctx.params
   const { data: product } = await supabase
     .from('products')
@@ -32,89 +47,132 @@ export async function GET(
     .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
     .single()
 
-  if (!product) {
-    return new NextResponse('Product not found', { status: 404 })
+  if (!product) return new NextResponse('Product not found', { status: 404 })
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const specs: any = product.specifications ?? {}
+  const imgUrl: string | undefined = product.images?.[0]
+  const image = imgUrl ? await fetchImageJpeg(imgUrl) : null
+
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { jsPDF } = require('jspdf')
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
+  const W = 210
+  const margin = 20
+
+  // ── Header ───────────────────────────────────────────────
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor(...forest)
+  doc.text('Full Bloom Artelier', margin, 24)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...stone); doc.setCharSpace(1.4)
+  doc.text('DESIGN PROCUREMENT STUDIO, LONDON', margin, 29)
+  doc.setCharSpace(0)
+  doc.setFontSize(7.5); doc.setTextColor(...stone)
+  doc.text('PRODUCT TEAR SHEET', W - margin, 21, { align: 'right' })
+  doc.text('info@fullbloom.uk.com', W - margin, 26, { align: 'right' })
+  doc.setDrawColor(...forest); doc.setLineWidth(0.5); doc.line(margin, 34, W - margin, 34)
+
+  // ── Image (left column) ──────────────────────────────────
+  const imgX = margin, imgY = 44, imgW = 78, imgH = 98
+  if (image) {
+    try { doc.addImage(image, 'JPEG', imgX, imgY, imgW, imgH) }
+    catch { doc.setFillColor(228, 234, 227); doc.rect(imgX, imgY, imgW, imgH, 'F') }
+  } else {
+    doc.setFillColor(228, 234, 227); doc.rect(imgX, imgY, imgW, imgH, 'F')
+    doc.setFontSize(8); doc.setTextColor(...stone)
+    doc.text('Image on request', imgX + imgW / 2, imgY + imgH / 2, { align: 'center' })
   }
 
-  const specs = product.specifications ?? {}
-  const img   = product.images?.[0] ?? ''
+  // ── Product details (right column) ───────────────────────
+  const cx = margin + 90 // 110
+  let y = imgY + 4
 
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Tear Sheet — ${h(product.name)} — Full Bloom Artelier</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1A2B18; background: #fff; }
-  @page { size: A4; margin: 24mm 20mm; }
-  .page { max-width: 750px; margin: 0 auto; padding: 40px 0; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1A2B18; padding-bottom: 20px; margin-bottom: 32px; }
-  .logo { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
-  .logo-sub { font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase; color: #7A8C77; margin-top: 3px; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 32px; }
-  img.main-img { width: 100%; aspect-ratio: 4/5; object-fit: cover; background: #E4EAE3; display: block; }
-  h1 { font-size: 28px; font-weight: 300; line-height: 1.2; margin-bottom: 8px; }
-  .artisan { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: #C4A882; margin-bottom: 16px; }
-  .ref { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #9E9589; margin-bottom: 20px; }
-  table { width: 100%; border-collapse: collapse; }
-  td { padding: 8px 0; border-bottom: 1px solid #E4EAE3; font-size: 12px; }
-  td:first-child { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #9E9589; width: 40%; }
-  .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #DDD5C8; display: flex; justify-content: space-between; font-size: 10px; color: #9E9589; letter-spacing: 0.08em; }
-  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-</style>
-</head>
-<body>
-<div class="page">
-  <div class="header">
-    <div>
-      <div class="logo">Full Bloom Artelier</div>
-      <div class="logo-sub">Design Procurement Studio, London</div>
-    </div>
-    <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#9E9589;text-align:right">
-      Product Tear Sheet<br>info@fullbloom.uk.com
-    </div>
-  </div>
+  if (product.artisan) {
+    const a = product.artisan.location
+      ? `${product.artisan.name} · ${product.artisan.location}`
+      : product.artisan.name
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...caramel); doc.setCharSpace(1.1)
+    doc.text(doc.splitTextToSize(String(a).toUpperCase(), W - margin - cx), cx, y)
+    doc.setCharSpace(0)
+    y += 7
+  }
 
-  <div class="grid">
-    <div>
-      ${img ? `<img class="main-img" src="${h(img)}" alt="${h(product.name)}">` : '<div style="aspect-ratio:4/5;background:#E4EAE3"></div>'}
-    </div>
-    <div>
-      ${product.artisan ? `<div class="artisan">${h(product.artisan.name)}${product.artisan.location ? ` · ${h(product.artisan.location)}` : ''}</div>` : ''}
-      <h1>${h(product.name)}</h1>
-      ${product.reference_code ? `<div class="ref">Ref: ${h(product.reference_code)}</div>` : ''}
-      <p style="font-size:13px;line-height:1.7;color:#4A5A47;margin-bottom:24px">${h((product.short_description ?? product.description ?? '').substring(0, 300))}</p>
-      <table>
-        <tbody>
-          ${specs.dimensions_summary ? `<tr><td>Dimensions</td><td>${h(specs.dimensions_summary)}</td></tr>` : ''}
-          ${specs.width_mm  ? `<tr><td>Width</td><td>${h(specs.width_mm)}mm</td></tr>` : ''}
-          ${specs.depth_mm  ? `<tr><td>Depth</td><td>${h(specs.depth_mm)}mm</td></tr>` : ''}
-          ${specs.height_mm ? `<tr><td>Height</td><td>${h(specs.height_mm)}mm</td></tr>` : ''}
-          ${specs.material  ? `<tr><td>Material</td><td>${h(specs.material)}</td></tr>` : ''}
-          ${specs.finish    ? `<tr><td>Finish</td><td>${h(specs.finish)}</td></tr>` : ''}
-          ${specs.fabric    ? `<tr><td>Fabric</td><td>${h(specs.fabric)}</td></tr>` : ''}
-          ${specs.com_available ? `<tr><td>COM</td><td>Available</td></tr>` : ''}
-          ${product.lead_time   ? `<tr><td>Lead time</td><td>${h(product.lead_time)}</td></tr>` : ''}
-          ${product.shipping_origin ? `<tr><td>Origin</td><td>${h(product.shipping_origin)}</td></tr>` : ''}
-          ${specs.technical_notes ? `<tr><td>Technical</td><td>${h(specs.technical_notes)}</td></tr>` : ''}
-        </tbody>
-      </table>
-    </div>
-  </div>
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(19); doc.setTextColor(...forest)
+  const nameLines = doc.splitTextToSize(String(product.name), W - margin - cx)
+  doc.text(nameLines, cx, y)
+  y += nameLines.length * 8 + 1
 
-  <div class="footer">
-    <span>Full Bloom Artelier · fullbloom.uk.com · info@fullbloom.uk.com</span>
-    <span>This tear sheet is confidential and for client use only</span>
-  </div>
-</div>
-</body>
-</html>`
+  if (product.reference_code) {
+    doc.setFontSize(7.5); doc.setTextColor(...stone); doc.setCharSpace(0.8)
+    doc.text(`REF: ${String(product.reference_code).toUpperCase()}`, cx, y)
+    doc.setCharSpace(0)
+    y += 7
+  }
 
-  return new NextResponse(html, {
+  const desc = String(product.short_description ?? product.description ?? '').replace(/\s+/g, ' ').trim().substring(0, 320)
+  if (desc) {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...ink); doc.setLineHeightFactor(1.5)
+    const dl = doc.splitTextToSize(desc, W - margin - cx)
+    doc.text(dl, cx, y)
+    y += dl.length * 5 + 5
+    doc.setLineHeightFactor(1.15)
+  }
+
+  // ── Specifications table (right column) ──────────────────
+  const rows: [string, string][] = []
+  const add = (label: string, value: unknown) => {
+    if (value !== null && value !== undefined && value !== '' && value !== false) rows.push([label, String(value)])
+  }
+  add('Dimensions', specs.dimensions_summary)
+  add('Width', specs.width_mm ? `${specs.width_mm} mm` : '')
+  add('Depth', specs.depth_mm ? `${specs.depth_mm} mm` : '')
+  add('Height', specs.height_mm ? `${specs.height_mm} mm` : '')
+  add('Material', specs.material)
+  add('Finish', specs.finish)
+  add('Fabric', specs.fabric)
+  add('COM', specs.com_available ? 'Available' : '')
+  add('Lead time', product.lead_time)
+  add('Origin', product.shipping_origin)
+
+  for (const [label, value] of rows) {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...stone); doc.setCharSpace(0.5)
+    doc.text(label.toUpperCase(), cx, y)
+    doc.setCharSpace(0)
+    doc.setFontSize(9); doc.setTextColor(...ink)
+    const vLines = doc.splitTextToSize(value, W - margin - (cx + 26))
+    doc.text(vLines, cx + 26, y)
+    const rowH = Math.max(vLines.length * 4.6, 6)
+    doc.setDrawColor(228, 234, 227); doc.setLineWidth(0.2)
+    doc.line(cx, y + rowH - 3, W - margin, y + rowH - 3)
+    y += rowH
+  }
+
+  // ── Technical Passport (full width, below both columns) ──
+  if (specs.technical_notes) {
+    let ty = Math.max(y, imgY + imgH + 10)
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...forest); doc.setCharSpace(0.6)
+    doc.text('TECHNICAL PASSPORT', margin, ty)
+    doc.setCharSpace(0)
+    ty += 5
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...ink); doc.setLineHeightFactor(1.5)
+    const tn = doc.splitTextToSize(String(specs.technical_notes), W - margin * 2)
+    doc.text(tn.slice(0, 12), margin, ty) // cap so it never runs into the footer
+    doc.setLineHeightFactor(1.15)
+  }
+
+  // ── Footer ───────────────────────────────────────────────
+  doc.setDrawColor(...stone); doc.setLineWidth(0.2); doc.line(margin, 285, W - margin, 285)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...stone)
+  doc.text('Full Bloom Artelier · fullbloom.uk.com · info@fullbloom.uk.com', margin, 291)
+  doc.text('Confidential — for client use only', W - margin, 291, { align: 'right' })
+
+  const pdf = doc.output('arraybuffer') as ArrayBuffer
+  const fname = `FBA-${product.reference_code ?? product.slug}.pdf`
+  return new NextResponse(pdf, {
+    status: 200,
     headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Content-Disposition': `inline; filename="FBA-${product.reference_code ?? product.slug}.html"`,
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="${fname}"`,
+      'Cache-Control': 'public, max-age=3600',
     },
   })
 }

@@ -1,6 +1,6 @@
 # FBA Platform — Security Audit Report
 
-**Date:** 2026-05-27 (updated 2026-07-12 — Next.js 15 framework upgrade)  
+**Date:** 2026-05-27 (updated 2026-07-12 — Next.js 15 upgrade + jsPDF/DOMPurify fix)  
 **Scope:** Full codebase — `fba-platform/` (Next.js 15, Supabase, Resend, custom JWT auth)  
 **Status:** All findings fixed. ✅ See the addenda at the end for new controls, the framework upgrade, and residual risks.
 
@@ -380,3 +380,28 @@ Next 15 also made **`cookies()` / `headers()` / `draftMode()`** (from `next/head
 1. **`images.remotePatterns` still allows `hostname: '**'`** (any HTTPS host). The Image Optimization **DoS** is patched by 15.5.18, but a fully open remote-image allowlist remains an abuse/SSRF-adjacent surface (the optimizer will fetch arbitrary attacker-supplied HTTPS URLs). Carried forward intentionally because product images are imported from arbitrary supplier CDNs; the standing plan is to mirror imported images into Supabase Storage and then restrict `remotePatterns`.
 2. **CSP uses `'unsafe-inline'` / `'unsafe-eval'`** in `script-src` (required by styled-jsx and current inline usage). This is a pre-existing weakness unrelated to the upgrade and is not addressed here; a nonce-based CSP is the long-term fix.
 3. Next 15 makes `GET` route handlers and `fetch` **uncached by default**. This is safer (no accidental caching of authenticated responses) and matches how these Supabase-backed routes already behave; no action required, noted for completeness.
+
+---
+
+## Addendum — jsPDF 2 → 4 upgrade (DOMPurify advisories) (2026-07-12)
+
+**Change:** Upgraded `jspdf` from **^2.5.1** to **^4.2.1**.
+
+**Why:** After the Next 15 upgrade, `npm audit` reported the remaining findings as a **critical** and a **moderate** advisory, both from **DOMPurify** pulled in transitively by the old `jspdf` (jsPDF `<= 4.2.0` depends on a vulnerable DOMPurify — a batch of XSS / prototype-pollution / sanitisation-bypass CVEs). `jspdf@4.2.1` ships a patched DOMPurify and clears both.
+
+**Exposure assessment:** DOMPurify is only reached via jsPDF's `doc.html()` rendering path. The jsPDF consumers in this codebase — the trade programme info pack (`app/api/trade/application-form.pdf`), the product tear sheet (`app/api/products/[slug]/tear-sheet`), and the project FF&E schedule (`app/account/projects/[id]/export`) — **do not use `.html()`, `autoTable`, `fromHTML`, or any filesystem/font-loading API.** They use only core drawing primitives (`text`, `rect`, `line`, `circle`, `splitTextToSize`, `addImage`, `addPage`, `setFont`, `output('arraybuffer')`), so the vulnerable code path was never invoked at runtime. The advisory was a transitive-dependency hygiene issue rather than a live exposure; the bump removes it regardless.
+
+**Code impact:** jsPDF 4.0's one breaking change (restricting filesystem access by default) does not affect these routes, and every API they call is stable across 2.5 → 4.x. Verified with a PDF-output smoke test of the trade route after the bump. (The tear-sheet and FF&E-schedule routes were separately converted from HTML to real jsPDF PDFs as a product change — see the FF&E PDF note below — which is why they now import jsPDF; they remain on the core drawing API only.)
+
+After `npm install`, `npm audit` should report **0 vulnerabilities**.
+
+---
+
+## Addendum — Tear sheet & FF&E schedule converted to real PDFs (2026-07-12)
+
+Product change (not a security fix), enabled by the jsPDF 4 upgrade:
+
+- **Product tear sheet** (`app/api/products/[slug]/tear-sheet`) now returns a generated A4 PDF instead of an HTML page. The product image is fetched server-side and transcoded to JPEG with **`sharp`** (added dependency; also registered in `serverExternalPackages`) so any source format — WebP/AVIF/PNG/JPEG — embeds reliably; on fetch/transcode failure it degrades to a neutral placeholder. This also fixes a latent mismatch where the product page already offered the link with a `.pdf` download filename while the route served HTML. Image fetches are bounded by a 7s timeout.
+- **Project FF&E schedule** (`app/account/projects/[id]/export`) gains a `format=pdf` branch (landscape jsPDF table with pagination) alongside the existing `format=csv` (default) and `format=html`. The project page now exposes all three — **Export CSV**, **Export PDF**, **Print** (HTML). The ownership check (project must belong to the session user) and trade-pricing gating are unchanged and still run before any output is produced.
+
+Both routes escape nothing into HTML (PDF text is literal) and use only the jsPDF core drawing API.

@@ -54,7 +54,7 @@ const nextConfig = {
   },
   // Next 15 renamed experimental.serverComponentsExternalPackages to the
   // stable top-level serverExternalPackages.
-  serverExternalPackages: ['bcryptjs'],
+  serverExternalPackages: ['bcryptjs', 'sharp'],
   // Pin the file-tracing root to this project. Next 15 otherwise walks up and
   // can pick a stray lockfile (e.g. C:\Users\darli\package-lock.json) as the
   // workspace root, mis-tracing standalone output.
