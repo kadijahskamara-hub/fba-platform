@@ -7,7 +7,8 @@ export const dynamic = 'force-dynamic'
 function sym(cur: string) { return cur === 'EUR' ? '€' : cur === 'USD' ? '$' : '£' }
 const money = (n: unknown, cur: string) => `${sym(cur)}${Number(n ?? 0).toLocaleString('en-GB', { minimumFractionDigits: 2 })}`
 
-export default async function PaymentDetailPage({ params }: { params: { id: string } }) {
+export default async function PaymentDetailPage(ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const { data: pay } = await supabaseAdmin.from('payments').select('*').eq('id', params.id).single()
   if (!pay) notFound()
   const cur = (pay.currency as string) ?? 'GBP'

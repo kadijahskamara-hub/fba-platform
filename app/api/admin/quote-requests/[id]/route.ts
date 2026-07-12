@@ -4,8 +4,8 @@ import { isStaff } from '@/lib/auth'
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   if (!(await isStaff())) {
     return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
   }

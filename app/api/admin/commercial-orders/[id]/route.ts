@@ -8,7 +8,8 @@ import { ValidationError, vUuid, vString, vEnum } from '@/lib/commercial/validat
 
 // GET /api/admin/commercial-orders/:id — procurement state: order,
 // source lines with eligibility/readiness, allocations, POs.
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('quote_pipeline_view')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 
@@ -51,7 +52,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 // PATCH /api/admin/commercial-orders/:id — status transitions / cancel.
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('purchase_order_prepare')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 

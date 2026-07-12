@@ -5,7 +5,8 @@ import { ArtisanEditForm } from '@/components/ArtisanEditForm'
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Edit Artisan' }
 
-export default async function EditArtisanPage({ params }: { params: { slug: string } }) {
+export default async function EditArtisanPage(ctx: { params: Promise<{ slug: string }> }) {
+  const params = await ctx.params
   const { data: artisan } = await supabaseAdmin
     .from('artisans')
     .select('id, name, slug, location, short_bio, bio, craft_category, profile_image, gallery_images, website, instagram_handle, is_active')

@@ -15,7 +15,8 @@ async function guard(poId: string) {
 }
 
 // PATCH /api/admin/purchase-orders/:id/lines/:lineId
-export async function PATCH(req: NextRequest, { params }: { params: { id: string; lineId: string } }) {
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string; lineId: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('purchase_order_prepare')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 
@@ -83,7 +84,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 // DELETE /api/admin/purchase-orders/:id/lines/:lineId — releases the allocation.
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string; lineId: string } }) {
+export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string; lineId: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('purchase_order_prepare')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 

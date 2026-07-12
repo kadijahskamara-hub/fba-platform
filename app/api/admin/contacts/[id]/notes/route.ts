@@ -3,7 +3,8 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { getSession, isStaffRole } from '@/lib/auth'
 
 // POST /api/admin/contacts/:id/notes — add an activity/note entry
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const session = await getSession()
   if (!session || !isStaffRole(session)) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 

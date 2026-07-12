@@ -6,7 +6,8 @@ import { ValidationError, vUuid, vBoolean } from '@/lib/commercial/validation'
 
 // GET  /api/admin/payments/:id — detail + allocations
 // POST /api/admin/payments/:id { action:'confirm'|'receipt', overrideBackdate? }
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('payment_view')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
   try { vUuid(params.id, 'id') } catch { return NextResponse.json({ success: false, error: 'Invalid id' }, { status: 400 }) }
@@ -20,7 +21,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json({ success: true, data: { payment, allocations: allocations ?? [], receipt, unallocated: Number(payment.amount) - allocated } })
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   try {
     vUuid(params.id, 'id')
     const body = await req.json().catch(() => ({}))

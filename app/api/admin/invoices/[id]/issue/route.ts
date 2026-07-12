@@ -4,7 +4,8 @@ import { issueInvoice } from '@/lib/commercial/invoices'
 import { ValidationError, vUuid } from '@/lib/commercial/validation'
 
 // POST /api/admin/invoices/:id/issue — assign number, freeze snapshot, lock (atomic).
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('invoice_issue')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
   try { vUuid(params.id, 'id') } catch (e) {

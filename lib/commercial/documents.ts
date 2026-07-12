@@ -2,18 +2,26 @@
 // Data-driven commercial document renderer.
 //
 // Renders QUOTATION / PRO FORMA INVOICE / INVOICE / SERVICE
-// INVOICE as print-ready A4 HTML from a frozen issue snapshot
-// (see lib/commercial/snapshots.ts). Draft previews render from
-// a snapshot-shaped object with a DRAFT watermark.
+// INVOICE as a print-ready A4 HTML document from a frozen issue
+// snapshot (see lib/commercial/snapshots.ts). Draft previews render
+// from a snapshot-shaped object with a DRAFT watermark.
+//
+// Visual design follows the Full Bloom Artelier brand samples:
+//   • FBA monogram logo (public/images/fba-logo-green.png), inlined.
+//   • Large spaced-caps document title, Forest Green #1B4332.
+//   • Borderless small-caps meta columns and section headings.
+//   • Per-line monogram tile (product photo when available).
+//   • Borderless right-aligned totals with a prominent "Amount Due".
+//   • Terms & Conditions on a second page (client documents).
 //
 // Hard rules:
 //  • No contenteditable anywhere. Figures come from the server.
 //  • Client documents NEVER show supplier cost, margin, markup,
 //    internal notes, or approval information.
-//  • Brand: Georgia serif, Forest Green #1B4332, off-white label
-//    tables, spaced-caps section headings (FBA guidelines).
 // ============================================================
 
+import fs from 'fs'
+import path from 'path'
 import { h } from '../proformaDocument'
 import type { IssuedDocType } from './types'
 
@@ -74,6 +82,12 @@ function multiline(str: unknown): string {
   if (!str || typeof str !== 'string') return ''
   return h(str).replace(/\r?\n/g, '<br>')
 }
+/** First two letters of a name — matches the sample's monogram tiles. */
+function monogram(name: string): string {
+  const letters = (name || '').replace(/[^A-Za-z]/g, '')
+  return (letters.slice(0, 2) || '—').toUpperCase()
+}
+
 const TAX_LABEL: Record<string, string> = {
   standard: 'Standard', reduced: 'Reduced', zero: 'Zero-rated', exempt: 'Exempt', outside_scope: 'Outside scope',
 }
@@ -83,6 +97,45 @@ const DOC_META: Record<IssuedDocType, { title: string; disclaimer: string | null
   proforma: { title: 'Pro Forma Invoice', disclaimer: 'This is not a VAT invoice.' },
   invoice: { title: 'Invoice', disclaimer: null },
   service_invoice: { title: 'Invoice', disclaimer: null },
+}
+
+// ── Terms & Conditions (client documents, second page) ─────
+const TERMS: { heading: string; points: string[] }[] = [
+  { heading: 'Scope & pricing', points: [
+    'The goods and services listed on the face of this document form the basis of the commission. Prices are in the stated currency and exclude VAT unless shown.',
+    'Full Bloom Artelier reserves the right to adjust quoted prices prior to order confirmation where exchange rates, material costs, or maker pricing change beyond our control.',
+    'Third-party costs (delivery, installation, specialist consultants) are recharged at cost unless already itemised above.',
+  ] },
+  { heading: 'Deposits & payment', points: [
+    'Unless otherwise agreed in writing, a deposit is required to confirm an order, with the balance due and cleared five working days before dispatch or delivery. Orders under £2,000 require full payment on confirmation.',
+    'All goods remain the property of Full Bloom Artelier until payment has been received in full.',
+    'We reserve the right to charge interest on overdue amounts and to pause production or delivery where payment is outstanding.',
+  ] },
+  { heading: 'Specifications & approvals', points: [
+    'The client must verify all order details — materials, finishes, fabrics, dimensions, and quantities — before confirming. Confirmed specifications form the basis of the commission.',
+    'Bespoke and made-to-order pieces are produced against the agreed specification and, where applicable, an approved Golden Sample. Each piece is accompanied by its Technical Passport™.',
+  ] },
+  { heading: 'Changes, lead times & delivery', points: [
+    'Because our pieces are made to order by independent makers, changes or cancellations requested more than 48 hours after order confirmation may incur costs, which are the client’s responsibility.',
+    'Lead times are estimates given in good faith and depend on maker capacity and material availability; they are not guaranteed dates.',
+    'The client is responsible for ensuring the delivery site is ready and accessible. Additional costs from failed, delayed, or restricted deliveries are charged at cost.',
+  ] },
+  { heading: 'Guarantee', points: [
+    'Full Bloom Artelier guarantees supplied pieces against manufacturing faults for 12 months from delivery.',
+    'The guarantee is conditional on reasonable care in line with the piece’s Technical Passport™, and excludes fair wear and tear, misuse, and client-altered items.',
+  ] },
+]
+
+// ── Inlined brand logo (cached) ────────────────────────────
+let _logo: string | null | undefined
+function logoDataUri(): string | null {
+  if (_logo !== undefined) return _logo
+  try {
+    const p = path.join(process.cwd(), 'public', 'images', 'fba-logo-green.png')
+    if (fs.existsSync(p)) { _logo = `data:image/png;base64,${fs.readFileSync(p).toString('base64')}`; return _logo }
+  } catch { /* fall through to text wordmark */ }
+  _logo = null
+  return _logo
 }
 
 export function documentFilename(snap: DocumentSnapshot): string {
@@ -104,12 +157,9 @@ export function renderCommercialDocument(snap: DocumentSnapshot, opts: RenderDoc
   const isServiceInvoice = snap.docType === 'service_invoice'
   const isInvoice = snap.docType === 'invoice' || isServiceInvoice
   const isQuote = snap.docType === 'quote'
+  const logo = logoDataUri()
 
-  // Client-safe lines only — internal figures are intentionally not read
-  // even if present in the snapshot.
   const lines = isServiceInvoice ? snap.lines.filter(l => l.line_type !== 'product') : snap.lines
-
-  // ── Group by section, keeping products / services / other apart ──
   const productLines = lines.filter(l => l.line_type === 'product')
   const serviceLines = lines.filter(l => l.line_type === 'service')
   const otherLines = lines.filter(l => !['product', 'service'].includes(l.line_type))
@@ -125,9 +175,13 @@ export function renderCommercialDocument(snap: DocumentSnapshot, opts: RenderDoc
     return parts.join('<br>')
   }
 
+  const tile = (it: SnapshotLine): string =>
+    it.image_url
+      ? `<div class="tile"><img src="${h(it.image_url)}" alt=""></div>`
+      : `<div class="tile mono">${h(monogram(it.name))}</div>`
+
   const itemsTable = (items: SnapshotLine[], heading: string, opts2: { unitCol?: boolean } = {}): string => {
     if (items.length === 0) return ''
-    // sub-group by section
     const sections = new Map<string, SnapshotLine[]>()
     for (const it of items) {
       const key = (it.section || '').trim() || heading
@@ -138,73 +192,78 @@ export function renderCommercialDocument(snap: DocumentSnapshot, opts: RenderDoc
       const rows = secItems.map(it => `
       <tr>
         <td class="c-item">
-          ${it.image_url ? `<img class="thumb" src="${h(it.image_url)}" alt="">` : ''}
+          ${tile(it)}
           <div class="item-name">${h(it.name)}${it.is_bespoke ? ' <span class="bespoke">Bespoke</span>' : ''}</div>
         </td>
         <td class="c-spec">${specHtml(it) || '<span class="muted">—</span>'}</td>
         <td class="c-qty">${h(it.quantity)}${opts2.unitCol && it.unit_of_measure && it.unit_of_measure !== 'each' ? `<br><span class="muted" style="font-size:7.5pt">${h(it.unit_of_measure)}</span>` : ''}</td>
         <td class="c-num">${money(it.selling_price_unit, cur)}</td>
         <td class="c-num">${it.tax_rate_snapshot != null && it.tax_rate_snapshot > 0 ? `${h(it.tax_rate_snapshot)}%` : h(TAX_LABEL[it.tax_category] ?? it.tax_category)}</td>
-        <td class="c-num">${it.discount_amount > 0 ? `−${money(it.discount_amount, cur)}<br>` : ''}${money(it.line_net_total, cur)}</td>
+        <td class="c-num bold">${it.discount_amount > 0 ? `−${money(it.discount_amount, cur)}<br>` : ''}${money(it.line_net_total, cur)}</td>
       </tr>`).join('')
       return `
     <div class="section-head">${h(name)}</div>
     <table class="items">
       <thead>
-        <tr><th class="c-item">Item</th><th class="c-spec">Specification</th><th class="c-qty">Qty</th><th class="c-num">Unit Price</th><th class="c-num">VAT</th><th class="c-num">Total (ex VAT)</th></tr>
+        <tr><th class="c-item">Item</th><th class="c-spec">Description</th><th class="c-qty">Qty</th><th class="c-num">Unit Price</th><th class="c-num">VAT</th><th class="c-num">Amount</th></tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>`
     }).join('')
   }
 
-  // ── Totals block ──
+  // ── Totals ──
   const num = (k: string): number | null => {
     const v = totals[k]
     return v === null || v === undefined ? null : Number(v)
   }
-  const rows: Array<[string, string, boolean]> = []
-  if (productLines.length > 0 && !isServiceInvoice) rows.push(['Products (ex VAT)', money(num('productSellingSubtotal'), cur), false])
-  if (serviceLines.length > 0) rows.push(['Services (ex VAT)', money(num('serviceSubtotal'), cur), false])
-  if (otherLines.length > 0) rows.push(['Delivery / other charges (ex VAT)', money(num('otherChargesSubtotal'), cur), false])
-  if ((num('discountTotal') ?? 0) > 0) rows.push(['Discounts applied', `−${money(num('discountTotal'), cur)}`, false])
-  if ((num('procurementFee') ?? 0) > 0) rows.push(['Procurement fee', money(num('procurementFee'), cur), false])
-  rows.push(['Net subtotal', money(num('netSubtotal'), cur), false])
-  rows.push([`VAT`, money(num('vatTotal'), cur), false])
-  rows.push(['Total', money(num('grossTotal'), cur), true])
+  // effective single VAT rate label, if all taxable lines share one
+  const rates = new Set(lines.filter(l => (l.tax_rate_snapshot ?? 0) > 0).map(l => Number(l.tax_rate_snapshot)))
+  const vatLabel = rates.size === 1 ? `VAT (${[...rates][0]}%)` : 'VAT'
+
+  type Trow = { k: string; v: string; grand?: boolean; big?: boolean }
+  const trows: Trow[] = []
+  if (productLines.length > 0 && !isServiceInvoice) trows.push({ k: 'Products (ex VAT)', v: money(num('productSellingSubtotal'), cur) })
+  if (serviceLines.length > 0) trows.push({ k: 'Services (ex VAT)', v: money(num('serviceSubtotal'), cur) })
+  if (otherLines.length > 0) trows.push({ k: 'Delivery / other charges (ex VAT)', v: money(num('otherChargesSubtotal'), cur) })
+  if ((num('discountTotal') ?? 0) > 0) trows.push({ k: 'Discounts applied', v: `−${money(num('discountTotal'), cur)}` })
+  if ((num('procurementFee') ?? 0) > 0) trows.push({ k: 'Procurement fee', v: money(num('procurementFee'), cur) })
+  trows.push({ k: 'Subtotal (ex VAT)', v: money(num('netSubtotal'), cur) })
+  trows.push({ k: vatLabel, v: money(num('vatTotal'), cur) })
+  trows.push({ k: 'Total', v: money(num('grossTotal'), cur), grand: true })
   if (isInvoice) {
-    if ((num('paymentsReceived') ?? 0) > 0) rows.push(['Payments received', `−${money(num('paymentsReceived'), cur)}`, false])
-    rows.push(['Balance due', money(num('balanceDue'), cur), true])
+    if ((num('paymentsReceived') ?? 0) > 0) trows.push({ k: 'Less: payments received', v: `−${money(num('paymentsReceived'), cur)}` })
+    trows.push({ k: 'Amount due', v: money(num('balanceDue'), cur), big: true })
   } else {
-    rows.push([`Deposit requested (${h(head.deposit_percent)}%)`, money(num('depositRequested'), cur), false])
-    rows.push(['Balance following deposit', money((num('grossTotal') ?? 0) - (num('depositRequested') ?? 0), cur), false])
+    trows.push({ k: `Deposit requested (${h(head.deposit_percent)}%)`, v: money(num('depositRequested'), cur) })
+    trows.push({ k: 'Balance following deposit', v: money((num('grossTotal') ?? 0) - (num('depositRequested') ?? 0), cur) })
   }
   const totalsBlock = `
     <table class="totals">
-      ${rows.map(([k, v, grand]) => `<tr${grand ? ' class="grand"' : ''}><td>${k}</td><td class="c-num">${v}</td></tr>`).join('')}
+      ${trows.map(r => `<tr class="${r.grand ? 'grand' : ''}${r.big ? ' big' : ''}"><td>${r.k}</td><td class="c-num">${r.v}</td></tr>`).join('')}
     </table>`
 
-  // ── Meta rows ──
-  const metaRows: [string, string][] = []
+  // ── Meta columns ──
+  const metaCols: [string, string][] = []
   if (isQuote) {
-    metaRows.push(['Quote Number', h(snap.documentNumber)])
-    if (snap.revision > 1) metaRows.push(['Revision', `R${String(snap.revision).padStart(2, '0')}`])
-    metaRows.push(['Issue Date', fmtDate(snap.issuedAt)])
-    metaRows.push(['Valid Until', fmtDate(head.valid_until)])
+    metaCols.push(['Quote Number', h(snap.documentNumber)])
+    metaCols.push(['Issue Date', fmtDate(snap.issuedAt)])
+    metaCols.push(['Valid Until', fmtDate(head.valid_until)])
+    if (snap.revision > 1) metaCols.push(['Revision', `R${String(snap.revision).padStart(2, '0')}`])
   } else if (snap.docType === 'proforma') {
-    metaRows.push(['Proforma Number', h(snap.documentNumber)])
-    if (head.quote_number) metaRows.push(['Quote Reference', `${h(head.quote_number)}${snap.revision > 1 ? ` · R${String(snap.revision).padStart(2, '0')}` : ''}`])
-    metaRows.push(['Date', fmtDate(snap.issuedAt)])
-    metaRows.push(['Valid Until', fmtDate(head.valid_until)])
+    metaCols.push(['Proforma Number', h(snap.documentNumber)])
+    metaCols.push(['Date', fmtDate(snap.issuedAt)])
+    metaCols.push(['Valid Until', fmtDate(head.valid_until)])
+    if (head.quote_number) metaCols.push(['Quote Reference', `${h(head.quote_number)}${snap.revision > 1 ? ` · R${String(snap.revision).padStart(2, '0')}` : ''}`])
   } else {
-    metaRows.push(['Invoice Number', h(snap.documentNumber)])
-    metaRows.push(['Invoice Date', fmtDate(head.invoice_date ?? snap.issuedAt)])
-    metaRows.push(['Payment Due', fmtDate(head.invoice_due_date)])
-    if (head.quote_number) metaRows.push(['Quote Reference', h(head.quote_number)])
-    if (!isServiceInvoice) metaRows.push(['Proforma Reference', h(head.proforma_number)])
+    metaCols.push(['Invoice Number', h(snap.documentNumber)])
+    metaCols.push(['Issue Date', fmtDate(head.invoice_date ?? snap.issuedAt)])
+    metaCols.push(['Due Date', fmtDate(head.invoice_due_date)])
+    if (head.quote_number) metaCols.push(['Quote Reference', h(head.quote_number)])
+    if (!isServiceInvoice && head.proforma_number) metaCols.push(['Proforma Reference', h(head.proforma_number)])
   }
 
-  // ── Payment & delivery details ──
+  // ── Payment & delivery detail ──
   const detailRows: [string, string][] = []
   if (isQuote) detailRows.push(['Lead Time', multiline(head.lead_time) || '—'])
   detailRows.push(['Payment Terms', multiline(head.payment_terms ?? settings.default_payment_terms) || '—'])
@@ -216,8 +275,31 @@ export function renderCommercialDocument(snap: DocumentSnapshot, opts: RenderDoc
   if (head.delivery_notes) detailRows.push(['Delivery', multiline(head.delivery_notes)])
   if (head.notes) detailRows.push(['Notes', multiline(head.notes)])
 
+  const contact = [settings.invoice_email, settings.phone].filter(Boolean).map(x => h(x)).join(' · ')
+
   const watermark = opts.draft ? `<div class="watermark">DRAFT — NOT ISSUED</div>` : ''
-  const disclaimer = meta.disclaimer ? `<div class="disclaimer">${h(meta.disclaimer)}</div>` : ''
+  const disclaimer = meta.disclaimer ? `<span class="disclaimer">${h(meta.disclaimer)}</span>` : ''
+  const logoHtml = logo
+    ? `<img class="logo" src="${logo}" alt="Full Bloom Artelier">`
+    : `<div class="logo-text">Full Bloom Artelier</div>`
+
+  const termsBlock = isQuote || snap.docType === 'proforma' || isInvoice ? `
+  <section class="terms">
+    <div class="doc-header">
+      <div>
+        <h1 class="title">Terms &amp; Conditions</h1>
+        <div class="subtitle">Full Bloom Artelier · ${h(meta.title)}</div>
+      </div>
+      ${logoHtml}
+    </div>
+    <div class="hr"></div>
+    <p class="terms-intro">Within these terms, “Full Bloom Artelier”, “FBA”, and “we” mean Full Bloom Artelier and “the client” means our contractual counterparty. These terms apply in addition to any terms stated on the face of this document.</p>
+    ${TERMS.map(t => `
+      <div class="terms-group">
+        <div class="terms-heading">${h(t.heading)}</div>
+        <ul>${t.points.map(p => `<li>${p}</li>`).join('')}</ul>
+      </div>`).join('')}
+  </section>` : ''
 
   const logScript = opts.logEndpoint ? `
 <script>
@@ -237,100 +319,139 @@ export function renderCommercialDocument(snap: DocumentSnapshot, opts: RenderDoc
 <title>${h(filename)}</title>
 <style>
   :root {
-    --forest: #1B4332; --offwhite: #FAFAF8; --white: #FFFFFF;
-    --midgrey: #C8C8C0; --body: #555550; --light: #888880; --tint: #E8F0EB;
+    --forest: #1B4332; --forest-soft: #3f5f52; --offwhite: #FAFAF8;
+    --midgrey: #D9D9D2; --body: #4a4a45; --light: #9a968c; --tint: #EDF2EE;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { background: #EFEFEA; }
-  body { font-family: Georgia, 'Times New Roman', serif; color: var(--body); font-size: 9.5pt; line-height: 1.45; }
-  @page { size: A4; margin: 21mm 20mm 25mm; }
-  .sheet { max-width: 180mm; margin: 0 auto; background: var(--white); padding: 14mm 12mm; position: relative; }
+  body { font-family: Georgia, 'Times New Roman', serif; color: var(--body); font-size: 9.5pt; line-height: 1.5; }
+  @page { size: A4; margin: 18mm 18mm 20mm; }
+  .sheet { max-width: 190mm; margin: 0 auto; background: #fff; padding: 16mm 16mm; position: relative; }
   @media print {
-    html { background: var(--white); }
+    html { background: #fff; }
     .sheet { max-width: none; padding: 0; }
     .toolbar { display: none !important; }
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .terms { break-before: page; }
   }
-  .toolbar { position: sticky; top: 0; z-index: 10; background: var(--forest); color: #fff; padding: 10px 16px; display: flex; align-items: center; gap: 14px; font-size: 12px; }
+  .toolbar { position: sticky; top: 0; z-index: 10; background: var(--forest); color: #fff; padding: 10px 16px; display: flex; align-items: center; gap: 14px; font-size: 12px; font-family: Georgia, serif; }
   .toolbar .fn { opacity: 0.75; letter-spacing: 0.06em; }
   .toolbar button { margin-left: auto; background: #fff; color: var(--forest); border: none; font-family: Georgia, serif; font-size: 13px; padding: 8px 18px; cursor: pointer; letter-spacing: 0.08em; }
-  .toolbar button:hover { background: var(--tint); }
-  .watermark { position: absolute; top: 40%; left: 0; right: 0; text-align: center; transform: rotate(-24deg); font-size: 34pt; letter-spacing: 0.3em; color: rgba(160,48,48,0.15); pointer-events: none; z-index: 5; }
-  .doc-header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1.5px solid var(--forest); padding-bottom: 10px; }
-  .wordmark { font-size: 15pt; letter-spacing: 0.32em; text-transform: uppercase; color: var(--forest); }
-  .wordmark small { display: block; font-size: 7.5pt; letter-spacing: 0.22em; color: var(--light); font-style: italic; margin-top: 3px; text-transform: none; }
-  .doc-type { font-size: 9pt; letter-spacing: 0.3em; text-transform: uppercase; color: var(--forest); text-align: right; }
-  h1.title { font-size: 26pt; font-weight: normal; color: var(--forest); margin: 26px 0 2px; }
-  .subtitle { font-size: 10pt; font-style: italic; color: var(--body); margin-bottom: 6px; }
-  .disclaimer { display: inline-block; background: var(--tint); color: var(--forest); font-size: 8pt; letter-spacing: 0.14em; text-transform: uppercase; padding: 4px 10px; margin-bottom: 16px; }
-  table.kv { width: 100%; border-collapse: collapse; border-top: 0.5pt solid var(--midgrey); border-bottom: 0.5pt solid var(--midgrey); margin-bottom: 18px; }
-  table.kv td { padding: 5px 8px; vertical-align: top; border-bottom: 0.5pt solid var(--midgrey); }
-  table.kv tr:last-child td { border-bottom: none; }
-  table.kv td.k { width: 55mm; background: var(--offwhite); font-size: 8pt; letter-spacing: 0.06em; text-transform: uppercase; color: var(--body); border-right: 0.5pt solid var(--midgrey); }
-  table.kv td.v { font-size: 10pt; color: var(--forest); }
-  .addr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; margin-bottom: 18px; }
-  .section-head { font-size: 9pt; letter-spacing: 0.12em; text-transform: uppercase; color: var(--forest); border-bottom: 0.5pt solid var(--forest); padding-bottom: 4px; margin: 24px 0 8px; }
-  table.items { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
-  table.items th { font-size: 8pt; letter-spacing: 0.08em; text-transform: uppercase; color: var(--body); background: var(--offwhite); text-align: left; padding: 6px 8px; border-bottom: 0.5pt solid var(--midgrey); }
-  table.items td { padding: 9px 8px; border-bottom: 0.5pt solid var(--midgrey); vertical-align: top; font-size: 9pt; }
+
+  .watermark { position: absolute; top: 42%; left: 0; right: 0; text-align: center; transform: rotate(-24deg); font-size: 40pt; letter-spacing: 0.3em; color: rgba(160,48,48,0.12); pointer-events: none; z-index: 5; }
+
+  /* Header */
+  .doc-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+  .title { font-size: 27pt; font-weight: normal; letter-spacing: 0.14em; text-transform: uppercase; color: var(--forest); line-height: 1; }
+  .subtitle { font-size: 8pt; letter-spacing: 0.24em; text-transform: uppercase; color: var(--light); margin-top: 8px; }
+  .logo { width: 42mm; height: auto; }
+  .logo-text { font-size: 15pt; letter-spacing: 0.2em; text-transform: uppercase; color: var(--forest); text-align: right; }
+  .hr { border-top: 0.75pt solid var(--forest); margin: 12px 0 18px; }
+
+  /* Meta columns */
+  .meta { display: flex; gap: 34px; flex-wrap: wrap; margin-bottom: 20px; }
+  .meta .m .k, .lbl { font-size: 7.5pt; letter-spacing: 0.14em; text-transform: uppercase; color: var(--light); display: block; margin-bottom: 3px; }
+  .meta .m .v { font-size: 10.5pt; color: var(--forest); }
+
+  /* Address grid */
+  .addr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 34px; margin-bottom: 8px; }
+  .addr .name { font-size: 10.5pt; color: var(--forest); font-weight: bold; margin-bottom: 2px; }
+  .addr .val { font-size: 9.5pt; color: var(--body); }
+  .contact-line { font-size: 8.5pt; color: var(--body); margin: 2px 0 20px; }
+
+  .disclaimer { display: inline-block; background: var(--tint); color: var(--forest); font-size: 8pt; letter-spacing: 0.16em; text-transform: uppercase; padding: 4px 12px; margin-bottom: 18px; }
+
+  /* Section heading */
+  .section-head { font-size: 8.5pt; letter-spacing: 0.18em; text-transform: uppercase; color: var(--forest-soft); border-bottom: 0.5pt solid var(--midgrey); padding-bottom: 5px; margin: 26px 0 4px; }
+
+  /* Items */
+  table.items { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+  table.items th { font-size: 7.5pt; letter-spacing: 0.14em; text-transform: uppercase; color: var(--light); text-align: left; padding: 8px 8px; border-bottom: 0.5pt solid var(--midgrey); font-weight: normal; }
+  table.items td { padding: 12px 8px; border-bottom: 0.5pt solid #ECEAE3; vertical-align: top; font-size: 9pt; }
   table.items tr { page-break-inside: avoid; }
-  .c-item { width: 34mm; }
+  .c-item { width: 42mm; }
+  .c-spec { color: var(--body); }
   .c-qty { width: 12mm; text-align: center; }
   .c-num { width: 22mm; text-align: right; white-space: nowrap; }
   th.c-qty { text-align: center; } th.c-num { text-align: right; }
-  .thumb { width: 26mm; height: 26mm; object-fit: cover; background: var(--tint); display: block; margin-bottom: 5px; }
+  .bold { color: var(--forest); }
+  .tile { width: 15mm; height: 15mm; border: 0.5pt solid var(--midgrey); margin-bottom: 6px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #fff; }
+  .tile.mono { color: var(--forest); font-size: 12pt; letter-spacing: 0.08em; }
+  .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .item-name { color: var(--forest); font-size: 9.5pt; }
   .bespoke { font-size: 7pt; letter-spacing: 0.12em; text-transform: uppercase; color: var(--light); }
   .spec-label { font-size: 8pt; letter-spacing: 0.05em; text-transform: uppercase; color: var(--light); }
   .item-note { display: inline-block; background: var(--tint); padding: 2px 6px; margin-top: 3px; color: var(--forest); }
   .muted { color: var(--light); }
-  table.totals { border-collapse: collapse; margin: 14px 0 4px auto; min-width: 82mm; }
-  table.totals td { padding: 5px 8px; border-bottom: 0.5pt solid var(--midgrey); font-size: 9.5pt; }
-  table.totals td:first-child { font-size: 8pt; letter-spacing: 0.06em; text-transform: uppercase; color: var(--body); padding-right: 22px; }
-  table.totals tr.grand td { color: var(--forest); font-size: 11pt; border-bottom: 1pt solid var(--forest); }
-  .doc-footer { margin-top: 26px; padding-top: 8px; border-top: 0.5pt solid var(--midgrey); font-size: 8pt; color: var(--light); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px; }
+
+  /* Totals */
+  table.totals { border-collapse: collapse; margin: 20px 0 4px auto; min-width: 84mm; }
+  table.totals td { padding: 6px 4px; font-size: 9.5pt; }
+  table.totals td:first-child { font-size: 8pt; letter-spacing: 0.08em; text-transform: uppercase; color: var(--body); padding-right: 28px; }
+  table.totals td.c-num { text-align: right; color: var(--forest); }
+  table.totals tr.grand td { border-top: 1pt solid var(--forest); padding-top: 9px; font-weight: bold; }
+  table.totals tr.grand td:first-child { color: var(--forest); }
+  table.totals tr.big td { font-size: 14pt; color: var(--forest-soft); border-top: 0.5pt solid var(--midgrey); padding-top: 9px; }
+  table.totals tr.big td:first-child { color: var(--forest-soft); font-size: 9pt; }
+
+  /* Payment / notes */
+  .pay { margin-top: 26px; }
+  .pay .blk { margin-bottom: 12px; }
+  .pay .val { font-size: 9.5pt; color: var(--body); }
+  .notes-box { border: 0.5pt solid var(--midgrey); padding: 12px 14px; font-size: 9.5pt; color: var(--body); }
+
+  .doc-footer { margin-top: 30px; padding-top: 8px; border-top: 0.5pt solid var(--midgrey); font-size: 7.5pt; letter-spacing: 0.04em; color: var(--light); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
+
+  /* Terms page */
+  .terms { margin-top: 30px; }
+  .terms-intro { font-size: 8.5pt; color: var(--light); margin: 2px 0 16px; }
+  .terms-group { margin-bottom: 12px; page-break-inside: avoid; }
+  .terms-heading { font-size: 8.5pt; letter-spacing: 0.14em; text-transform: uppercase; color: var(--forest); margin-bottom: 5px; }
+  .terms ul { list-style: none; }
+  .terms li { font-size: 8.5pt; margin-bottom: 4px; padding-left: 14px; position: relative; }
+  .terms li::before { content: "—"; position: absolute; left: 0; color: var(--light); }
 </style>
 </head>
 <body>
 <div class="toolbar">
-  <span>Use “Download PDF”, then choose <strong>Save as PDF</strong> in the print dialogue. Attach the file to your email.</span>
+  <span>Use “Download PDF”, then choose <strong>Save as PDF</strong> in the print dialogue.</span>
   <span class="fn">${h(filename)}.pdf</span>
   <button onclick="fbaDownload()">Download PDF</button>
 </div>
 <div class="sheet">
   ${watermark}
+
   <div class="doc-header">
-    <div class="wordmark">Full Bloom Artelier<small>Design Procurement Studio, London</small></div>
-    <div class="doc-type">${h(meta.title)}<br><span style="color:var(--light);letter-spacing:0.1em">${h(snap.documentNumber)}</span></div>
+    <div>
+      <div class="title">${h(meta.title)}</div>
+      <div class="subtitle">Full Bloom Artelier · Design Procurement Studio, London</div>
+    </div>
+    ${logoHtml}
   </div>
+  <div class="hr"></div>
 
-  <h1 class="title">${h(meta.title)}</h1>
-  <div class="subtitle">${head.project_name ? `${h(head.project_name)}${head.project_location ? ` · ${h(head.project_location)}` : ''}` : 'Design Procurement Studio, London'}</div>
-  ${disclaimer}
-
-  <table class="kv">
-    ${metaRows.map(([k, v]) => `<tr><td class="k">${k}</td><td class="v">${v}</td></tr>`).join('')}
-  </table>
+  <div class="meta">
+    ${metaCols.map(([k, v]) => `<div class="m"><span class="k">${k}</span><span class="v">${v}</span></div>`).join('')}
+  </div>
 
   <div class="addr-grid">
-    <div>
-      <div class="section-head" style="margin-top:0">Client</div>
-      <table class="kv">
-        ${head.client_company ? `<tr><td class="k">Company</td><td class="v">${h(head.client_company)}</td></tr>` : ''}
-        <tr><td class="k">Name</td><td class="v">${h(head.client_name) || '—'}</td></tr>
-        ${head.client_email ? `<tr><td class="k">Email</td><td class="v">${h(head.client_email)}</td></tr>` : ''}
-        ${head.billing_address ? `<tr><td class="k">Billing Address</td><td class="v">${multiline(head.billing_address)}</td></tr>` : ''}
-      </table>
+    <div class="addr">
+      <span class="lbl">Bill To</span>
+      <div class="name">${h(head.client_company || head.client_name) || '—'}</div>
+      ${head.client_company && head.client_name ? `<div class="val">${h(head.client_name)}</div>` : ''}
+      ${head.billing_address ? `<div class="val">${multiline(head.billing_address)}</div>` : ''}
+      ${head.client_email ? `<div class="val">${h(head.client_email)}</div>` : ''}
     </div>
-    <div>
-      <div class="section-head" style="margin-top:0">Project</div>
-      <table class="kv">
-        <tr><td class="k">Project</td><td class="v">${h(head.project_name) || '—'}</td></tr>
-        <tr><td class="k">Location</td><td class="v">${h(head.project_location) || '—'}</td></tr>
-        ${head.delivery_address ? `<tr><td class="k">Delivery Address</td><td class="v">${multiline(head.delivery_address)}</td></tr>` : ''}
-      </table>
+    <div class="addr">
+      <span class="lbl">Project</span>
+      <div class="name">${h(head.project_name) || '—'}</div>
+      ${head.project_location ? `<div class="val">${h(head.project_location)}</div>` : ''}
+      ${head.delivery_address ? `<div class="val">${multiline(head.delivery_address)}</div>` : ''}
     </div>
   </div>
+  ${contact ? `<div class="contact-line"><span class="lbl" style="display:inline">Contact</span> &nbsp; ${contact}</div>` : '<div style="margin-bottom:20px"></div>'}
+
+  ${disclaimer}
 
   ${isServiceInvoice ? '' : itemsTable(productLines, 'Products')}
   ${itemsTable(serviceLines, isServiceInvoice ? 'Services' : 'Professional Services', { unitCol: true })}
@@ -340,15 +461,16 @@ export function renderCommercialDocument(snap: DocumentSnapshot, opts: RenderDoc
   ${totalsBlock}
 
   ${detailRows.length ? `
-  <div class="section-head">Payment &amp; Delivery</div>
-  <table class="kv">
-    ${detailRows.map(([k, v]) => `<tr><td class="k">${k}</td><td class="v">${v}</td></tr>`).join('')}
-  </table>` : ''}
+  <div class="pay">
+    ${detailRows.map(([k, v]) => `<div class="blk"><span class="lbl">${k}</span>${k === 'Notes' ? `<div class="notes-box">${v}</div>` : `<div class="val">${v}</div>`}</div>`).join('')}
+  </div>` : ''}
 
   <div class="doc-footer">
     <span>${h(settings.company_legal_name ?? 'Full Bloom Artelier')} · ${h(meta.title)} ${h(snap.documentNumber)} · fullbloom.uk.com · ${h(settings.invoice_email ?? '')}</span>
     <span>${settings.company_registration_number ? `Company No: ${h(settings.company_registration_number)} · ` : ''}${settings.vat_number ? `VAT No: ${h(settings.vat_number)}` : ''}</span>
   </div>
+
+  ${termsBlock}
 </div>
 ${logScript}
 </body>

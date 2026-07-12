@@ -13,7 +13,8 @@ async function loadAllocation(orderId: string, allocId: string) {
 }
 
 // PATCH /api/admin/commercial-orders/:id/allocations/:allocId
-export async function PATCH(req: NextRequest, { params }: { params: { id: string; allocId: string } }) {
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string; allocId: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('purchase_order_prepare')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 
@@ -79,7 +80,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 // DELETE /api/admin/commercial-orders/:id/allocations/:allocId
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string; allocId: string } }) {
+export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string; allocId: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('purchase_order_prepare')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 

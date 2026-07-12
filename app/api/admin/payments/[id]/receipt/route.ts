@@ -4,7 +4,8 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { renderReceipt } from '@/lib/commercial/invoiceDocuments'
 
 // GET /api/admin/payments/:id/receipt — render the immutable receipt document.
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('payment_view')
   if (!cs) return new NextResponse('Forbidden', { status: 403 })
   const { data: receipt } = await supabaseAdmin.from('payment_receipts').select('snapshot').eq('payment_id', params.id).maybeSingle()

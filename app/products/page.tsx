@@ -21,10 +21,8 @@ async function getHeroImage(): Promise<HeroImageSetting> {
   return { url: val?.url ?? '', alt: val?.alt ?? 'Curated craft and design pieces' }
 }
 
-export default async function ProductsPage({
-  searchParams,
-}: {
-  searchParams: {
+export default async function ProductsPage(props: {
+  searchParams: Promise<{
     category?:       string
     subcategory?:    string
     q?:              string
@@ -41,8 +39,9 @@ export default async function ProductsPage({
     max_lead_time?:  string
     finish_type?:    string
     region?:         string
-  }
+  }>
 }) {
+  const searchParams = await props.searchParams
   const [session, categoriesResult, heroImage] = await Promise.all([
     getSession(),
     supabase.from('categories').select('*, subcategories(*)').order('sort_order'),

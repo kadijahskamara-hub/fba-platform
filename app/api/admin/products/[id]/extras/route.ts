@@ -47,7 +47,8 @@ async function guard(productId: string) {
   return { session, product }
 }
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const g = await guard(params.id)
   if ('error' in g) return g.error
 
@@ -60,7 +61,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json({ success: true, documents: documents ?? [], finishes: finishes ?? [], variants: variants ?? [] })
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const g = await guard(params.id)
   if ('error' in g) return g.error
   const { session } = g

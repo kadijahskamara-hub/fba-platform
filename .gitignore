@@ -33,3 +33,5 @@ next-env.d.ts
 
 # Test build output
 .test-dist/
+
+npm-audit.json

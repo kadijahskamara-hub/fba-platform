@@ -6,7 +6,8 @@ import { ValidationError, vUuid, vString } from '@/lib/commercial/validation'
 
 // GET    /api/admin/invoices/:id           — invoice detail (lines, payments, credits)
 // POST   /api/admin/invoices/:id  {action:'recalc'|'approve'|'void', reason?}
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('invoice_view')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
   try { vUuid(params.id, 'id') } catch { return NextResponse.json({ success: false, error: 'Invalid id' }, { status: 400 }) }
@@ -23,7 +24,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json({ success: true, data: { invoice, lines: lines ?? [], allocations: allocations ?? [], credits: credits ?? [] } })
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   try {
     vUuid(params.id, 'id')
     const body = await req.json().catch(() => ({}))

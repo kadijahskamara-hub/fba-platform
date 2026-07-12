@@ -5,7 +5,8 @@ import { ValidationError, vUuid, vNumber } from '@/lib/commercial/validation'
 
 // POST   /api/admin/payments/:id/allocate { invoiceId, amount }
 // DELETE /api/admin/payments/:id/allocate { allocationId }
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('payment_allocate')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
   try {
@@ -22,7 +23,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('payment_allocate')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
   try {

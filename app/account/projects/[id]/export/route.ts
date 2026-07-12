@@ -3,13 +3,18 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
 import { resolvePrice, formatPrice, canSeeTradePricing } from '@/lib/pricing'
 
+// Node runtime required for the PDF (jsPDF) branch.
+export const runtime = 'nodejs'
+
 /**
- * GET /account/projects/:id/export?format=csv|html
+ * GET /account/projects/:id/export?format=csv|pdf|html
  * FF&E schedule export for a project the current user owns.
  *  - csv  (default): downloadable spreadsheet
- *  - html:           print-friendly page (browser "Save as PDF")
+ *  - pdf:            generated landscape schedule (jsPDF)
+ *  - html:          print-friendly page (browser "Save as PDF")
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
@@ -43,7 +48,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   // relation as an array, but a to-one FK returns a single object at runtime.
   const rawItems = (items ?? []) as unknown as Array<Record<string, unknown>>
 
-  const rows = rawItems.map(it => {
+  const rows: Row[] = rawItems.map(it => {
     const p = (it.product ?? null) as Record<string, unknown> | null
     const priceD = p ? resolvePrice(p as Parameters<typeof resolvePrice>[0], session)
                      : { type: 'request' as const, label: 'Unavailable' }
@@ -71,13 +76,25 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const format = req.nextUrl.searchParams.get('format') ?? 'csv'
   const safeName = project.name.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'project'
 
+  // ── PDF ──────────────────────────────────────────────────
+  if (format === 'pdf') {
+    const pdf = buildSchedulePdf(project, rows, subtotal, porCount, currency, showTrade)
+    return new NextResponse(pdf, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `inline; filename="ffe-schedule-${safeName}.pdf"`,
+      },
+    })
+  }
+
+  // ── HTML (browser print / save-as-PDF) ───────────────────
   if (format === 'html') {
     return new NextResponse(renderHtml(project, rows, subtotal, porCount, currency, showTrade), {
       headers: { 'Content-Type': 'text/html; charset=utf-8' },
     })
   }
 
-  // ── CSV ──────────────────────────────────────────────────
+  // ── CSV (default) ────────────────────────────────────────
   const esc = (v: string | number) => {
     const s = String(v ?? '')
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
@@ -112,10 +129,128 @@ type Row = {
   qty: number; unitLabel: string; total: number | null; notes: string
 }
 
+type Project = { name: string; location: string | null; budget: number | null; notes: string | null }
+type Currency = 'GBP' | 'EUR' | 'USD'
+
+// ── PDF schedule (landscape A4) ────────────────────────────
+function buildSchedulePdf(
+  project: Project, rows: Row[], subtotal: number, porCount: number,
+  currency: Currency, showTrade: boolean,
+): ArrayBuffer {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { jsPDF } = require('jspdf')
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' })
+  const W = 297, H = 210, margin = 15
+  const rightEdge = W - margin
+  const forest: [number, number, number] = [26, 43, 24]
+  const stone:  [number, number, number] = [158, 149, 137]
+  const ink:    [number, number, number] = [38, 32, 28]
+
+  type Col = { key: string; x: number; w: number; align: 'left' | 'right' }
+  const cols: Col[] = [
+    { key: '#',        x: margin,       w: 8,  align: 'left' },
+    { key: 'Item',     x: margin + 8,   w: 74, align: 'left' },
+    { key: 'Category', x: margin + 82,  w: 34, align: 'left' },
+    { key: 'Artisan',  x: margin + 116, w: 38, align: 'left' },
+    { key: 'Qty',      x: margin + 154, w: 14, align: 'right' },
+    { key: showTrade ? 'Unit (trade)' : 'Unit (retail)', x: margin + 168, w: 32, align: 'right' },
+    { key: 'Line Total', x: margin + 200, w: 30, align: 'right' },
+    { key: 'Notes',    x: margin + 230, w: 37, align: 'left' },
+  ]
+
+  let y = margin + 6
+
+  // Title block
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(...forest)
+  doc.text('FF&E Schedule', margin, y)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...stone)
+  doc.text('Full Bloom Artelier', rightEdge, y, { align: 'right' })
+  y += 6
+  doc.setFontSize(10); doc.setTextColor(...ink)
+  doc.text([project.name, project.location].filter(Boolean).join('   ·   '), margin, y)
+  y += 7
+
+  const drawHeader = () => {
+    doc.setFillColor(...forest); doc.rect(margin, y, rightEdge - margin, 7, 'F')
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(253, 250, 247)
+    for (const c of cols) {
+      if (c.align === 'right') doc.text(c.key, c.x + c.w, y + 4.8, { align: 'right' })
+      else doc.text(c.key, c.x + 1.5, y + 4.8)
+    }
+    y += 9
+  }
+  drawHeader()
+
+  rows.forEach((r, i) => {
+    doc.setFontSize(8.5)
+    const nameLines = doc.splitTextToSize(r.name + (r.ref ? `  (${r.ref})` : ''), cols[1].w - 2)
+    doc.setFontSize(7.5)
+    const noteLines = r.notes ? doc.splitTextToSize(r.notes, cols[7].w - 2) : ['']
+    const rowH = Math.max(nameLines.length * 4, noteLines.length * 3.6, 6) + 2
+
+    if (y + rowH > H - margin - 22) {
+      doc.addPage(); y = margin + 4; drawHeader()
+    }
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8.5); doc.setTextColor(...ink)
+    doc.text(String(i + 1), cols[0].x + 1.5, y + 4)
+    doc.text(nameLines, cols[1].x + 1.5, y + 4)
+    doc.setFontSize(8)
+    doc.text(doc.splitTextToSize(r.category, cols[2].w - 2), cols[2].x + 1.5, y + 4)
+    doc.text(doc.splitTextToSize(r.artisan, cols[3].w - 2), cols[3].x + 1.5, y + 4)
+    doc.text(String(r.qty), cols[4].x + cols[4].w, y + 4, { align: 'right' })
+    doc.text(r.unitLabel, cols[5].x + cols[5].w, y + 4, { align: 'right' })
+    doc.text(r.total != null ? formatPrice(r.total, currency) : '—', cols[6].x + cols[6].w, y + 4, { align: 'right' })
+    doc.setFontSize(7.5); doc.setTextColor(...stone)
+    doc.text(noteLines, cols[7].x + 1.5, y + 3.6)
+
+    doc.setDrawColor(230, 226, 218); doc.setLineWidth(0.2)
+    doc.line(margin, y + rowH, rightEdge, y + rowH)
+    y += rowH
+  })
+
+  // Totals
+  y += 5
+  if (y > H - margin - 20) { doc.addPage(); y = margin + 10 }
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...forest)
+  doc.text(`Subtotal${showTrade ? ' (trade)' : ''}`, cols[5].x + cols[5].w, y, { align: 'right' })
+  doc.text(formatPrice(subtotal, currency), cols[6].x + cols[6].w, y, { align: 'right' })
+  y += 5
+  if (project.budget != null) {
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(...ink)
+    doc.text('Budget', cols[5].x + cols[5].w, y, { align: 'right' })
+    doc.text(formatPrice(Number(project.budget), currency), cols[6].x + cols[6].w, y, { align: 'right' })
+    y += 5
+  }
+  y += 2
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...stone)
+  if (porCount > 0) {
+    doc.text(`${porCount} item(s) priced on request — excluded from the subtotal. Request a quote for a full figure.`, margin, y)
+    y += 4
+  }
+  doc.text(
+    showTrade ? 'Prices reflect your trade account.' : 'Indicative retail pricing. Trade pricing available to approved trade accounts.',
+    margin, y,
+  )
+
+  // Footers
+  const totalPages = doc.getNumberOfPages()
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p)
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...stone)
+    doc.text('Full Bloom Artelier · FF&E Schedule', margin, H - 6)
+    doc.text(`${p} / ${totalPages}`, rightEdge, H - 6, { align: 'right' })
+  }
+
+  return doc.output('arraybuffer') as ArrayBuffer
+}
+
+// ── HTML (browser print / save-as-PDF) ─────────────────────
 function renderHtml(
-  project: { name: string; location: string | null; budget: number | null; notes: string | null },
+  project: Project,
   rows: Row[], subtotal: number, porCount: number,
-  currency: 'GBP' | 'EUR' | 'USD', showTrade: boolean,
+  currency: Currency, showTrade: boolean,
 ): string {
   const e = (s: string) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string))
   const body = rows.map((r, i) => `

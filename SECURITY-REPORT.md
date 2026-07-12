@@ -1,8 +1,8 @@
 # FBA Platform — Security Audit Report
 
-**Date:** 2026-05-27 (updated 2026-07-11 — Commercial Pipeline Sprint 1)  
-**Scope:** Full codebase — `fba-platform/` (Next.js 14, Supabase, Resend, custom JWT auth)  
-**Status:** All findings fixed. ✅ See the Sprint 1 addendum at the end for new controls and residual risks.
+**Date:** 2026-05-27 (updated 2026-07-12 — Next.js 15 upgrade + jsPDF/DOMPurify fix)  
+**Scope:** Full codebase — `fba-platform/` (Next.js 15, Supabase, Resend, custom JWT auth)  
+**Status:** All findings fixed. ✅ See the addenda at the end for new controls, the framework upgrade, and residual risks.
 
 ---
 
@@ -320,3 +320,88 @@ if (file.size > MAX_SIZE) {
 2. The acceptance link is the client's credential for one revision, mitigated as for PO tokens (hashed, expiring, revocable, rate-limited, no-referrer, audited).
 3. Multi-currency payment allocation is blocked outright (no conversion workflow) — intentional for this sprint.
 4. Reminder-email delivery, gateway/bank-feed integration and accounting sync remain deferred (`reminder_status` fields are prepared but no email is sent).
+
+---
+
+## Addendum — Next.js 15 framework upgrade (2026-07-12)
+
+**Change:** Upgraded `next` and `eslint-config-next` from **14.2.35** to **^15.5.18** (staying on the 15.x line; 16.x deliberately avoided as it previously broke our dynamic routes). React and React DOM remain on 18 to minimise change surface — Next 15 supports React 18 and 19, and nothing in the codebase requires 19.
+
+**Why:** Next.js 14.x is end-of-life for security. The **May 2026 security release** patched only **15.5.18+ / 16.2.6+**; earlier 15.x/16.x minors will not receive fixes. Running 14.2.35 left the platform exposed to a batch of advisories (`npm audit` was reporting ~14 unpatched `next` findings). The upgrade moves the framework onto the only supported, patched 15.x baseline.
+
+### Advisories closed by the version bump
+
+The 15.5.18 release rolls up the May 2026 advisory set (publicly summarised as 7 high, 4 moderate, 2 low, plus one upstream React issue). Relevance to FBA's actual usage:
+
+| Advisory (May 2026 set) | Severity | Relevance to FBA |
+| --- | --- | --- |
+| App Router / Pages Router **middleware / proxy bypass** | High | **Directly relevant.** `middleware.ts` is our auth gate for `/account`, `/admin` and `/trade/dashboard`. A middleware-bypass defeats those role checks — this is the most important fix for us. |
+| **RSC response cache poisoning** | High | Relevant — App Router with React Server Components throughout. |
+| **SSRF via WebSocket upgrade** | High | Low practical exposure (no WebSocket endpoints), closed regardless. |
+| Connection exhaustion with **Cache Components** | High | Not applicable — Cache Components (experimental) not used. |
+| **RSC / rendering DoS** | High | Relevant — reduces unauthenticated render-path DoS surface. |
+| **Image Optimization API DoS** | Moderate | **Relevant.** `next/image` is used with `remotePatterns` (see residual risk below). |
+| **XSS via CSP nonce** | Moderate | Not applicable — our CSP uses `'unsafe-inline'`, not a nonce strategy (its own weakness, tracked separately; the nonce-specific bug does not apply). |
+| **XSS via `beforeInteractive` scripts** | Low | Not applicable — no `beforeInteractive` `next/script` usage. |
+| Upstream **React Server Components** issue | — | Closed by the bundled React runtime fix shipped with 15.5.18. |
+
+After `npm install`, `npm audit` should no longer list the `next` advisories. Re-run it as part of verification (see the build steps handed to the maintainer).
+
+### Breaking change handled — async `params` / `searchParams`
+
+Next 15's largest breaking change: dynamic **`params`** and **`searchParams`** are now Promises. Every dynamic route handler, page, layout and `generateMetadata` that reads a route parameter had to `await` it, or the build fails / the value is `undefined` at runtime.
+
+| Area | Migrated |
+| --- | --- |
+| API route handlers (`app/**/[…]/route.ts`) | 86 handlers across ~60 files. Signature changed to `ctx: { params: Promise<{ … }> }` and `const params = await ctx.params` added; all downstream `params.id` / `.slug` / `.token` / `.itemId` / `.allocId` / `.lineId` / `.noteId` references left intact. Includes the `type Params` alias case (`retail-orders/[id]`). |
+| Server pages / `generateMetadata` (`app/**/[…]/page.tsx`) | All dynamic pages, including `interface Props` and multi-line-typed variants. One non-async server page (`admin/clients/[id]/statement`) was made `async`. `searchParams`-consuming server pages (`products`, `admin/products`, `admin/dashboard`) migrated the same way. |
+| Client components using `useSearchParams()` | **No change required** — the hook is unchanged in Next 15. The `(auth)` pages, `quote`, `checkout/success` and `admin/contacts` were correctly left alone. |
+| Route-handler `searchParams` from `req.nextUrl` | **No change required** — that is the Web `URL` API (always synchronous), not the async prop. |
+
+Verified statically: zero remaining un-wrapped `params:`/`searchParams:` prop types; every server file that reads `params.`/`searchParams.` either awaits it or uses the sync Web API / client hook; no `await` was introduced into a non-async function. Final confirmation is `npm run build` (Next 15 type-checks handlers against its generated route/page types, so any missed file fails the build).
+
+### Breaking change handled — async `cookies()`
+
+Next 15 also made **`cookies()` / `headers()` / `draftMode()`** (from `next/headers`) return Promises. The only consumer is `lib/auth.ts` (our session layer), which called `cookies()` synchronously in three places:
+
+- `createSession()` → `(await cookies()).set(...)`
+- `getSession()` → `(await cookies()).get(...)`
+- `destroySession()` was made `async` → `(await cookies()).delete(...)`; its sole caller, `POST /api/auth/logout`, now `await`s it.
+
+`createSession`'s callers (login, register, verify-otp) already awaited it. No use of `headers()` or `draftMode()` exists in the codebase.
+
+### Configuration changes
+
+- `next.config.js`: `experimental.serverComponentsExternalPackages` (for `bcryptjs`) was renamed to the now-stable top-level **`serverExternalPackages`** — the Next 15 rename. Security headers / CSP and the `images` block are otherwise unchanged.
+- `middleware.ts`: no code change needed — it uses only stable APIs (`nextUrl`, `cookies`, `jose` JWT verify). The proxy/middleware-bypass advisories are fixed inside the framework by the version bump, not in our code.
+
+### Residual risks (Next.js 15 upgrade)
+
+1. **`images.remotePatterns` still allows `hostname: '**'`** (any HTTPS host). The Image Optimization **DoS** is patched by 15.5.18, but a fully open remote-image allowlist remains an abuse/SSRF-adjacent surface (the optimizer will fetch arbitrary attacker-supplied HTTPS URLs). Carried forward intentionally because product images are imported from arbitrary supplier CDNs; the standing plan is to mirror imported images into Supabase Storage and then restrict `remotePatterns`.
+2. **CSP uses `'unsafe-inline'` / `'unsafe-eval'`** in `script-src` (required by styled-jsx and current inline usage). This is a pre-existing weakness unrelated to the upgrade and is not addressed here; a nonce-based CSP is the long-term fix.
+3. Next 15 makes `GET` route handlers and `fetch` **uncached by default**. This is safer (no accidental caching of authenticated responses) and matches how these Supabase-backed routes already behave; no action required, noted for completeness.
+
+---
+
+## Addendum — jsPDF 2 → 4 upgrade (DOMPurify advisories) (2026-07-12)
+
+**Change:** Upgraded `jspdf` from **^2.5.1** to **^4.2.1**.
+
+**Why:** After the Next 15 upgrade, `npm audit` reported the remaining findings as a **critical** and a **moderate** advisory, both from **DOMPurify** pulled in transitively by the old `jspdf` (jsPDF `<= 4.2.0` depends on a vulnerable DOMPurify — a batch of XSS / prototype-pollution / sanitisation-bypass CVEs). `jspdf@4.2.1` ships a patched DOMPurify and clears both.
+
+**Exposure assessment:** DOMPurify is only reached via jsPDF's `doc.html()` rendering path. The jsPDF consumers in this codebase — the trade programme info pack (`app/api/trade/application-form.pdf`), the product tear sheet (`app/api/products/[slug]/tear-sheet`), and the project FF&E schedule (`app/account/projects/[id]/export`) — **do not use `.html()`, `autoTable`, `fromHTML`, or any filesystem/font-loading API.** They use only core drawing primitives (`text`, `rect`, `line`, `circle`, `splitTextToSize`, `addImage`, `addPage`, `setFont`, `output('arraybuffer')`), so the vulnerable code path was never invoked at runtime. The advisory was a transitive-dependency hygiene issue rather than a live exposure; the bump removes it regardless.
+
+**Code impact:** jsPDF 4.0's one breaking change (restricting filesystem access by default) does not affect these routes, and every API they call is stable across 2.5 → 4.x. Verified with a PDF-output smoke test of the trade route after the bump. (The tear-sheet and FF&E-schedule routes were separately converted from HTML to real jsPDF PDFs as a product change — see the FF&E PDF note below — which is why they now import jsPDF; they remain on the core drawing API only.)
+
+After `npm install`, `npm audit` should report **0 vulnerabilities**.
+
+---
+
+## Addendum — Tear sheet & FF&E schedule converted to real PDFs (2026-07-12)
+
+Product change (not a security fix), enabled by the jsPDF 4 upgrade:
+
+- **Product tear sheet** (`app/api/products/[slug]/tear-sheet`) now returns a generated A4 PDF instead of an HTML page. The product image is fetched server-side and transcoded to JPEG with **`sharp`** (added dependency; also registered in `serverExternalPackages`) so any source format — WebP/AVIF/PNG/JPEG — embeds reliably; on fetch/transcode failure it degrades to a neutral placeholder. This also fixes a latent mismatch where the product page already offered the link with a `.pdf` download filename while the route served HTML. Image fetches are bounded by a 7s timeout.
+- **Project FF&E schedule** (`app/account/projects/[id]/export`) gains a `format=pdf` branch (landscape jsPDF table with pagination) alongside the existing `format=csv` (default) and `format=html`. The project page now exposes all three — **Export CSV**, **Export PDF**, **Print** (HTML). The ownership check (project must belong to the session user) and trade-pricing gating are unchanged and still run before any output is produced.
+
+Both routes escape nothing into HTML (PDF text is literal) and use only the jsPDF core drawing API.

@@ -9,7 +9,8 @@ const DOC_TYPES = ['quote', 'proforma', 'invoice', 'service_invoice']
 // POST /api/admin/proformas/:id/download — log a document download.
 // Documents are downloaded as PDFs and attached to emails manually;
 // this log replaces the old auto-email send log.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const session = await getPipelineSession()
   if (!session) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
   if (!UUID_RE.test(params.id)) return NextResponse.json({ success: false, error: 'Invalid id' }, { status: 400 })

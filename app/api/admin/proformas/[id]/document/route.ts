@@ -4,12 +4,16 @@ import { requireCommercial } from '@/lib/commercial/permissions'
 import { recalculateAndPersist } from '@/lib/commercial/recalc'
 import { buildSnapshotPayload, latestIssuedDocument } from '@/lib/commercial/snapshots'
 import { renderCommercialDocument, DocumentSnapshot } from '@/lib/commercial/documents'
+import { embedLineImages } from '@/lib/commercial/embedImages'
 import { withRevision } from '@/lib/commercial/numbering'
 import {
   renderDocumentHtml, DEFAULT_DOC_SETTINGS, DocProforma, DocLineItem, DocSettings,
 } from '@/lib/proformaDocument'
 import { UUID_RE } from '@/lib/commercial/validation'
 import type { IssuedDocType } from '@/lib/commercial/types'
+
+// sharp (native, via embedLineImages) requires the Node runtime.
+export const runtime = 'nodejs'
 
 // GET /api/admin/proformas/:id/document
 //   ?type=quote|proforma|invoice|service_invoice
@@ -20,7 +24,8 @@ import type { IssuedDocType } from '@/lib/commercial/types'
 // issued_documents — never from live data. When no snapshot exists the
 // route renders a watermarked DRAFT preview from a freshly recalculated
 // snapshot-shaped payload (nothing is persisted or numbered).
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('quote_pipeline_view')
   if (!cs) return new NextResponse('Forbidden', { status: 403 })
   if (!UUID_RE.test(params.id)) return new NextResponse('Invalid id', { status: 400 })
@@ -87,6 +92,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     }) as unknown as DocumentSnapshot
     draft = true
   }
+
+  // Inline product thumbnails as data URIs so they always render in
+  // print-to-PDF (mutates the in-memory snapshot copy only).
+  await embedLineImages(snapshot.lines)
 
   const html = renderCommercialDocument(snapshot, {
     draft,

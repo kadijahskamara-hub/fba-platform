@@ -4,8 +4,8 @@ import { getSession, isStaffRole } from '@/lib/auth'
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } },
-) {
+  ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const session = await getSession()
   if (!session || !isStaffRole(session)) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
@@ -36,8 +36,8 @@ export async function PATCH(
 
 export async function DELETE(
   _req: Request,
-  { params }: { params: { id: string } },
-) {
+  ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const session = await getSession()
   if (!session || !isStaffRole(session)) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })

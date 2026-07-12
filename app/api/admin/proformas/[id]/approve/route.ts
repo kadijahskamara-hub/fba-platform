@@ -8,7 +8,8 @@ import { vUuid, vString, ValidationError } from '@/lib/commercial/validation'
 //   { action: 'approve' | 'reject', note?: string }
 // Approver rules are enforced in lib/commercial/approvals:
 //   required_commercial → quote_approve; required_ultra/blocked → Ultra Admin.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('quote_pipeline_view')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 

@@ -20,7 +20,8 @@ async function guard(params: { id: string; itemId: string }) {
 }
 
 // PATCH /api/admin/proformas/:id/items/:itemId — edit a line item.
-export async function PATCH(req: NextRequest, { params }: { params: { id: string; itemId: string } }) {
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string; itemId: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('quote_edit')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 
@@ -130,7 +131,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 // DELETE /api/admin/proformas/:id/items/:itemId
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string; itemId: string } }) {
+export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string; itemId: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('quote_edit')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 

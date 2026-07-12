@@ -7,7 +7,8 @@ import { ValidationError, vUuid } from '@/lib/commercial/validation'
 //   { manufacturerId } → draft PO from this manufacturer's open allocations.
 // One manufacturer per PO; mixed currencies are refused; allocations with
 // missing cost/currency block generation (nothing is fabricated).
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('purchase_order_prepare')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 

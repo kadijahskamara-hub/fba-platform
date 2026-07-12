@@ -10,7 +10,8 @@ import { UUID_RE, DATE_RE } from '@/lib/commercial/validation'
 // invoice document itself is produced via POST :id/issue { docType:
 // 'invoice' | 'service_invoice' }, which freezes a snapshot.
 // Idempotent: converting again only updates the dates.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('invoice_create')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
   if (!UUID_RE.test(params.id)) return NextResponse.json({ success: false, error: 'Invalid id' }, { status: 400 })

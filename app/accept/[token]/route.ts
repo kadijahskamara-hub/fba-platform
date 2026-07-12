@@ -7,7 +7,8 @@ import { checkRateLimit, getClientIp } from '@/lib/rateLimit'
 // GET /accept/:token — public, supplier-safe (client-facing) acceptance page.
 // Single-purpose, high-entropy, hashed, expiring, revocable token bound to
 // one issued revision. No client selling/margin internals beyond the document.
-export async function GET(req: NextRequest, { params }: { params: { token: string } }) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ token: string }> }) {
+  const params = await ctx.params
   const ip = getClientIp(req)
   const rl = checkRateLimit(`accept-view:${ip}`, 30, 10 * 60 * 1000)
   if (!rl.allowed) return new NextResponse('Too many requests. Please try again shortly.', { status: 429 })

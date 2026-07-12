@@ -13,7 +13,8 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 // Public, token-authenticated, rate-limited. Token consumption and the PO
 // status update are performed ATOMICALLY by acknowledge_purchase_order()
 // (Sprint 3 correction) so a race cannot produce a duplicate response.
-export async function POST(req: NextRequest, { params }: { params: { token: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ token: string }> }) {
+  const params = await ctx.params
   const ip = getClientIp(req)
   const rl = checkRateLimit(`supplier-po-ack:${ip}`, 10, 10 * 60 * 1000)
   if (!rl.allowed) return NextResponse.json({ success: false, error: 'Too many attempts. Please try again shortly.' }, { status: 429 })

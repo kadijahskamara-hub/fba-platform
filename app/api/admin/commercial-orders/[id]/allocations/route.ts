@@ -8,7 +8,8 @@ import { ValidationError, vUuid, vUuidOrNull, vString, vNumber, vDate, vEnum } f
 // POST /api/admin/commercial-orders/:id/allocations — allocate a source
 // line to a manufacturer with a real supplier cost. Costs are never
 // derived from selling prices and never fabricated.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('purchase_order_prepare')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 

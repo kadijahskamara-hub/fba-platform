@@ -12,7 +12,8 @@ import { UUID_RE } from '@/lib/commercial/validation'
 //
 // Issued POs always render from their immutable snapshot; drafts render
 // a watermarked preview built from live data (nothing persisted).
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('purchase_order_prepare')
   if (!cs) return new NextResponse('Forbidden', { status: 403 })
   if (!UUID_RE.test(params.id)) return new NextResponse('Invalid id', { status: 400 })

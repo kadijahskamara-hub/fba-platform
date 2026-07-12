@@ -12,7 +12,8 @@ import { ValidationError, vUuid, vString } from '@/lib/commercial/validation'
 // - approve/reject: requires purchase_order_approve (or Ultra Admin).
 //   Segregation of duties: the preparer cannot approve their own PO
 //   unless they are Ultra Admin. Blocked POs need Ultra Admin.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('purchase_order_prepare')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 

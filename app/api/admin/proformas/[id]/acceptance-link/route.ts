@@ -6,7 +6,8 @@ import { ValidationError, vUuid, vString } from '@/lib/commercial/validation'
 // POST /api/admin/proformas/:id/acceptance-link
 //   { mode: 'link' }  → mint a single-purpose client acceptance link (returned once)
 //   { mode: 'admin_record', name, email, reason, evidence } → record offline acceptance
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const params = await ctx.params
   const cs = await requireCommercial('quote_approve')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
   try { vUuid(params.id, 'id') } catch (e) {
