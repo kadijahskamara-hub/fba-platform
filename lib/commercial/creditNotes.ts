@@ -117,6 +117,61 @@ export async function issueCreditNote(id: string, actor: SessionUser): Promise<D
   return { data: { creditNoteNumber: res.credit_note_number! } }
 }
 
+/**
+ * Void a credit note — allowed only before any allocation (Sprint 6).
+ * The period-lock trigger additionally blocks voiding a credit note
+ * whose tax point is in a closed period.
+ */
+export async function voidCreditNote(id: string, reason: string, actor: SessionUser): Promise<DomainResult<{ voided: true }>> {
+  if (!String(reason ?? '').trim()) return { error: 'A reason is required to void a credit note.', status: 400 }
+  const { data: cn } = await supabaseAdmin.from('credit_notes').select('*').eq('id', id).single()
+  if (!cn) return { error: 'Credit note not found', status: 404 }
+  if (cn.status === 'void') return { error: 'Credit note is already void.', status: 409 }
+  if (Number(cn.allocated_total ?? 0) > 0) return { error: 'This credit note has allocations; unallocate before voiding.', status: 409 }
+  const { count } = await supabaseAdmin.from('credit_note_allocations').select('id', { count: 'exact', head: true }).eq('credit_note_id', id)
+  if ((count ?? 0) > 0) return { error: 'This credit note has allocations; unallocate before voiding.', status: 409 }
+
+  const { error } = await supabaseAdmin.from('credit_notes').update({
+    status: 'void', voided_at: new Date().toISOString(), void_reason: reason, voided_by: actor.id, updated_at: new Date().toISOString(),
+  }).eq('id', id)
+  if (error) {
+    if (/closed accounting period/i.test(error.message)) return { error: 'This credit note is in a closed accounting period and cannot be voided.', status: 409 }
+    return { error: error.message, status: 500 }
+  }
+  await logAudit({ actor, action: 'commercial.credit_note_voided', entityType: 'credit_note', entityId: id, after: { reason } })
+  return { data: { voided: true } }
+}
+
+/**
+ * Pre-fill a draft credit note from a "credited" delivery-line exception
+ * (Sprint 4 → 6), linking back to the exception. Lines/amount are supplied
+ * by staff (delivery documents carry no price), then it follows the normal
+ * approve → issue → allocate/refund lifecycle.
+ */
+export async function createCreditNoteFromException(params: {
+  exceptionId: string
+  invoiceId: string
+  reason?: string
+  lines?: Array<{ name: string; quantity: number; unitPrice: number; taxCategory: TaxCategory; taxRate: number | null }>
+  amount?: number | null
+  actor: SessionUser
+}): Promise<DomainResult<{ creditNote: Record<string, unknown> }>> {
+  const { data: exc } = await supabaseAdmin.from('delivery_line_exceptions').select('*').eq('id', params.exceptionId).single()
+  if (!exc) return { error: 'Delivery exception not found', status: 404 }
+  if (exc.resolution_status !== 'credited') return { error: 'Only a "credited" exception can generate a credit note.', status: 409 }
+
+  const reason = params.reason ?? `Delivery exception: ${exc.type} (qty ${Number(exc.quantity_affected)})`
+  const created = await createDraftCreditNote({ invoiceId: params.invoiceId, reason, lines: params.lines, amount: params.amount, actor: params.actor })
+  if (isErr(created)) return created
+
+  await supabaseAdmin.from('credit_notes').update({ source_exception_id: params.exceptionId, updated_at: new Date().toISOString() }).eq('id', (created.data.creditNote as { id: string }).id)
+  await supabaseAdmin.from('delivery_line_exceptions').update({
+    resolution_notes: `Credit note drafted (${(created.data.creditNote as { credit_note_number?: string }).credit_note_number ?? 'draft'})`, updated_at: new Date().toISOString(),
+  }).eq('id', params.exceptionId)
+  await logAudit({ actor: params.actor, action: 'commercial.credit_note_from_exception', entityType: 'credit_note', entityId: (created.data.creditNote as { id: string }).id, after: { exceptionId: params.exceptionId } })
+  return created
+}
+
 export async function allocateCreditNote(params: {
   creditNoteId: string; invoiceId: string; amount: number; actor: SessionUser
 }): Promise<DomainResult<{ allocated: number }>> {

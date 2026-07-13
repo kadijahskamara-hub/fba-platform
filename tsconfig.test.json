@@ -17,6 +17,7 @@
     "lib/commercial/poCalculations.ts",
     "lib/commercial/deliveryLogic.ts",
     "lib/commercial/communications.ts",
+    "lib/commercial/accountingLogic.ts",
     "tests/**/*.ts"
   ]
 }

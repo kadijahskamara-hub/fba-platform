@@ -34,6 +34,10 @@ const ADMIN_IMPLIED: CommercialPermission[] = [
   // Sprint 5 — documents & prepared communications (operational)
   'document_generate', 'document_verify', 'communication_prepare',
   'communication_mark_sent',
+  // Sprint 6 — accounting controls (operational). 'invoice_void' is
+  // admin-implied but SQL hard-blocks it once the period is locked.
+  'accounting_view', 'accounting_export', 'reconciliation_manage',
+  'refund_record', 'invoice_void',
 ]
 
 // Segregated finance controls — Ultra Admin by default, explicitly grantable
@@ -42,6 +46,8 @@ const ADMIN_IMPLIED: CommercialPermission[] = [
 const ULTRA_FINANCE_IMPLIED: CommercialPermission[] = [
   'invoice_approve', 'payment_confirm', 'payment_reverse', 'credit_note_approve',
   'template_manage',
+  // Sprint 6 — segregated accounting controls
+  'refund_approve', 'period_manage',
 ]
 
 /** Legacy broad permission → granular working permissions. */

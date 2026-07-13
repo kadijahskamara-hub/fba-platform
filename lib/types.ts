@@ -560,6 +560,10 @@ export type StaffPermission =
   // is NOT grantable here (Ultra-by-default, like commercial_settings_manage).
   | 'document_generate' | 'document_verify'
   | 'communication_prepare' | 'communication_mark_sent'
+  // Sprint 6 — accounting controls. 'refund_approve' and 'period_manage'
+  // are NOT grantable here (Ultra-by-default, segregation of duties).
+  | 'accounting_view' | 'accounting_export' | 'reconciliation_manage'
+  | 'refund_record' | 'invoice_void'
 
 export interface StaffPermissions {
   id: string

@@ -62,6 +62,14 @@ export type CommercialPermission =
   | 'communication_prepare'
   | 'communication_mark_sent'
   | 'template_manage'
+  // Sprint 6 — accounting controls
+  | 'accounting_view'
+  | 'accounting_export'
+  | 'reconciliation_manage'
+  | 'refund_record'
+  | 'refund_approve'
+  | 'period_manage'
+  | 'invoice_void'
   | 'ultra_admin'
 
 export const COMMERCIAL_PERMISSIONS: CommercialPermission[] = [
@@ -74,7 +82,10 @@ export const COMMERCIAL_PERMISSIONS: CommercialPermission[] = [
   'delivery_view', 'delivery_create', 'delivery_dispatch', 'delivery_confirm',
   'pod_record', 'installation_manage',
   'document_generate', 'document_verify', 'communication_prepare',
-  'communication_mark_sent', 'template_manage', 'ultra_admin',
+  'communication_mark_sent', 'template_manage',
+  'accounting_view', 'accounting_export', 'reconciliation_manage',
+  'refund_record', 'refund_approve', 'period_manage', 'invoice_void',
+  'ultra_admin',
 ]
 
 // ── Sprint 5 — documents & communications enums ──────────────

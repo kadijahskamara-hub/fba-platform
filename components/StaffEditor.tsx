@@ -43,6 +43,12 @@ const PERMISSION_LABELS: Record<StaffPermission, string> = {
   document_verify:         'Documents — verify stored file checksums',
   communication_prepare:   'Communications — prepare & edit packs',
   communication_mark_sent: 'Communications — mark packs as sent',
+  // Accounting controls (Sprint 6)
+  accounting_view:         'Accounting — view periods, exports & reports',
+  accounting_export:       'Accounting — run financial exports',
+  reconciliation_manage:   'Accounting — mark reconciled / excluded',
+  refund_record:           'Refunds — record (approval is Ultra-only)',
+  invoice_void:            'Invoices — void (blocked by locked periods)',
 }
 
 const ALL_PERMISSIONS = Object.keys(PERMISSION_LABELS) as StaffPermission[]
