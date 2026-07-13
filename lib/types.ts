@@ -556,6 +556,10 @@ export type StaffPermission =
   // Sprint 4 — delivery & logistics
   | 'delivery_view' | 'delivery_create' | 'delivery_dispatch'
   | 'delivery_confirm' | 'pod_record' | 'installation_manage'
+  // Sprint 5 — documents & prepared communications. 'template_manage'
+  // is NOT grantable here (Ultra-by-default, like commercial_settings_manage).
+  | 'document_generate' | 'document_verify'
+  | 'communication_prepare' | 'communication_mark_sent'
 
 export interface StaffPermissions {
   id: string

@@ -31,12 +31,17 @@ const ADMIN_IMPLIED: CommercialPermission[] = [
   // Sprint 4 — delivery & logistics (operational, not finance-segregated)
   'delivery_view', 'delivery_create', 'delivery_dispatch', 'delivery_confirm',
   'pod_record', 'installation_manage',
+  // Sprint 5 — documents & prepared communications (operational)
+  'document_generate', 'document_verify', 'communication_prepare',
+  'communication_mark_sent',
 ]
 
 // Segregated finance controls — Ultra Admin by default, explicitly grantable
 // to staff. Ordinary admins do NOT self-serve approval/confirmation/reversal.
+// 'template_manage' is Ultra-by-default too — templates are brand voice.
 const ULTRA_FINANCE_IMPLIED: CommercialPermission[] = [
   'invoice_approve', 'payment_confirm', 'payment_reverse', 'credit_note_approve',
+  'template_manage',
 ]
 
 /** Legacy broad permission → granular working permissions. */
@@ -101,4 +106,13 @@ export async function requireCommercial(
 
 export function hasPermission(cs: CommercialSession, p: CommercialPermission): boolean {
   return cs.permissions.has(p)
+}
+
+/** Fetch the session and require ANY ONE of several permissions. */
+export async function requireAnyCommercial(
+  required: CommercialPermission[],
+): Promise<CommercialSession | null> {
+  const cs = await getCommercialSession()
+  if (!cs) return null
+  return required.some(p => cs.permissions.has(p)) ? cs : null
 }

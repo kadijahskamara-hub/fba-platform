@@ -61,6 +61,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/purchase-orders',   label: 'Purchase Orders',  icon: BuildingIcon,  permission: 'commercial_orders' },
       { href: '/admin/invoices',          label: 'Invoices',         icon: DocumentIcon,  permission: 'commercial_orders' },
       { href: '/admin/payments',          label: 'Payments',         icon: DocumentIcon,  permission: 'commercial_orders' },
+      { href: '/admin/communications',    label: 'Communications',   icon: MailIcon,      permission: 'communication_prepare' },
     ],
   },
   {
@@ -74,6 +75,7 @@ const NAV_GROUPS: NavGroup[] = [
     sectionPermission: 'settings',
     items: [
       { href: '/admin/settings',       label: 'Studio Settings',    icon: SettingsIcon, permission: 'settings' },
+      { href: '/admin/settings/communication-templates', label: 'Communication Templates', icon: MailIcon, adminOnly: true },
       { href: '/admin/settings/staff', label: 'Staff & Permissions', icon: ShieldIcon,  adminOnly: true },
     ],
   },

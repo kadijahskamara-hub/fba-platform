@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { supabaseAdmin } from '@/lib/supabase'
 import InvoiceActions from './InvoiceActions'
+import { DocumentsCommsPanel } from '@/components/DocumentsCommsPanel'
 
 export const dynamic = 'force-dynamic'
 function sym(cur: string) { return cur === 'EUR' ? '€' : cur === 'USD' ? '$' : '£' }
@@ -27,6 +28,20 @@ export default async function InvoiceDetailPage(ctx: { params: Promise<{ id: str
       </div>
 
       <div style={{ marginBottom: 20 }}><InvoiceActions invoiceId={params.id} locked={!!inv.locked_at} /></div>
+
+      {inv.locked_at && (
+        <div style={{ marginBottom: 20 }}>
+          <DocumentsCommsPanel
+            documents={[{ label: 'Invoice PDF', entityType: 'sales_invoice', entityId: params.id }]}
+            prepare={[{
+              label: 'send invoice',
+              templateKey: 'invoice_issue',
+              entities: { sales_invoice_id: params.id, commercial_order_id: (inv.commercial_order_id as string) ?? null },
+              attachments: [{ entityType: 'sales_invoice', entityId: params.id }],
+            }]}
+          />
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 28 }}>
         {[

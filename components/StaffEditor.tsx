@@ -38,6 +38,11 @@ const PERMISSION_LABELS: Record<StaffPermission, string> = {
   delivery_confirm:        'Deliveries — confirmation links & exceptions',
   pod_record:              'Deliveries — record proof of delivery',
   installation_manage:     'Installations — manage & sign off',
+  // Documents & prepared communications (Sprint 5)
+  document_generate:       'Documents — generate & regenerate PDFs',
+  document_verify:         'Documents — verify stored file checksums',
+  communication_prepare:   'Communications — prepare & edit packs',
+  communication_mark_sent: 'Communications — mark packs as sent',
 }
 
 const ALL_PERMISSIONS = Object.keys(PERMISSION_LABELS) as StaffPermission[]
