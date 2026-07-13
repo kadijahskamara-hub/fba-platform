@@ -31,6 +31,13 @@ const PERMISSION_LABELS: Record<StaffPermission, string> = {
   payment_view:            'Payments — view',
   purchase_order_prepare:  'Purchase orders — prepare (future)',
   purchase_order_approve:  'Purchase orders — approve (future)',
+  // Delivery & logistics (Sprint 4)
+  delivery_view:           'Deliveries — view',
+  delivery_create:         'Deliveries — create & edit',
+  delivery_dispatch:       'Deliveries — dispatch (issues delivery note)',
+  delivery_confirm:        'Deliveries — confirmation links & exceptions',
+  pod_record:              'Deliveries — record proof of delivery',
+  installation_manage:     'Installations — manage & sign off',
 }
 
 const ALL_PERMISSIONS = Object.keys(PERMISSION_LABELS) as StaffPermission[]

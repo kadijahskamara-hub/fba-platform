@@ -50,6 +50,12 @@ export type CommercialPermission =
   | 'credit_note_approve'
   | 'purchase_order_prepare'
   | 'purchase_order_approve'
+  | 'delivery_view'
+  | 'delivery_create'
+  | 'delivery_dispatch'
+  | 'delivery_confirm'
+  | 'pod_record'
+  | 'installation_manage'
   | 'ultra_admin'
 
 export const COMMERCIAL_PERMISSIONS: CommercialPermission[] = [
@@ -58,7 +64,9 @@ export const COMMERCIAL_PERMISSIONS: CommercialPermission[] = [
   'commercial_settings_manage', 'invoice_view', 'invoice_create', 'invoice_approve',
   'invoice_issue', 'payment_view', 'payment_record', 'payment_confirm',
   'payment_allocate', 'payment_reverse', 'credit_note_create', 'credit_note_approve',
-  'purchase_order_prepare', 'purchase_order_approve', 'ultra_admin',
+  'purchase_order_prepare', 'purchase_order_approve',
+  'delivery_view', 'delivery_create', 'delivery_dispatch', 'delivery_confirm',
+  'pod_record', 'installation_manage', 'ultra_admin',
 ]
 
 // ── Approval thresholds (stored in commercial_settings) ──────
@@ -116,6 +124,8 @@ export interface CommercialSettings {
   default_deposit_basis: DepositBasis
   default_payment_terms_days: number
   payment_backdate_approval_days: number
+  // Sprint 4 — delivery & logistics
+  delivery_confirmation_expiry_days: number
   updated_at: string
   updated_by: string | null
 }

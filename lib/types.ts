@@ -553,6 +553,9 @@ export type StaffPermission =
   | 'quote_price_edit' | 'quote_discount_override' | 'quote_approve'
   | 'commercial_settings_view' | 'invoice_create' | 'invoice_issue'
   | 'payment_view' | 'purchase_order_prepare' | 'purchase_order_approve'
+  // Sprint 4 — delivery & logistics
+  | 'delivery_view' | 'delivery_create' | 'delivery_dispatch'
+  | 'delivery_confirm' | 'pod_record' | 'installation_manage'
 
 export interface StaffPermissions {
   id: string

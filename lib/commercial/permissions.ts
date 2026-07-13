@@ -28,6 +28,9 @@ const ADMIN_IMPLIED: CommercialPermission[] = [
   'quote_discount_override', 'quote_approve', 'commercial_settings_view',
   'invoice_view', 'invoice_create', 'invoice_issue', 'payment_view',
   'payment_record', 'payment_allocate', 'credit_note_create', 'purchase_order_prepare',
+  // Sprint 4 — delivery & logistics (operational, not finance-segregated)
+  'delivery_view', 'delivery_create', 'delivery_dispatch', 'delivery_confirm',
+  'pod_record', 'installation_manage',
 ]
 
 // Segregated finance controls — Ultra Admin by default, explicitly grantable
