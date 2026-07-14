@@ -36,3 +36,5 @@ next-env.d.ts
 
 npm-audit.json
 .env*
+
+.test-dist*/

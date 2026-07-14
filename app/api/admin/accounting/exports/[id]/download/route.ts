@@ -15,5 +15,5 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (!file) return NextResponse.json({ error: 'file is required' }, { status: 400 })
   const res = await signedExportFile(id, file, cs.user)
   if ('error' in res) return NextResponse.json({ error: res.error }, { status: res.status })
-  return NextResponse.redirect(res.url)
+  return NextResponse.redirect(res.data.url)
 }
