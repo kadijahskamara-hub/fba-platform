@@ -157,7 +157,8 @@ export async function auditTrailReport(invoiceId: string): Promise<ReportTable> 
   }
   const { data: pays } = await supabaseAdmin.from('payment_allocations').select('amount, payment:payments(payment_reference, payment_date, status)').eq('sales_invoice_id', invoiceId)
   for (const a of pays ?? []) {
-    const p = (a.payment ?? {}) as Record<string, unknown>
+    const raw = (a as { payment?: unknown }).payment
+    const p = (Array.isArray(raw) ? raw[0] : raw) as Record<string, unknown> | undefined ?? {}
     rows.push(['Payment', String(p.payment_reference ?? ''), String(p.payment_date ?? ''), String(p.status ?? ''), money(a.amount)])
   }
   const { data: creds } = await supabaseAdmin.from('credit_notes').select('credit_note_number, issued_at, status, gross_total').eq('sales_invoice_id', invoiceId)
