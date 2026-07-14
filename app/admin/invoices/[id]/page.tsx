@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { supabaseAdmin } from '@/lib/supabase'
 import InvoiceActions from './InvoiceActions'
 import { DocumentsCommsPanel } from '@/components/DocumentsCommsPanel'
+import { InvoiceAccountingControls } from '@/components/InvoiceAccountingControls'
 
 export const dynamic = 'force-dynamic'
 function sym(cur: string) { return cur === 'EUR' ? '€' : cur === 'USD' ? '$' : '£' }
@@ -28,6 +29,19 @@ export default async function InvoiceDetailPage(ctx: { params: Promise<{ id: str
       </div>
 
       <div style={{ marginBottom: 20 }}><InvoiceActions invoiceId={params.id} locked={!!inv.locked_at} /></div>
+
+      {inv.locked_at && (
+        <div style={{ marginBottom: 20 }}>
+          <InvoiceAccountingControls
+            invoiceId={params.id}
+            status={inv.status as string}
+            locked={!!inv.locked_at}
+            reconciliationStatus={(inv.reconciliation_status as string) ?? 'not_exported'}
+            replacedByInvoiceId={(inv.replaced_by_invoice_id as string) ?? null}
+            replacesInvoiceId={(inv.replaces_invoice_id as string) ?? null}
+          />
+        </div>
+      )}
 
       {inv.locked_at && (
         <div style={{ marginBottom: 20 }}>
