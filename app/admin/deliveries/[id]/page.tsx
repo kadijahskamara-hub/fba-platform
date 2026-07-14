@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { box, inp, td, th, Field } from '@/components/admin/commercial/ui'
+import { CreditFromExceptionButton } from '@/components/CreditFromExceptionButton'
 
 interface Perms {
   canCreate: boolean; canDispatch: boolean; canConfirm: boolean
@@ -326,6 +327,13 @@ export default function DeliveryDetailPage() {
                       <button className="btn btn-ghost btn-sm" disabled={busy}
                         onClick={() => api(`/api/admin/delivery-exceptions/${ex.id}`, 'PATCH', { resolutionStatus: 'resolved' })}>resolved</button>
                     </>
+                  )}
+                  {(ex.resolution_status as string) === 'credited' && (
+                    <CreditFromExceptionButton
+                      exceptionId={ex.id as string}
+                      orderId={(order.id as string) ?? (del.commercial_order_id as string) ?? null}
+                      onDone={load}
+                    />
                   )}
                 </div>
               )
