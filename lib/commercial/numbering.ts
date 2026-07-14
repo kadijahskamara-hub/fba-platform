@@ -24,6 +24,20 @@ export async function nextInvoiceNumber(): Promise<string> {
   return data as string
 }
 
+/** Delivery  FBA-DEL-YYYY-0001  (next_delivery_number, Sprint 4) */
+export async function nextDeliveryNumber(): Promise<string> {
+  const { data, error } = await supabaseAdmin.rpc('next_delivery_number')
+  if (error || !data) throw new Error(`Could not allocate delivery number: ${error?.message ?? 'no value'}`)
+  return data as string
+}
+
+/** Installation  FBA-INST-YYYY-0001  (next_installation_number, Sprint 4) */
+export async function nextInstallationNumber(): Promise<string> {
+  const { data, error } = await supabaseAdmin.rpc('next_installation_number')
+  if (error || !data) throw new Error(`Could not allocate installation number: ${error?.message ?? 'no value'}`)
+  return data as string
+}
+
 /** Format a revision suffix: revision 1 → base number, 2+ → -R02 etc. */
 export function withRevision(base: string, revision: number): string {
   if (revision <= 1) return base

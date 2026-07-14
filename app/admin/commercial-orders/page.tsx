@@ -88,6 +88,9 @@ export default async function CommercialOrdersPage() {
                     <Link href={`/admin/commercial-orders/${o.id}/procurement`} style={{ color: 'var(--forest)', fontWeight: 500 }}>
                       {o.order_number as string}
                     </Link>
+                    <div style={{ fontSize: 11 }}>
+                      <Link href={`/admin/commercial-orders/${o.id}/deliveries`} style={{ color: 'var(--stone)' }}>deliveries →</Link>
+                    </div>
                   </td>
                   <td>{(client.client_company as string) || (client.client_name as string) || '—'}</td>
                   <td style={{ fontSize: 13, color: 'var(--stone)' }}>{(project.project_name as string) || '—'}</td>

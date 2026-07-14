@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { supabaseAdmin } from '@/lib/supabase'
 import PaymentActions from './PaymentActions'
+import { PaymentRefundControls } from '@/components/PaymentRefundControls'
 
 export const dynamic = 'force-dynamic'
 function sym(cur: string) { return cur === 'EUR' ? '€' : cur === 'USD' ? '$' : '£' }
@@ -19,6 +20,12 @@ export default async function PaymentDetailPage(ctx: { params: Promise<{ id: str
   const unallocated = Number(pay.amount) - allocated
 
   const { data: receipt } = await supabaseAdmin.from('payment_receipts').select('receipt_number').eq('payment_id', params.id).maybeSingle()
+
+  // Refunds recorded against this payment + remaining refundable amount.
+  const { data: refundRows } = await supabaseAdmin
+    .from('refunds').select('id, refund_number, amount, status, refund_date').eq('payment_id', params.id).order('created_at', { ascending: false })
+  const refundsUsed = (refundRows ?? []).filter(r => r.status !== 'cancelled').reduce((s, r) => s + Number(r.amount ?? 0), 0)
+  const refundable = pay.status === 'confirmed' ? Math.max(0, Number(pay.amount) - refundsUsed) : 0
 
   // Candidate issued invoices to allocate to (same client, outstanding balance, matching currency).
   const { data: openInvoices } = await supabaseAdmin.from('sales_invoices')
@@ -40,6 +47,17 @@ export default async function PaymentDetailPage(ctx: { params: Promise<{ id: str
 
       <div style={{ marginBottom: 22 }}>
         <PaymentActions paymentId={params.id} status={pay.status as string} unallocated={unallocated} invoices={invoiceOpts} hasReceipt={!!receipt} />
+      </div>
+
+      <div style={{ marginBottom: 22 }}>
+        <PaymentRefundControls
+          paymentId={params.id}
+          status={pay.status as string}
+          currency={cur}
+          refundable={refundable}
+          reconciliationStatus={(pay.reconciliation_status as string) ?? 'not_exported'}
+          refunds={(refundRows ?? []) as Array<{ id: string; refund_number: string; amount: number; status: string; refund_date: string }>}
+        />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 24 }}>

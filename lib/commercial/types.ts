@@ -50,6 +50,26 @@ export type CommercialPermission =
   | 'credit_note_approve'
   | 'purchase_order_prepare'
   | 'purchase_order_approve'
+  | 'delivery_view'
+  | 'delivery_create'
+  | 'delivery_dispatch'
+  | 'delivery_confirm'
+  | 'pod_record'
+  | 'installation_manage'
+  // Sprint 5 — documents & prepared communications
+  | 'document_generate'
+  | 'document_verify'
+  | 'communication_prepare'
+  | 'communication_mark_sent'
+  | 'template_manage'
+  // Sprint 6 — accounting controls
+  | 'accounting_view'
+  | 'accounting_export'
+  | 'reconciliation_manage'
+  | 'refund_record'
+  | 'refund_approve'
+  | 'period_manage'
+  | 'invoice_void'
   | 'ultra_admin'
 
 export const COMMERCIAL_PERMISSIONS: CommercialPermission[] = [
@@ -58,7 +78,37 @@ export const COMMERCIAL_PERMISSIONS: CommercialPermission[] = [
   'commercial_settings_manage', 'invoice_view', 'invoice_create', 'invoice_approve',
   'invoice_issue', 'payment_view', 'payment_record', 'payment_confirm',
   'payment_allocate', 'payment_reverse', 'credit_note_create', 'credit_note_approve',
-  'purchase_order_prepare', 'purchase_order_approve', 'ultra_admin',
+  'purchase_order_prepare', 'purchase_order_approve',
+  'delivery_view', 'delivery_create', 'delivery_dispatch', 'delivery_confirm',
+  'pod_record', 'installation_manage',
+  'document_generate', 'document_verify', 'communication_prepare',
+  'communication_mark_sent', 'template_manage',
+  'accounting_view', 'accounting_export', 'reconciliation_manage',
+  'refund_record', 'refund_approve', 'period_manage', 'invoice_void',
+  'ultra_admin',
+]
+
+// ── Sprint 5 — documents & communications enums ──────────────
+
+export type DocumentFileEntityType =
+  | 'issued_document' | 'sales_invoice' | 'credit_note'
+  | 'payment_receipt' | 'purchase_order' | 'delivery_note' | 'statement'
+export type DocumentAudience = 'client' | 'site' | 'manufacturer'
+export type CommunicationPackType = 'client' | 'manufacturer' | 'delivery_recipient'
+export type CommunicationPackStatus =
+  | 'prepared' | 'downloaded' | 'marked_sent' | 'needs_attention' | 'superseded'
+export type CommunicationEvent =
+  | 'prepared' | 'edited' | 'downloaded' | 'marked_sent'
+  | 'needs_attention' | 're_prepared' | 'superseded'
+
+export const DOCUMENT_FILE_ENTITY_TYPES: DocumentFileEntityType[] = [
+  'issued_document', 'sales_invoice', 'credit_note',
+  'payment_receipt', 'purchase_order', 'delivery_note', 'statement',
+]
+export const DOCUMENT_AUDIENCES: DocumentAudience[] = ['client', 'site', 'manufacturer']
+export const COMMUNICATION_PACK_TYPES: CommunicationPackType[] = ['client', 'manufacturer', 'delivery_recipient']
+export const COMMUNICATION_PACK_STATUSES: CommunicationPackStatus[] = [
+  'prepared', 'downloaded', 'marked_sent', 'needs_attention', 'superseded',
 ]
 
 // ── Approval thresholds (stored in commercial_settings) ──────
@@ -116,6 +166,8 @@ export interface CommercialSettings {
   default_deposit_basis: DepositBasis
   default_payment_terms_days: number
   payment_backdate_approval_days: number
+  // Sprint 4 — delivery & logistics
+  delivery_confirmation_expiry_days: number
   updated_at: string
   updated_by: string | null
 }

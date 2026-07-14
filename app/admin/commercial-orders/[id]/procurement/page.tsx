@@ -90,6 +90,7 @@ export default function ProcurementPage() {
             {project.project_name ? <> · {project.project_name as string}</> : null}
             {' · '}Source {source.quote_number as string ?? source.proforma_number as string} R{String(order.source_revision_number).padStart(2, '0')}
             {' · '}<Link href={`/admin/quotes/${source.id}`} style={{ color: 'var(--forest)' }}>open source record</Link>
+            {' · '}<Link href={`/admin/commercial-orders/${id}/deliveries`} style={{ color: 'var(--forest)' }}>deliveries</Link>
           </div>
         </div>
       </div>

@@ -32,6 +32,8 @@ export const COMMERCIAL_RULE_FIELDS = [
   'po_value_approval_threshold', 'po_freight_approval_threshold', 'default_acknowledgement_days',
   // Sprint 3 — client invoicing / payments
   'default_deposit_basis', 'default_payment_terms_days', 'payment_backdate_approval_days',
+  // Sprint 4 — delivery & logistics
+  'delivery_confirmation_expiry_days',
 ] as const
 
 export async function getCommercialSettings(): Promise<CommercialSettings> {

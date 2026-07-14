@@ -553,6 +553,17 @@ export type StaffPermission =
   | 'quote_price_edit' | 'quote_discount_override' | 'quote_approve'
   | 'commercial_settings_view' | 'invoice_create' | 'invoice_issue'
   | 'payment_view' | 'purchase_order_prepare' | 'purchase_order_approve'
+  // Sprint 4 — delivery & logistics
+  | 'delivery_view' | 'delivery_create' | 'delivery_dispatch'
+  | 'delivery_confirm' | 'pod_record' | 'installation_manage'
+  // Sprint 5 — documents & prepared communications. 'template_manage'
+  // is NOT grantable here (Ultra-by-default, like commercial_settings_manage).
+  | 'document_generate' | 'document_verify'
+  | 'communication_prepare' | 'communication_mark_sent'
+  // Sprint 6 — accounting controls. 'refund_approve' and 'period_manage'
+  // are NOT grantable here (Ultra-by-default, segregation of duties).
+  | 'accounting_view' | 'accounting_export' | 'reconciliation_manage'
+  | 'refund_record' | 'invoice_void'
 
 export interface StaffPermissions {
   id: string
