@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { accountRoleLabel } from '@/lib/contactRoleLabel'
 import { stageLabel } from '@/lib/pipeline'
+import { CONTACT_SOURCES, CONTACT_SOURCE_LABELS, contactSourceLabel } from '@/lib/contactSources'
 
 type Contact = {
   id: string
@@ -28,13 +29,9 @@ const TYPE_LABELS: Record<string, string> = {
   retail: 'Retail', trade: 'Trade', retail_customer: 'Retail', trade_prospect: 'Trade Prospect',
   trade_client: 'Trade Client', press: 'Press', artisan: 'Artisan', general: 'General',
 }
-const SOURCE_LABELS: Record<string, string> = {
-  registration: 'Registration', trade_application: 'Trade Application', contact_form: 'Contact Form',
-  service_enquiry: 'Service Enquiry', newsletter: 'Newsletter', manual: 'Manual',
-}
 const CONTACT_TYPES = ['general', 'retail', 'trade', 'press', 'artisan']
 
-const emptyForm = { firstName: '', lastName: '', email: '', phone: '', companyName: '', contactType: 'general', consentMarketing: false, notes: '' }
+const emptyForm = { firstName: '', lastName: '', email: '', phone: '', companyName: '', contactType: 'general', source: 'manual', consentMarketing: false, notes: '' }
 
 function money(n: number, cur: string) { const s = cur === 'EUR' ? '€' : cur === 'USD' ? '$' : '£'; return `${s}${n.toLocaleString('en-GB')}` }
 const entryTotal = (e: PipeEntry) => (e.items ?? []).reduce((s, it) => s + (Number(it.unit_price) || 0) * (Number(it.quantity) || 0), 0)
@@ -89,6 +86,7 @@ export default function AdminContactsPage() {
       setForm({
         firstName: c.first_name ?? '', lastName: c.last_name ?? '', email: c.email ?? '',
         phone: c.phone ?? '', companyName: c.company_name ?? '', contactType: c.contact_type ?? 'general',
+        source: c.source ?? 'manual',
         consentMarketing: !!c.consent_marketing, notes: c.notes ?? '',
       })
     }
@@ -153,9 +151,9 @@ export default function AdminContactsPage() {
           <option value="">All Types</option>
           {Object.entries(TYPE_LABELS).map(([v, l]) => (<option key={v} value={v}>{l}</option>))}
         </select>
-        <select value={sourceFilter} onChange={e => { setSourceFilter(e.target.value); setPage(1) }} className="form-select" style={{ width: 180 }}>
+        <select value={sourceFilter} onChange={e => { setSourceFilter(e.target.value); setPage(1) }} className="form-select" style={{ width: 200 }}>
           <option value="">All Sources</option>
-          {Object.entries(SOURCE_LABELS).map(([v, l]) => (<option key={v} value={v}>{l}</option>))}
+          {CONTACT_SOURCES.map(s => (<option key={s.value} value={s.value}>{s.label}</option>))}
         </select>
       </div>
 
@@ -184,7 +182,7 @@ export default function AdminContactsPage() {
                       <span className={`status-pill status-${c.contact_type}`}>{TYPE_LABELS[c.contact_type] ?? c.contact_type}</span>
                     )}
                   </td>
-                  <td style={{ fontSize: 12, color: 'var(--stone)' }}>{SOURCE_LABELS[c.source ?? ''] ?? c.source ?? '—'}</td>
+                  <td style={{ fontSize: 12, color: 'var(--stone)' }}>{contactSourceLabel(c.source)}</td>
                   <td style={{ fontSize: 12, textAlign: 'center' }}>{c.consent_marketing ? <span style={{ color: '#155724' }}>✓</span> : <span style={{ color: 'var(--stone)' }}>—</span>}</td>
                   <td style={{ fontSize: 12, color: 'var(--stone)' }}>{new Date(c.created_at).toLocaleDateString('en-GB')}</td>
                   <td><button className="btn btn-ghost btn-sm" onClick={() => openDetail(c.id)} style={{ fontSize: 11 }}>Open</button></td>
@@ -215,6 +213,7 @@ export default function AdminContactsPage() {
               <div><div className="form-label">Phone</div><input style={inp} value={createForm.phone} onChange={e => setCreateForm(f => ({ ...f, phone: e.target.value }))} /></div>
               <div><div className="form-label">Company</div><input style={inp} value={createForm.companyName} onChange={e => setCreateForm(f => ({ ...f, companyName: e.target.value }))} /></div>
               <div><div className="form-label">Type</div><select style={inp} value={createForm.contactType} onChange={e => setCreateForm(f => ({ ...f, contactType: e.target.value }))}>{CONTACT_TYPES.map(t => <option key={t} value={t}>{TYPE_LABELS[t] ?? t}</option>)}</select></div>
+              <div style={{ gridColumn: '1 / -1' }}><div className="form-label">Source — where did this contact come from?</div><select style={inp} value={createForm.source} onChange={e => setCreateForm(f => ({ ...f, source: e.target.value }))}>{CONTACT_SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}</select></div>
             </div>
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12, fontSize: 13 }}>
               <input type="checkbox" checked={createForm.consentMarketing} onChange={e => setCreateForm(f => ({ ...f, consentMarketing: e.target.checked }))} /> Marketing opt-in
@@ -249,6 +248,7 @@ export default function AdminContactsPage() {
                   <div><div className="form-label">Phone</div><input style={inp} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></div>
                   <div><div className="form-label">Company</div><input style={inp} value={form.companyName} onChange={e => setForm(f => ({ ...f, companyName: e.target.value }))} /></div>
                   <div><div className="form-label">Type</div><select style={inp} value={form.contactType} onChange={e => setForm(f => ({ ...f, contactType: e.target.value }))}>{CONTACT_TYPES.map(t => <option key={t} value={t}>{TYPE_LABELS[t] ?? t}</option>)}</select></div>
+                  <div style={{ gridColumn: '1 / -1' }}><div className="form-label">Source</div><select style={inp} value={form.source} onChange={e => setForm(f => ({ ...f, source: e.target.value }))}>{CONTACT_SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}</select></div>
                 </div>
                 <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, marginBottom: 12 }}>
                   <input type="checkbox" checked={form.consentMarketing} onChange={e => setForm(f => ({ ...f, consentMarketing: e.target.checked }))} /> Marketing opt-in

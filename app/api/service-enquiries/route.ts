@@ -68,29 +68,28 @@ export async function POST(req: NextRequest) {
     await supabaseAdmin
       .from('contacts')
       .update({
-        first_name:            firstName?.trim() || null,
-        last_name:             lastName?.trim()  || null,
-        phone:                 phone?.trim()      || null,
-        company_name:          companyName?.trim() || null,
-        subscribed_marketing:  consentMarketing,
-        source:                'service_enquiry',
-        message:               message.trim(),
+        first_name:        firstName?.trim() || null,
+        last_name:         lastName?.trim()  || null,
+        phone:             phone?.trim()      || null,
+        company_name:      companyName?.trim() || null,
+        consent_marketing: consentMarketing,
+        source:            'service_enquiry',
+        notes:             message.trim(),
       })
       .eq('id', existingContact.id)
   } else {
     await supabaseAdmin
       .from('contacts')
       .insert({
-        user_id:               session?.id ?? null,
-        first_name:            firstName?.trim()    || null,
-        last_name:             lastName?.trim()     || null,
-        email:                 email.toLowerCase().trim(),
-        phone:                 phone?.trim()         || null,
-        company_name:          companyName?.trim()   || null,
-        contact_type:          enquiryType === 'press' ? 'press' : 'general',
-        source:                'service_enquiry',
-        subscribed_marketing:  consentMarketing,
-        message:               message.trim(),
+        first_name:        firstName?.trim()    || null,
+        last_name:         lastName?.trim()     || null,
+        email:             email.toLowerCase().trim(),
+        phone:             phone?.trim()         || null,
+        company_name:      companyName?.trim()   || null,
+        contact_type:      enquiryType === 'press' ? 'press' : 'general',
+        source:            'service_enquiry',
+        consent_marketing: consentMarketing,
+        notes:             message.trim(),
       })
   }
 

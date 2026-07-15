@@ -23,8 +23,9 @@ import 'server-only'
 type RGB = [number, number, number]
 const forest: RGB = [27, 67, 50]   // #1B4332
 const ink:    RGB = [38, 32, 28]
-const stone:  RGB = [138, 130, 120]
-const caramel:RGB = [163, 112, 67]
+// Darkened 15 Jul 2026 for print/screen readability (were #8A8278 / #A37043).
+const stone:  RGB = [92, 82, 69]   // #5C5245 — secondary text
+const caramel:RGB = [110, 82, 51]  // #6E5233 — accents / section labels
 const line:   RGB = [223, 228, 222]
 
 const W = 210, H = 297, M = 18

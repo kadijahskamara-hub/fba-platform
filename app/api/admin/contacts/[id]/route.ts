@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { isStaff } from '@/lib/auth'
+import { isContactSource } from '@/lib/contactSources'
 
 // GET /api/admin/contacts/:id — contact + notes + linked pipeline entries (4.3)
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -45,7 +46,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const body = await req.json()
   const map: Record<string, string> = {
     firstName: 'first_name', lastName: 'last_name', email: 'email', phone: 'phone',
-    companyName: 'company_name', contactType: 'contact_type', consentMarketing: 'consent_marketing', notes: 'notes',
+    companyName: 'company_name', contactType: 'contact_type', source: 'source',
+    consentMarketing: 'consent_marketing', notes: 'notes',
   }
   const updates: Record<string, unknown> = {}
   for (const [camel, snake] of Object.entries(map)) {
@@ -54,6 +56,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         : snake === 'consent_marketing' ? !!body[camel]
         : (body[camel] || null)
     }
+  }
+  // Source must come from the shared vocabulary (legacy rows keep old values
+  // until edited; unknown submissions are rejected).
+  if (updates.source !== undefined && updates.source !== null && !isContactSource(updates.source)) {
+    return NextResponse.json({ success: false, error: 'Unknown contact source.' }, { status: 400 })
   }
   if (updates.email === '') return NextResponse.json({ success: false, error: 'Email cannot be empty.' }, { status: 400 })
   if (Object.keys(updates).length === 0) return NextResponse.json({ success: false, error: 'Nothing to update' }, { status: 400 })

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { isStaff } from '@/lib/auth'
 import { buildAccountInfoMap } from '@/lib/contactAccounts'
+import { isContactSource } from '@/lib/contactSources'
 
 export async function GET(req: NextRequest) {
   if (!(await isStaff())) {
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
       phone:             body.phone?.trim() || null,
       company_name:      body.companyName?.trim() || null,
       contact_type:      body.contactType || 'general',
-      source:            body.source || 'manual',
+      source:            isContactSource(body.source) ? body.source : 'manual',
       consent_marketing: body.consentMarketing ?? false,
       notes:             body.notes || null,
     })

@@ -23,11 +23,17 @@ export function QuoteHeaderForm({ doc, locked, busy, onPatch, onChangeStage }: {
             <a href="/admin/quotes" className="btn btn-ghost btn-sm">← Pipeline</a>
             <h1 className="admin-title" style={{ margin: 0 }}>{doc.quote_number ?? doc.proforma_number}</h1>
             {doc.revision_number > 1 && <span className="status-pill">Rev R{String(doc.revision_number).padStart(2, '0')}</span>}
-            <span className={`status-pill status-${doc.document_status}`}
+            <span className={`status-pill status-${doc.document_status}`} title="Document status"
               style={doc.document_status === 'issued' ? { background: 'var(--forest)', color: '#fff' } : undefined}>
               {STATUS_LABEL[doc.document_status] ?? doc.document_status}{locked ? ' · locked' : ''}
             </span>
-            <span className={`status-pill status-${doc.stage}`}>{stageLabel(doc.stage)}{doc.stage === 'lost' && doc.lost_reason ? ` · ${doc.lost_reason}` : ''}</span>
+            {/* Pipeline stage — hidden when it would just repeat the document
+                status (e.g. Draft + Draft), which read as a duplicate pill. */}
+            {stageLabel(doc.stage) !== (STATUS_LABEL[doc.document_status] ?? doc.document_status) && (
+              <span className={`status-pill status-${doc.stage}`} title="Pipeline stage">
+                {stageLabel(doc.stage)}{doc.stage === 'lost' && doc.lost_reason ? ` · ${doc.lost_reason}` : ''}
+              </span>
+            )}
             {doc.invoice_number && <span className="status-pill" style={{ background: 'var(--forest)', color: '#fff' }}>{doc.invoice_number}</span>}
           </div>
           <div style={{ fontSize: 12, color: 'var(--stone)', marginTop: 6 }}>

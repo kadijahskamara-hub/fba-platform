@@ -27,9 +27,11 @@
   --cream:       #F7F3EE;
   --warm-white:  #FDFAF7;
   --sand:        #C4A882;
-  --caramel:     #8B6B4A;
+  /* Darkened 15 Jul 2026 for readability: secondary text (--stone) and
+     accent links (--caramel) were too pale on the cream backgrounds. */
+  --caramel:     #6E5233;
   --terracotta:  #B85C38;
-  --stone:       #9E9589;
+  --stone:       #5C5245;
   --light-line:  #DDD5C8;
   --deep-brown:  #1E1810;
   --gold:        #C4A060;

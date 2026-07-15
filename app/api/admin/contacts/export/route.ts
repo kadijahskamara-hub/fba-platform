@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { isStaff } from '@/lib/auth'
 import { buildAccountInfoMap } from '@/lib/contactAccounts'
 import { accountRoleLabel } from '@/lib/contactRoleLabel'
+import { contactSourceLabel } from '@/lib/contactSources'
 
 // ============================================================
 // Contacts CSV export (Phase 4.2).
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabaseAdmin
     .from('contacts')
-    .select('first_name, last_name, email, phone, company_name, contact_type, source, subscribed_marketing, message, created_at')
+    .select('first_name, last_name, email, phone, company_name, contact_type, source, consent_marketing, notes, created_at')
     .order('created_at', { ascending: false })
 
   if (type)   query = query.eq('contact_type', type)
@@ -62,9 +63,9 @@ export async function GET(req: NextRequest) {
     csvCell(c.company_name),
     csvCell(c.contact_type),
     csvCell((() => { const i = accountMap.get(String(c.email ?? '').toLowerCase()); return accountRoleLabel(i?.role ?? null, i?.isOwner ?? false) ?? '' })()),
-    csvCell(c.source),
-    csvCell(c.subscribed_marketing),
-    csvCell(c.message),
+    csvCell(contactSourceLabel(c.source as string | null)),
+    csvCell(c.consent_marketing),
+    csvCell(c.notes),
     csvCell(c.created_at ? new Date(c.created_at as string).toISOString().slice(0, 10) : ''),
   ].join(','))
 
