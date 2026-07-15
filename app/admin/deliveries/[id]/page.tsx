@@ -10,6 +10,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { box, inp, td, th, Field } from '@/components/admin/commercial/ui'
 import { CreditFromExceptionButton } from '@/components/CreditFromExceptionButton'
+import { UltraDeleteRecordButton } from '@/components/UltraDeleteRecordButton'
 
 interface Perms {
   canCreate: boolean; canDispatch: boolean; canConfirm: boolean
@@ -116,6 +117,13 @@ export default function DeliveryDetailPage() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {/* Sprint 7.1 — Ultra-only test-data deletion */}
+          <UltraDeleteRecordButton
+            entity="delivery"
+            recordId={id}
+            label={del.delivery_number as string}
+            redirectTo={`/admin/commercial-orders/${order.id}/deliveries`}
+          />
           {MANUAL_NEXT[status]?.map(nxt => (
             (perms.canDispatch || ['preparing', 'pending'].includes(nxt)) &&
             <button key={nxt} className="btn btn-ghost btn-sm" disabled={busy}

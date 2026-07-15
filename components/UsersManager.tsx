@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { DeleteAccountDialog } from '@/components/DeleteAccountDialog'
+import { ResetPasswordMenu } from '@/components/ResetPasswordMenu'
 
 // ── Customer account management (trade + retail) ─────────────
 // Staff and admin accounts live under Settings → Staff & Permissions.
@@ -51,49 +52,6 @@ export function UsersManager({
       return `${u.first_name ?? ''} ${u.last_name ?? ''} ${u.email}`.toLowerCase().includes(q)
     })
   }, [users, query, roleFilter])
-
-  async function sendResetLink(u: CustomerRow) {
-    if (!confirm(`Email a password reset link to ${u.email}?`)) return
-    setBusyId(u.id)
-    try {
-      const res  = await fetch(`/api/admin/users/${u.id}/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'link' }),
-      })
-      const json = await res.json()
-      if (json.success) showToast(`Reset link sent to ${u.email}`)
-      else alert(json.error ?? 'Failed to send reset link')
-    } catch {
-      alert('Network error — please try again.')
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  async function setTempPassword(u: CustomerRow) {
-    const pw = prompt(
-      `Set a temporary password for ${u.first_name ?? u.email} (min. 8 characters).\n` +
-      'Share it with them securely — they should change it after signing in.'
-    )
-    if (pw === null) return
-    if (pw.length < 8) { alert('Password must be at least 8 characters.'); return }
-    setBusyId(u.id)
-    try {
-      const res  = await fetch(`/api/admin/users/${u.id}/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'temp', tempPassword: pw }),
-      })
-      const json = await res.json()
-      if (json.success) showToast(`Temporary password set for ${u.email}`)
-      else alert(json.error ?? 'Failed to set password')
-    } catch {
-      alert('Network error — please try again.')
-    } finally {
-      setBusyId(null)
-    }
-  }
 
   async function toggleStatus(u: CustomerRow) {
     const next = u.status === 'active' ? 'suspended' : 'active'
@@ -188,12 +146,13 @@ export function UsersManager({
                 {new Date(u.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', marginLeft: 'auto' }}>
-                <button className="btn btn-secondary btn-sm" disabled={busy} onClick={() => sendResetLink(u)}>
-                  Send Reset Link
-                </button>
-                <button className="btn btn-secondary btn-sm" disabled={busy} onClick={() => setTempPassword(u)}>
-                  Temp Password
-                </button>
+                <ResetPasswordMenu
+                  userId={u.id}
+                  email={u.email}
+                  firstName={u.first_name}
+                  disabled={busy}
+                  onResult={(msg, type) => type === 'success' ? showToast(msg) : alert(msg)}
+                />
                 <button
                   className="btn btn-sm"
                   disabled={busy}

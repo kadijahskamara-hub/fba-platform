@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import InvoiceActions from './InvoiceActions'
 import { DocumentsCommsPanel } from '@/components/DocumentsCommsPanel'
 import { InvoiceAccountingControls } from '@/components/InvoiceAccountingControls'
+import { UltraDeleteRecordButton } from '@/components/UltraDeleteRecordButton'
 
 export const dynamic = 'force-dynamic'
 function sym(cur: string) { return cur === 'EUR' ? '€' : cur === 'USD' ? '$' : '£' }
@@ -25,7 +26,16 @@ export default async function InvoiceDetailPage(ctx: { params: Promise<{ id: str
           <h1 className="admin-title">{(inv.invoice_number as string) ?? 'Draft invoice'}</h1>
           <p className="admin-subtitle">{inv.invoice_type as string} · <span className="status-pill">{(inv.status as string).replace(/_/g, ' ')}</span>{inv.locked_at ? ' · issued (immutable)' : ' · draft'}</p>
         </div>
-        <Link href="/admin/invoices" className="btn btn-secondary btn-sm">← All invoices</Link>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {/* Sprint 7.1 — Ultra-only test-data deletion */}
+          <UltraDeleteRecordButton
+            entity="sales_invoice"
+            recordId={params.id}
+            label={(inv.invoice_number as string) ?? 'Draft invoice'}
+            redirectTo="/admin/invoices"
+          />
+          <Link href="/admin/invoices" className="btn btn-secondary btn-sm">← All invoices</Link>
+        </div>
       </div>
 
       <div style={{ marginBottom: 20 }}><InvoiceActions invoiceId={params.id} locked={!!inv.locked_at} /></div>

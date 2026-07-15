@@ -11,7 +11,7 @@ async function getActiveStaff(): Promise<StaffRow[]> {
   const { data } = await supabaseAdmin
     .from('users')
     .select(`
-      id, first_name, last_name, email, role, status, created_at,
+      id, first_name, last_name, email, role, status, created_at, is_ultra_admin,
       staff_permissions(permissions)
     `)
     .in('role', ['admin', 'staff'])

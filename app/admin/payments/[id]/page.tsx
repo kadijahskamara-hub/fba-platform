@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { supabaseAdmin } from '@/lib/supabase'
 import PaymentActions from './PaymentActions'
 import { PaymentRefundControls } from '@/components/PaymentRefundControls'
+import { UltraDeleteRecordButton } from '@/components/UltraDeleteRecordButton'
 
 export const dynamic = 'force-dynamic'
 function sym(cur: string) { return cur === 'EUR' ? '€' : cur === 'USD' ? '$' : '£' }
@@ -42,7 +43,16 @@ export default async function PaymentDetailPage(ctx: { params: Promise<{ id: str
           <h1 className="admin-title">{pay.payment_reference as string}</h1>
           <p className="admin-subtitle">{money(pay.amount, cur)} · {(pay.payment_method as string).replace(/_/g, ' ')} · <span className="status-pill">{pay.status as string}</span></p>
         </div>
-        <Link href="/admin/payments" className="btn btn-secondary btn-sm">← All payments</Link>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {/* Sprint 7.1 — Ultra-only test-data deletion */}
+          <UltraDeleteRecordButton
+            entity="payment"
+            recordId={params.id}
+            label={pay.payment_reference as string}
+            redirectTo="/admin/payments"
+          />
+          <Link href="/admin/payments" className="btn btn-secondary btn-sm">← All payments</Link>
+        </div>
       </div>
 
       <div style={{ marginBottom: 22 }}>

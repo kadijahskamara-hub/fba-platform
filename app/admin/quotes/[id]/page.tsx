@@ -18,6 +18,7 @@ import { ApprovalStatusPanel } from '@/components/admin/commercial/ApprovalStatu
 import { DocumentActionsPanel } from '@/components/admin/commercial/DocumentActionsPanel'
 import { RevisionHistoryPanel } from '@/components/admin/commercial/RevisionHistoryPanel'
 import { Field } from '@/components/admin/commercial/ui'
+import { UltraDeleteRecordButton } from '@/components/UltraDeleteRecordButton'
 
 export default function CommercialQuotePage() {
   const { id } = useParams<{ id: string }>()
@@ -141,17 +142,26 @@ export default function CommercialQuotePage() {
 
       <RevisionHistoryPanel doc={doc} />
 
-      {!locked && perms.canEdit && (
-        <button className="btn btn-ghost btn-sm" style={{ color: '#a03030' }}
-          onClick={async () => {
-            if (!confirm(`Delete draft ${doc.quote_number ?? doc.proforma_number}? Issued documents cannot be deleted.`)) return
-            const res = await fetch(`/api/admin/proformas/${id}`, { method: 'DELETE' }).then(r => r.json())
-            if (!res.success) { alert(res.error ?? 'Delete failed'); return }
-            router.push('/admin/quotes')
-          }}>
-          Delete draft
-        </button>
-      )}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        {!locked && perms.canEdit && (
+          <button className="btn btn-ghost btn-sm" style={{ color: '#a03030' }}
+            onClick={async () => {
+              if (!confirm(`Delete draft ${doc.quote_number ?? doc.proforma_number}? Issued documents cannot be deleted.`)) return
+              const res = await fetch(`/api/admin/proformas/${id}`, { method: 'DELETE' }).then(r => r.json())
+              if (!res.success) { alert(res.error ?? 'Delete failed'); return }
+              router.push('/admin/quotes')
+            }}>
+            Delete draft
+          </button>
+        )}
+        {/* Sprint 7.1 — Ultra-only: deletes even issued/locked quotes (test data) */}
+        <UltraDeleteRecordButton
+          entity="proforma"
+          recordId={id}
+          label={doc.quote_number ?? doc.proforma_number}
+          redirectTo="/admin/quotes"
+        />
+      </div>
     </>
   )
 }

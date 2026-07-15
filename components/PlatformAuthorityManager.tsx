@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { PURGE_CONFIRM_PHRASE } from '@/lib/commercial/authorityLogic'
 
 // ============================================================
 // Platform authority manager (Sprint 7 Part B) — Ultra only.
@@ -184,6 +185,116 @@ export function PlatformAuthorityManager({
         Staff &amp; Permissions before granting authority. Every grant and revoke
         is written to the audit log with actor, target and before/after state.
       </p>
+
+      <PurgeDangerZone onToast={showToast} />
+    </div>
+  )
+}
+
+// ── Danger zone: purge ALL commercial data (Sprint 7.1) ───────
+
+function PurgeDangerZone({ onToast }: { onToast: (msg: string, type?: 'success' | 'error') => void }) {
+  const [phrase, setPhrase] = useState('')
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<string>('')
+
+  const armed = phrase.trim() === PURGE_CONFIRM_PHRASE && reason.trim().length > 0
+
+  async function handlePurge() {
+    if (!armed || busy) return
+    if (!confirm(
+      'FINAL CONFIRMATION\n\n' +
+      'This permanently deletes EVERY quote, order, purchase order, invoice, ' +
+      'payment, credit note, refund, delivery, installation, document and ' +
+      'accounting period on the platform, and restarts document numbering at 0001.\n\n' +
+      'Products, artisans, user accounts, contacts and settings are NOT affected.\n\n' +
+      'There is no undo. Continue?'
+    )) return
+    setBusy(true)
+    setResult('')
+    try {
+      const res = await fetch('/api/admin/authority/purge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmPhrase: phrase.trim(), reason: reason.trim() }),
+      })
+      const json = await res.json()
+      if (!json.success) {
+        onToast(json.error ?? 'Purge failed', 'error')
+        return
+      }
+      const n = json.data?.rows_deleted ?? 0
+      setResult(`Purge complete — ${n} rows deleted. Document numbering restarts at 0001.`)
+      setPhrase('')
+      setReason('')
+      onToast(`Commercial data purged (${n} rows)`)
+    } catch {
+      onToast('Network error — please try again.', 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={{
+      marginTop: 40, border: '1.5px solid var(--danger)',
+      background: 'rgba(176,58,46,0.03)', padding: '24px 28px',
+    }}>
+      <div style={{
+        fontSize: 11, fontWeight: 700, letterSpacing: '0.2em',
+        textTransform: 'uppercase', color: 'var(--danger)', marginBottom: 12,
+      }}>
+        Danger zone — delete all commercial data
+      </div>
+      <p style={{ fontSize: 13, color: 'var(--forest)', lineHeight: 1.7, marginBottom: 16 }}>
+        Built for the pre-launch reset: permanently deletes <strong>every</strong> quote/proforma,
+        commercial order, purchase order, invoice, payment, credit note, refund, delivery,
+        installation, generated document, prepared communication, export run and accounting
+        period — then restarts all document numbering at 0001. Products, artisans, user
+        accounts, contacts and settings are untouched. Fully audited. <strong>No undo.</strong>
+      </p>
+
+      <div style={{ display: 'grid', gap: 12, maxWidth: 520 }}>
+        <div>
+          <label className="form-label">Type <strong>{PURGE_CONFIRM_PHRASE}</strong> to confirm *</label>
+          <input
+            className="form-input"
+            value={phrase}
+            onChange={e => setPhrase(e.target.value)}
+            placeholder={PURGE_CONFIRM_PHRASE}
+            autoComplete="off"
+          />
+        </div>
+        <div>
+          <label className="form-label">Reason *</label>
+          <input
+            className="form-input"
+            value={reason}
+            maxLength={500}
+            onChange={e => setReason(e.target.value)}
+            placeholder="e.g. clearing test data before go-live"
+          />
+        </div>
+        <div>
+          <button
+            className="btn btn-sm"
+            disabled={!armed || busy}
+            onClick={handlePurge}
+            style={{
+              background: armed ? 'var(--danger)' : 'rgba(176,58,46,0.35)',
+              color: '#fff', border: 'none', padding: '10px 22px',
+              fontSize: 12, fontWeight: 700, letterSpacing: '0.08em',
+              cursor: armed && !busy ? 'pointer' : 'not-allowed',
+            }}
+          >
+            {busy ? 'Purging…' : 'Purge all commercial data'}
+          </button>
+        </div>
+        {result && (
+          <p style={{ fontSize: 12.5, color: '#155724', fontWeight: 600 }}>{result}</p>
+        )}
+      </div>
     </div>
   )
 }

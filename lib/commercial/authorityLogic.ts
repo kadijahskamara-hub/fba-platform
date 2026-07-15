@@ -133,6 +133,50 @@ export function validateDeleteConfirmation(params: {
   return { allowed: true }
 }
 
+// ── Commercial data deletion (Sprint 7.1) ────────────────────
+
+/** Record types deletable via delete_commercial_record(). */
+export const DELETABLE_ENTITIES = [
+  'proforma', 'commercial_order', 'sales_invoice', 'payment',
+  'credit_note', 'refund', 'delivery', 'purchase_order',
+  'retail_order', 'quote_request',
+] as const
+
+export type DeletableEntity = (typeof DELETABLE_ENTITIES)[number]
+
+export function isDeletableEntity(value: unknown): value is DeletableEntity {
+  return typeof value === 'string' && (DELETABLE_ENTITIES as readonly string[]).includes(value)
+}
+
+/** The exact phrase the purge dialog/API requires to be typed. */
+export const PURGE_CONFIRM_PHRASE = 'PURGE ALL COMMERCIAL DATA'
+
+export function validatePurgeRequest(params: {
+  confirmPhrase: string | null | undefined
+  reason: string | null | undefined
+}): AuthorityDecision {
+  if (!params.reason || params.reason.trim().length === 0) {
+    return refuse('REASON_REQUIRED', 'A reason must be provided')
+  }
+  if ((params.confirmPhrase ?? '').trim() !== PURGE_CONFIRM_PHRASE) {
+    return refuse('CONFIRM_MISMATCH', `Type "${PURGE_CONFIRM_PHRASE}" exactly to confirm`)
+  }
+  return { allowed: true }
+}
+
+export function validateRecordDeletion(params: {
+  entity: unknown
+  reason: string | null | undefined
+}): AuthorityDecision {
+  if (!params.reason || params.reason.trim().length === 0) {
+    return refuse('REASON_REQUIRED', 'A deletion reason must be provided')
+  }
+  if (!isDeletableEntity(params.entity)) {
+    return refuse('INVALID_TARGET', 'This record type cannot be deleted')
+  }
+  return { allowed: true }
+}
+
 // ── Anonymisation (mirror of the SQL UPDATE in delete_user_account) ──
 
 export function anonymisedShortId(userId: string): string {

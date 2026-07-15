@@ -15,6 +15,8 @@ import {
   canSetUltraAdmin, canDeleteAccount, validateDeleteConfirmation,
   isActiveUltra, wouldLeaveNoUltra,
   anonymisedShortId, anonymisedEmail, anonymisedUserFields, anonymisationIsClean,
+  DELETABLE_ENTITIES, isDeletableEntity, PURGE_CONFIRM_PHRASE,
+  validatePurgeRequest, validateRecordDeletion,
   type AuthorityAccount,
 } from '../lib/commercial/authorityLogic'
 
@@ -194,4 +196,37 @@ test('anonymisationIsClean detects PII leaks', () => {
   assert.equal(anonymisationIsClean(original, { ...anonymisedUserFields(client.id), phone: '070' }), false)
   // Wrong status
   assert.equal(anonymisationIsClean(original, { ...anonymisedUserFields(client.id), status: 'archived' }), false)
+})
+
+// ── Commercial data deletion (Sprint 7.1) ────────────────────
+
+test('deletable entity allowlist is exact', () => {
+  for (const e of DELETABLE_ENTITIES) assert.equal(isDeletableEntity(e), true)
+  assert.equal(isDeletableEntity('user'), false)
+  assert.equal(isDeletableEntity('audit_log'), false)
+  assert.equal(isDeletableEntity(''), false)
+  assert.equal(isDeletableEntity(null), false)
+  assert.equal(isDeletableEntity(42), false)
+})
+
+test('purge requires the exact phrase AND a reason', () => {
+  const ok = validatePurgeRequest({ confirmPhrase: `  ${PURGE_CONFIRM_PHRASE}  `, reason: 'pre-launch reset' })
+  assert.deepEqual(ok, { allowed: true })
+
+  const wrongPhrase = validatePurgeRequest({ confirmPhrase: 'purge all commercial data', reason: 'x' })
+  assert.equal(!wrongPhrase.allowed && wrongPhrase.code, 'CONFIRM_MISMATCH') // case-sensitive on purpose
+
+  const noPhrase = validatePurgeRequest({ confirmPhrase: '', reason: 'x' })
+  assert.equal(!noPhrase.allowed && noPhrase.code, 'CONFIRM_MISMATCH')
+
+  const noReason = validatePurgeRequest({ confirmPhrase: PURGE_CONFIRM_PHRASE, reason: '  ' })
+  assert.equal(!noReason.allowed && noReason.code, 'REASON_REQUIRED')
+})
+
+test('record deletion requires a known entity and a reason', () => {
+  assert.deepEqual(validateRecordDeletion({ entity: 'commercial_order', reason: 'test order' }), { allowed: true })
+  const badEntity = validateRecordDeletion({ entity: 'user', reason: 'x' })
+  assert.equal(!badEntity.allowed && badEntity.code, 'INVALID_TARGET')
+  const noReason = validateRecordDeletion({ entity: 'payment', reason: '' })
+  assert.equal(!noReason.allowed && noReason.code, 'REASON_REQUIRED')
 })

@@ -23,7 +23,7 @@ export async function GET(
     .from('trade_applications')
     .select(`
       *,
-      user:users(id, first_name, last_name, email, role, status)
+      user:users!trade_applications_user_id_fkey(id, first_name, last_name, email, role, status)
     `)
     .eq('id', params.id)
     .single()
@@ -79,7 +79,7 @@ export async function PATCH(
   // Fetch full application for email context
   const { data: appBefore, error: fetchErr } = await supabaseAdmin
     .from('trade_applications')
-    .select('*, user:users(id, first_name, last_name, email, password_hash)')
+    .select('*, user:users!trade_applications_user_id_fkey(id, first_name, last_name, email, password_hash)')
     .eq('id', id)
     .single()
 

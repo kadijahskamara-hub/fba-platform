@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { box, inp, td, th, money, Field, Area } from '@/components/admin/commercial/ui'
+import { UltraDeleteRecordButton } from '@/components/UltraDeleteRecordButton'
 
 const TAX_OPTIONS = [
   { value: 'unknown', label: 'Unknown (blocks issue)' },
@@ -94,6 +95,13 @@ export default function PurchaseOrderPage() {
             {' · '}{cur}
           </div>
         </div>
+        {/* Sprint 7.1 — Ultra-only test-data deletion (releases allocations back to ready) */}
+        <UltraDeleteRecordButton
+          entity="purchase_order"
+          recordId={id}
+          label={docNo}
+          redirectTo="/admin/purchase-orders"
+        />
         <button className="btn btn-secondary btn-sm" onClick={() => window.open(`/api/admin/purchase-orders/${id}/document`, '_blank')}>
           {locked ? 'Open issued PO ↧' : 'Preview draft PO ↗'}
         </button>

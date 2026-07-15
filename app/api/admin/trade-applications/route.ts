@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     .from('trade_applications')
     .select(`
       *,
-      user:users(id, first_name, last_name, email, role, status)
+      user:users!trade_applications_user_id_fkey(id, first_name, last_name, email, role, status)
     `)
     .order('created_at', { ascending: false })
 

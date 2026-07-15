@@ -27,7 +27,7 @@ async function getMetrics() {
     supabaseAdmin.from('products').select('*', { count: 'exact', head: true }).eq('visibility', 'published').is('archived_at', null).is('deleted_at', null),
     supabaseAdmin.from('contacts').select('*', { count: 'exact', head: true }),
     supabaseAdmin.from('trade_applications')
-      .select('id, company_name, status, created_at, user:users(first_name, last_name, email)')
+      .select('id, company_name, status, created_at, user:users!trade_applications_user_id_fkey(first_name, last_name, email)')
       .order('created_at', { ascending: false })
       .limit(5),
     // Product data health (product_health view)

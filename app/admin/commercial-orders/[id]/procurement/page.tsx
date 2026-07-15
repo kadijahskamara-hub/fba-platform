@@ -11,6 +11,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { box, inp, td, th, money } from '@/components/admin/commercial/ui'
 import { MilestoneTimeline } from '@/components/admin/operations/MilestoneTimeline'
+import { UltraDeleteRecordButton } from '@/components/UltraDeleteRecordButton'
 
 interface ProcLine {
   line: Record<string, unknown>
@@ -94,6 +95,13 @@ export default function ProcurementPage() {
             {' · '}<Link href={`/admin/commercial-orders/${id}/deliveries`} style={{ color: 'var(--forest)' }}>deliveries</Link>
           </div>
         </div>
+        {/* Sprint 7.1 — Ultra-only: delete this order + everything under it */}
+        <UltraDeleteRecordButton
+          entity="commercial_order"
+          recordId={id}
+          label={`${order.order_number} — deletes its POs, invoices, payments, deliveries and documents`}
+          redirectTo="/admin/commercial-orders"
+        />
       </div>
 
       {/* Sprint 7 — derived milestone timeline + delay flags + readiness */}

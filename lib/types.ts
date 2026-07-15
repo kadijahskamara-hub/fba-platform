@@ -540,6 +540,8 @@ export interface StaffRow {
   role: 'admin' | 'staff'
   status: string
   created_at: string
+  /** Sprint 7.1: surfaced so the staff screen can show the Ultra Admin badge. */
+  is_ultra_admin?: boolean
   staff_permissions: { permissions: StaffPermission[] }[] | null
 }
 
