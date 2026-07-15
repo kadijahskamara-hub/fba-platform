@@ -153,6 +153,7 @@ export default async function AdminSettingsPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
         {[
           { title: 'Commercial Settings', desc: 'Protected pricing, VAT, deposit, procurement-fee, and bank configuration.', href: '/admin/settings/commercial', icon: '💷' },
+          { title: 'Platform Authority', desc: 'Ultra Admin appointments and permanent account deletion. Ultra Admin only.', href: '/admin/settings/authority', icon: '👑' },
           { title: 'Staff & Permissions', desc: 'Manage admin and staff user access levels.', href: '/admin/settings/staff', icon: '🔒' },
           { title: 'Users', desc: 'Trade and retail customer accounts — status control and password resets.', href: '/admin/settings/users', icon: '👥' },
           { title: 'Product Categories',  desc: 'View and manage the product taxonomy.',      href: '/admin/products',        icon: '🗂' },

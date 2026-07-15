@@ -113,6 +113,12 @@ export async function PUT(req: NextRequest) {
           updates[field] = v === null ? null : vNumber(v, field, { min: 0 }); break
         case 'default_acknowledgement_days':
           updates[field] = vNumber(v, field, { min: 1, max: 60, required: true }); break
+        // Sprint 7 — operations dashboard settings
+        case 'backorder_flag_days':
+        case 'stale_order_days':
+          updates[field] = vNumber(v, field, { min: 1, max: 365, required: true }); break
+        case 'exposure_alert_percent':
+          updates[field] = vPercent(v, field, true); break
         case 'vat_registered':
           updates[field] = vBoolean(v, field, settings.vat_registered); break
         case 'deposit_value_rules':

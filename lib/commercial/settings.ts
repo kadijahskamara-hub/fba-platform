@@ -34,6 +34,8 @@ export const COMMERCIAL_RULE_FIELDS = [
   'default_deposit_basis', 'default_payment_terms_days', 'payment_backdate_approval_days',
   // Sprint 4 — delivery & logistics
   'delivery_confirmation_expiry_days',
+  // Sprint 7 — operations dashboard
+  'backorder_flag_days', 'exposure_alert_percent', 'stale_order_days',
 ] as const
 
 export async function getCommercialSettings(): Promise<CommercialSettings> {

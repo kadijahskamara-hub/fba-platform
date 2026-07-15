@@ -168,6 +168,10 @@ export interface CommercialSettings {
   payment_backdate_approval_days: number
   // Sprint 4 — delivery & logistics
   delivery_confirmation_expiry_days: number
+  // Sprint 7 — operations dashboard
+  backorder_flag_days: number
+  exposure_alert_percent: number
+  stale_order_days: number
   updated_at: string
   updated_by: string | null
 }

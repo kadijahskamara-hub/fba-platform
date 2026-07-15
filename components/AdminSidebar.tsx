@@ -55,6 +55,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     section: 'Orders & Quotes',
     items: [
+      { href: '/admin/operations',        label: 'Operations',       icon: GridIcon,      permission: 'delivery_view' },
       { href: '/admin/quotes',            label: 'Quote Pipeline',   icon: DocumentIcon,  permission: 'quote_pipeline' },
       { href: '/admin/retail-orders',     label: 'Retail Orders',    icon: BagIcon,       permission: 'retail_orders' },
       { href: '/admin/commercial-orders', label: 'Commercial Orders', icon: BuildingIcon, permission: 'commercial_orders' },

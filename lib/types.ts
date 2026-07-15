@@ -15,6 +15,8 @@ export type UserRole =
 
 export type UserStatus =
   | 'active' | 'pending' | 'approved' | 'declined' | 'revoked' | 'suspended' | 'archived'
+  // Sprint 7: permanent (anonymised) deletion — terminal state, Ultra Admin only.
+  | 'deleted'
 
 export interface User {
   id: string

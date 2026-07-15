@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { DeleteAccountDialog } from '@/components/DeleteAccountDialog'
 
 // ── Customer account management (trade + retail) ─────────────
 // Staff and admin accounts live under Settings → Staff & Permissions.
@@ -22,12 +23,20 @@ const ROLE_LABELS: Record<string, string> = {
   retail_customer: 'Retail',
 }
 
-export function UsersManager({ initialUsers }: { initialUsers: CustomerRow[] }) {
+export function UsersManager({
+  initialUsers,
+  isUltraAdmin = false,
+}: {
+  initialUsers: CustomerRow[]
+  /** Sprint 7: permanent deletion is an Ultra Admin power (never grantable). */
+  isUltraAdmin?: boolean
+}) {
   const [users, setUsers]   = useState<CustomerRow[]>(initialUsers)
   const [query, setQuery]   = useState('')
   const [roleFilter, setRoleFilter] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
   const [toast, setToast]   = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<CustomerRow | null>(null)
 
   function showToast(msg: string) {
     setToast(msg)
@@ -197,11 +206,45 @@ export function UsersManager({ initialUsers }: { initialUsers: CustomerRow[] }) 
                 >
                   {suspended ? 'Reactivate' : 'Suspend'}
                 </button>
+                {/* Delete — Ultra Admin only (Sprint 7 Part B) */}
+                {isUltraAdmin && (
+                  <button
+                    className="btn btn-sm"
+                    disabled={busy}
+                    onClick={() => setDeleteTarget(u)}
+                    title="Permanently delete this account — Ultra Admin only, cannot be undone"
+                    style={{
+                      color: '#fff', background: 'var(--danger)',
+                      border: '1px solid var(--danger)', padding: '6px 14px',
+                      fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    }}
+                  >
+                    Delete…
+                  </button>
+                )}
               </div>
             </div>
           )
         })}
       </div>
+
+      {/* Permanent deletion dialog (Ultra Admin only) */}
+      {deleteTarget && (
+        <DeleteAccountDialog
+          account={{
+            id: deleteTarget.id,
+            email: deleteTarget.email,
+            name: `${deleteTarget.first_name ?? ''} ${deleteTarget.last_name ?? ''}`.trim() || deleteTarget.email,
+            role: deleteTarget.role,
+          }}
+          onClose={() => setDeleteTarget(null)}
+          onDeleted={acc => {
+            setUsers(prev => prev.filter(x => x.id !== acc.id))
+            setDeleteTarget(null)
+            showToast(`${acc.email} permanently deleted`)
+          }}
+        />
+      )}
     </div>
   )
 }

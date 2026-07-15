@@ -1,0 +1,189 @@
+'use client'
+
+import { useState } from 'react'
+
+// ============================================================
+// Platform authority manager (Sprint 7 Part B) — Ultra only.
+// Grant/revoke Ultra Admin on admin accounts. Rules surfaced in
+// the UI and enforced by the API + atomic SQL fn + DB trigger:
+//  • only active admin accounts can hold Ultra authority;
+//  • you cannot revoke your own authority;
+//  • the platform always retains ≥1 active Ultra Admin.
+// ============================================================
+
+export interface AdminAccountRow {
+  id: string
+  first_name: string | null
+  last_name: string | null
+  email: string
+  role: string
+  status: string
+  is_ultra_admin: boolean
+  created_at: string
+}
+
+export function PlatformAuthorityManager({
+  initialAdmins,
+  initialUltraCount,
+  selfId,
+}: {
+  initialAdmins: AdminAccountRow[]
+  initialUltraCount: number
+  selfId: string
+}) {
+  const [admins, setAdmins] = useState<AdminAccountRow[]>(initialAdmins)
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+
+  const activeUltraCount = admins.filter(a => a.is_ultra_admin && a.status === 'active').length || initialUltraCount
+
+  function showToast(msg: string, type: 'success' | 'error' = 'success') {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 4500)
+  }
+
+  async function setAuthority(target: AdminAccountRow, grant: boolean) {
+    const verb = grant ? 'Grant' : 'Revoke'
+    const detail = grant
+      ? `${target.first_name ?? target.email} will hold FULL platform authority: every permission, protected settings, and permanent account deletion.`
+      : `${target.first_name ?? target.email} will lose platform authority and return to ordinary admin access.`
+    if (!confirm(`${verb} Ultra Admin authority?\n\n${detail}`)) return
+
+    setBusyId(target.id)
+    try {
+      const res = await fetch('/api/admin/authority', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetId: target.id, grant }),
+      })
+      const json = await res.json()
+      if (!json.success) {
+        showToast(json.error ?? 'Authority change failed', 'error')
+        return
+      }
+      setAdmins(prev => prev.map(a => a.id === target.id ? { ...a, is_ultra_admin: grant } : a))
+      showToast(`Ultra Admin ${grant ? 'granted to' : 'revoked from'} ${target.email}`)
+    } catch {
+      showToast('Network error — please try again.', 'error')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  return (
+    <div style={{ maxWidth: 860 }}>
+      {toast && (
+        <div style={{
+          position: 'fixed', top: 24, right: 24, zIndex: 9999,
+          padding: '14px 20px',
+          background: toast.type === 'error' ? 'var(--danger)' : 'var(--success)',
+          color: '#fff', fontSize: 13, fontWeight: 500, maxWidth: 380,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+        }}>
+          {toast.msg}
+        </div>
+      )}
+
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 26, fontWeight: 400, marginBottom: 6 }}>
+          Platform Authority
+        </h1>
+        <p style={{ fontSize: 13, color: 'var(--stone)', lineHeight: 1.6 }}>
+          Ultra Admins hold overall authority over the platform: every permission,
+          protected settings, and permanent account deletion. Authority is granted
+          and revoked only by an existing Ultra Admin. The platform always retains
+          at least one active Ultra Admin — the database refuses any change that
+          would leave zero.
+        </p>
+      </div>
+
+      <div style={{
+        fontSize: 12, color: 'var(--stone)', marginBottom: 16,
+        padding: '10px 14px', background: 'var(--sage-light)',
+        border: '1px solid var(--light-line)',
+      }}>
+        {activeUltraCount} active Ultra Admin{activeUltraCount !== 1 ? 's' : ''} ·
+        {' '}You cannot revoke your own authority.
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {admins.map(a => {
+          const isSelf = a.id === selfId
+          const busy = busyId === a.id
+          const isLastUltra = a.is_ultra_admin && a.status === 'active' && activeUltraCount <= 1
+          return (
+            <div key={a.id} style={{
+              display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+              padding: '16px 20px', border: `1px solid ${a.is_ultra_admin ? 'var(--forest)' : 'var(--light-line)'}`,
+              background: 'var(--warm-white)',
+            }}>
+              <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--forest)' }}>
+                  {`${a.first_name ?? ''} ${a.last_name ?? ''}`.trim() || '—'}
+                  {isSelf && <span style={{ fontSize: 11, color: 'var(--stone)', marginLeft: 6 }}>(you)</span>}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--stone)' }}>{a.email}</div>
+              </div>
+
+              <span className={`status-pill status-${a.status}`}>{a.status}</span>
+
+              {a.is_ultra_admin ? (
+                <span style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase',
+                  background: 'var(--forest)', color: 'var(--cream)', padding: '4px 10px',
+                }}>
+                  Ultra Admin
+                </span>
+              ) : (
+                <span style={{
+                  fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase',
+                  border: '1px solid var(--light-line)', color: 'var(--stone)', padding: '3px 10px',
+                }}>
+                  Admin
+                </span>
+              )}
+
+              <div style={{ marginLeft: 'auto' }}>
+                {a.is_ultra_admin ? (
+                  <button
+                    className="btn btn-sm"
+                    disabled={busy || isSelf || isLastUltra || a.status !== 'active'}
+                    title={
+                      isSelf ? 'You cannot revoke your own authority'
+                        : isLastUltra ? 'The platform must always retain at least one active Ultra Admin'
+                          : 'Revoke Ultra Admin authority'
+                    }
+                    onClick={() => setAuthority(a, false)}
+                    style={{
+                      color: 'var(--danger)', border: '1px solid var(--danger)',
+                      background: 'transparent', padding: '6px 14px', fontSize: 12,
+                      cursor: (busy || isSelf || isLastUltra) ? 'not-allowed' : 'pointer',
+                      opacity: (isSelf || isLastUltra) ? 0.5 : 1,
+                    }}
+                  >
+                    {busy ? 'Working…' : 'Revoke authority'}
+                  </button>
+                ) : (
+                  <button
+                    className="btn btn-primary btn-sm"
+                    disabled={busy || a.status !== 'active'}
+                    title={a.status !== 'active' ? 'Only active admin accounts can hold Ultra authority' : 'Grant Ultra Admin authority'}
+                    onClick={() => setAuthority(a, true)}
+                  >
+                    {busy ? 'Working…' : 'Grant authority'}
+                  </button>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <p style={{ fontSize: 12, color: 'var(--stone)', marginTop: 20, lineHeight: 1.6 }}>
+        Only admin accounts are listed — promote a staff member to admin under
+        Staff &amp; Permissions before granting authority. Every grant and revoke
+        is written to the audit log with actor, target and before/after state.
+      </p>
+    </div>
+  )
+}

@@ -65,7 +65,9 @@ export async function getCommercialSession(): Promise<CommercialSession | null> 
     .select('is_ultra_admin, status')
     .eq('id', session.id)
     .single()
-  if (!userRow || userRow.status === 'archived') return null
+  // Live status check: archived AND deleted accounts lose commercial
+  // access immediately, even if a session cookie is still valid.
+  if (!userRow || userRow.status === 'archived' || userRow.status === 'deleted') return null
 
   const isUltraAdmin = Boolean(userRow.is_ultra_admin)
   const permissions = new Set<string>()

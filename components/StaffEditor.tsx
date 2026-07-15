@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import type { StaffPermission, StaffRow } from '@/lib/types'
+import { DeleteAccountDialog } from '@/components/DeleteAccountDialog'
 
 // ── Constants ─────────────────────────────────────────────────
 
@@ -59,16 +60,19 @@ interface StaffEditorProps {
   initialStaff: StaffRow[]
   currentUserId: string
   archivedCount?: number
+  /** Sprint 7: permanent deletion is an Ultra Admin power (never grantable). */
+  isUltraAdmin?: boolean
 }
 
 // ── Main Component ────────────────────────────────────────────
 
-export function StaffEditor({ initialStaff, currentUserId, archivedCount = 0 }: StaffEditorProps) {
+export function StaffEditor({ initialStaff, currentUserId, archivedCount = 0, isUltraAdmin = false }: StaffEditorProps) {
   const [staff, setStaff]     = useState<StaffRow[]>(initialStaff)
   const [showAdd, setShowAdd] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [saving, setSaving]   = useState<string | null>(null)
   const [toast, setToast]     = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<StaffRow | null>(null)
 
   // Pending (unsaved) permission changes keyed by staff member ID
   const [pendingPerms, setPendingPerms] = useState<Record<string, StaffPermission[]>>({})
@@ -485,6 +489,28 @@ export function StaffEditor({ initialStaff, currentUserId, archivedCount = 0 }: 
                         Archive
                       </button>
                     )}
+
+                    {/* Delete — Ultra Admin only, never self (Sprint 7 Part B) */}
+                    {isUltraAdmin && !isSelf && (
+                      <button
+                        className="btn btn-sm"
+                        style={{
+                          color:       '#fff',
+                          border:      '1px solid var(--danger)',
+                          background:  'var(--danger)',
+                          padding:     '6px 14px',
+                          fontSize:    12,
+                          fontWeight:  600,
+                          letterSpacing: '0.04em',
+                          cursor:      'pointer',
+                        }}
+                        disabled={isSaving}
+                        onClick={() => setDeleteTarget(member)}
+                        title="Permanently delete this account — Ultra Admin only, cannot be undone"
+                      >
+                        Delete…
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -645,6 +671,25 @@ export function StaffEditor({ initialStaff, currentUserId, archivedCount = 0 }: 
             )
           })}
         </div>
+      )}
+
+      {/* Permanent deletion dialog (Ultra Admin only) */}
+      {deleteTarget && (
+        <DeleteAccountDialog
+          account={{
+            id: deleteTarget.id,
+            email: deleteTarget.email,
+            name: `${deleteTarget.first_name} ${deleteTarget.last_name}`.trim(),
+            role: deleteTarget.role,
+          }}
+          onClose={() => setDeleteTarget(null)}
+          onDeleted={acc => {
+            setStaff(prev => prev.filter(m => m.id !== acc.id))
+            if (editingId === acc.id) setEditingId(null)
+            setDeleteTarget(null)
+            showToast(`${acc.email} permanently deleted`)
+          }}
+        />
       )}
     </div>
   )

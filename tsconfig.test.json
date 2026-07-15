@@ -18,6 +18,8 @@
     "lib/commercial/deliveryLogic.ts",
     "lib/commercial/communications.ts",
     "lib/commercial/accountingLogic.ts",
+    "lib/commercial/authorityLogic.ts",
+    "lib/commercial/operationsLogic.ts",
     "tests/**/*.ts"
   ]
 }

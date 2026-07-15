@@ -10,6 +10,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { box, inp, td, th, money } from '@/components/admin/commercial/ui'
+import { MilestoneTimeline } from '@/components/admin/operations/MilestoneTimeline'
 
 interface ProcLine {
   line: Record<string, unknown>
@@ -94,6 +95,9 @@ export default function ProcurementPage() {
           </div>
         </div>
       </div>
+
+      {/* Sprint 7 — derived milestone timeline + delay flags + readiness */}
+      <MilestoneTimeline orderId={id} />
 
       {/* Product lines & allocation */}
       <div style={box}>

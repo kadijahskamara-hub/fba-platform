@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
+import { getCommercialSession } from '@/lib/commercial/permissions'
 import { StaffEditor } from '@/components/StaffEditor'
 import type { StaffRow } from '@/lib/types'
 
@@ -15,6 +16,7 @@ async function getActiveStaff(): Promise<StaffRow[]> {
     `)
     .in('role', ['admin', 'staff'])
     .neq('status', 'archived')
+    .neq('status', 'deleted')
     .order('created_at')
   return (data ?? []) as StaffRow[]
 }
@@ -34,9 +36,10 @@ export default async function AdminStaffPage() {
     redirect('/admin/dashboard')
   }
 
-  const [staff, archivedCount] = await Promise.all([
+  const [staff, archivedCount, cs] = await Promise.all([
     getActiveStaff(),
     getArchivedCount(),
+    getCommercialSession(), // live Ultra check (DB-backed, never from the JWT)
   ])
 
   return (
@@ -44,6 +47,7 @@ export default async function AdminStaffPage() {
       initialStaff={staff}
       currentUserId={session.id}
       archivedCount={archivedCount}
+      isUltraAdmin={cs?.isUltraAdmin ?? false}
     />
   )
 }
