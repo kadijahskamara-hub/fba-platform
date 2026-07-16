@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { appConfirm } from '@/lib/appConfirm'
 import Link from 'next/link'
 import { accountRoleLabel } from '@/lib/contactRoleLabel'
 import { stageLabel } from '@/lib/pipeline'
@@ -102,7 +103,7 @@ export default function AdminContactsPage() {
     await fetchContacts(); await openDetail(selectedId)
   }
   const deleteContact = async () => {
-    if (!selectedId || !confirm('Delete this contact and its notes? This cannot be undone.')) return
+    if (!selectedId || !await appConfirm('Delete this contact and its notes? This cannot be undone.')) return
     setBusy(true)
     await fetch(`/api/admin/contacts/${selectedId}`, { method: 'DELETE' })
     setBusy(false); closeDetail(); fetchContacts()

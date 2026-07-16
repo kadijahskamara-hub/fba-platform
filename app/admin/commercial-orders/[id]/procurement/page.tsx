@@ -7,6 +7,7 @@
 // they never flow into client documents.
 
 import { useCallback, useEffect, useState } from 'react'
+import { appConfirm } from '@/lib/appConfirm'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { box, inp, td, th, money } from '@/components/admin/commercial/ui'
@@ -183,7 +184,7 @@ export default function ProcurementPage() {
                           <span className="status-pill" style={{ fontSize: 10 }}>{(alloc.allocation_status as string).replace(/_/g, ' ')}</span>
                           {!allocPoLine && !ro && (
                             <button className="btn btn-ghost btn-sm" style={{ color: '#a03030' }} disabled={busy}
-                              onClick={() => { if (confirm('Remove this allocation?')) api(`/api/admin/commercial-orders/${id}/allocations/${alloc.id}`, 'DELETE') }}>✕</button>
+                              onClick={async () => { if (await appConfirm('Remove this allocation?')) api(`/api/admin/commercial-orders/${id}/allocations/${alloc.id}`, 'DELETE') }}>✕</button>
                           )}
                         </div>
                       ) : eligible ? <span style={{ fontSize: 12, color: 'var(--stone)' }}>unallocated</span> : '—'}

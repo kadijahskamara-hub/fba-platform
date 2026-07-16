@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { appConfirm } from '@/lib/appConfirm'
 import { useState } from 'react'
 import type { StaffPermission, StaffRow } from '@/lib/types'
 
@@ -33,7 +34,7 @@ export function ArchivedStaffViewer({ initialStaff }: { initialStaff: StaffRow[]
   }
 
   async function restoreMember(member: StaffRow) {
-    const confirmed = confirm(
+    const confirmed = await appConfirm(
       `Restore ${member.first_name} ${member.last_name}?\n\n` +
       `Their account will be reactivated and they will be able to log in again. ` +
       `Their previous permissions will remain intact.`

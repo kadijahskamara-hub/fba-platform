@@ -15,6 +15,16 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const token = request.cookies.get('fba_session')?.value
 
+  // Admin API responses must never be cached by the browser or CDN —
+  // stale GETs made freshly created records (delivery lines, accounting
+  // periods, …) invisible until a manual refresh (QA item 11). Auth for
+  // these routes stays inside each handler (requireCommercial etc.).
+  if (pathname.startsWith('/api/admin')) {
+    const response = NextResponse.next()
+    response.headers.set('Cache-Control', 'no-store, max-age=0, must-revalidate')
+    return response
+  }
+
   const isProtected = PROTECTED_ROUTES.some(r => pathname.startsWith(r))
   const isAdmin = ADMIN_ROUTES.some(r => pathname.startsWith(r))
   const isTrade = TRADE_ROUTES.some(r => pathname.startsWith(r))
@@ -63,6 +73,7 @@ export const config = {
   matcher: [
     '/account/:path*',
     '/admin/:path*',
+    '/api/admin/:path*',
     '/trade/dashboard/:path*',
   ],
 }

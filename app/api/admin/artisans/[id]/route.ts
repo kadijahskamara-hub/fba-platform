@@ -27,6 +27,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     name, slug, location, short_bio, bio,
     craft_category, profile_image, gallery_images,
     website, instagram_handle, is_active,
+    // Supplier/ordering details (QA item 15) — used to auto-address
+    // purchase orders instead of a manual acknowledgement link.
+    primary_contact_name, order_email, finance_email, telephone, address, country,
   } = body
 
   if (!name?.trim() || !slug?.trim()) {
@@ -47,6 +50,12 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       website:          website || null,
       instagram_handle: instagram_handle || null,
       is_active:        is_active ?? true,
+      primary_contact_name: primary_contact_name || null,
+      order_email:      order_email || null,
+      finance_email:    finance_email || null,
+      telephone:        telephone || null,
+      address:          address || null,
+      country:          country || null,
     })
     .eq('id', params.id)
     .select()

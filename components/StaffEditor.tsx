@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { appConfirm } from '@/lib/appConfirm'
 import { useState } from 'react'
 import type { StaffPermission, StaffRow } from '@/lib/types'
 import { DeleteAccountDialog } from '@/components/DeleteAccountDialog'
@@ -185,7 +186,7 @@ export function StaffEditor({ initialStaff, currentUserId, archivedCount = 0, is
       showToast('Cannot archive your own account', 'error')
       return
     }
-    const confirmed = confirm(
+    const confirmed = await appConfirm(
       `Archive ${member.first_name} ${member.last_name}?\n\n` +
       `They will be blocked from logging in and removed from this list. ` +
       `You can restore them at any time from the Archived Staff page.`
@@ -382,9 +383,9 @@ export function StaffEditor({ initialStaff, currentUserId, archivedCount = 0, is
                     {!isAdmin && (
                       <button
                         className="btn btn-secondary btn-sm"
-                        onClick={() => {
+                        onClick={async () => {
                           if (isEditing && isDirty) {
-                            if (confirm('You have unsaved changes. Discard them?')) {
+                            if (await appConfirm('You have unsaved changes. Discard them?')) {
                               discardChanges(member.id)
                               setEditingId(null)
                             }

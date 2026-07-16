@@ -6,6 +6,7 @@
 // link, proof of delivery (admin channel) and exception follow-up.
 
 import { useCallback, useEffect, useState } from 'react'
+import { appConfirm } from '@/lib/appConfirm'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { box, inp, td, th, Field } from '@/components/admin/commercial/ui'
@@ -135,7 +136,7 @@ export default function DeliveryDetailPage() {
             <button className="btn btn-primary btn-sm" disabled={busy || lines.length === 0 || !location}
               title={lines.length === 0 ? 'Assign at least one line' : !location ? 'Set a delivery location' : undefined}
               onClick={async () => {
-                if (!confirm('Dispatch this delivery? The delivery note is issued and frozen at this point.')) return
+                if (!await appConfirm('Dispatch this delivery? The delivery note is issued and frozen at this point.')) return
                 await api(`/api/admin/deliveries/${id}/dispatch`, 'POST')
               }}>
               Dispatch
@@ -207,7 +208,7 @@ export default function DeliveryDetailPage() {
                   <td style={td}>
                     {editable && (
                       <button className="btn btn-ghost btn-sm" style={{ color: '#a03030' }} disabled={busy}
-                        onClick={() => { if (confirm('Remove this line from the delivery?')) api(`/api/admin/deliveries/${id}/lines/${l.id}`, 'DELETE') }}>✕</button>
+                        onClick={async () => { if (await appConfirm('Remove this line from the delivery?')) api(`/api/admin/deliveries/${id}/lines/${l.id}`, 'DELETE') }}>✕</button>
                     )}
                   </td>
                 </tr>

@@ -6,6 +6,7 @@
 // internal analysis to authorised staff, clearly marked internal).
 
 import { useCallback, useEffect, useState } from 'react'
+import { appConfirm } from '@/lib/appConfirm'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { box, inp, td, th, money, Field, Area } from '@/components/admin/commercial/ui'
@@ -260,7 +261,7 @@ export default function PurchaseOrderPage() {
                   <td style={{ ...td, fontWeight: 500, whiteSpace: 'nowrap' }}>{money(l.line_net_total == null ? null : Number(l.line_net_total), cur)}</td>
                   <td style={td}>
                     {!ro && <button className="btn btn-ghost btn-sm" style={{ color: '#a03030' }} disabled={busy}
-                      onClick={() => { if (confirm('Remove this line? The allocation is released.')) api(`/api/admin/purchase-orders/${id}/lines/${l.id}`, 'DELETE') }}>✕</button>}
+                      onClick={async () => { if (await appConfirm('Remove this line? The allocation is released.')) api(`/api/admin/purchase-orders/${id}/lines/${l.id}`, 'DELETE') }}>✕</button>}
                   </td>
                 </tr>
               ))}
@@ -298,7 +299,7 @@ export default function PurchaseOrderPage() {
           {!locked && perms.canPrepare && (
             <button className="btn btn-primary btn-sm" disabled={busy}
               onClick={async () => {
-                if (!confirm(`Issue ${docNo} to ${(manufacturer.name as string) ?? 'the supplier'}? The PO is frozen and an acknowledgement link is generated.`)) return
+                if (!await appConfirm(`Issue ${docNo} to ${(manufacturer.name as string) ?? 'the supplier'}? The PO is frozen and an acknowledgement link is generated.`)) return
                 const res = await api(`/api/admin/purchase-orders/${id}/issue`, 'POST')
                 if (res.success) setAckUrl(`${window.location.origin}${res.data.acknowledgementUrl}`)
               }}>
@@ -325,7 +326,7 @@ export default function PurchaseOrderPage() {
                   if (!res.success) { alert(res.error); return }
                   await load()
                 } else {
-                  if (!confirm('Delete this draft PO? Allocations are released.')) return
+                  if (!await appConfirm('Delete this draft PO? Allocations are released.')) return
                   const res = await fetch(`/api/admin/purchase-orders/${id}`, { method: 'DELETE' }).then(r => r.json())
                   if (!res.success) { alert(res.error); return }
                   router.push(`/admin/commercial-orders/${order.id}/procurement`)

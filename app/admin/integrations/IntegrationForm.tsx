@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { appConfirm } from '@/lib/appConfirm'
 import { useRouter } from 'next/navigation'
 import type { BrandIntegration, SourceType } from '@/lib/syncEngineTypes'
 import { DEFAULT_MAPPINGS } from '@/lib/syncEngineTypes'
@@ -125,7 +126,7 @@ export function IntegrationForm({ integration }: Props) {
 
   async function handleDelete() {
     if (!integration) return
-    if (!confirm(`Delete the "${integration.brand_name}" integration? This cannot be undone.`)) return
+    if (!await appConfirm(`Delete the "${integration.brand_name}" integration? This cannot be undone.`)) return
     setDeleting(true)
     await fetch(`/api/admin/integrations/${integration.id}`, { method: 'DELETE' })
     router.push('/admin/integrations')

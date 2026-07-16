@@ -6,6 +6,7 @@
 // server-side; this page only displays what the API returns.
 
 import { useEffect, useState, useCallback } from 'react'
+import { appConfirm } from '@/lib/appConfirm'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { CommercialDoc, DocPermissions, Area, box } from '@/components/admin/commercial/ui'
@@ -57,7 +58,7 @@ export default function CommercialQuotePage() {
   }
 
   const deleteItem = async (itemId: string) => {
-    if (!confirm('Remove this line?')) return
+    if (!await appConfirm('Remove this line?')) return
     const res = await fetch(`/api/admin/proformas/${id}/items/${itemId}`, { method: 'DELETE' }).then(r => r.json())
     if (!res.success) alert(res.error ?? 'Delete failed')
     await load()
@@ -146,7 +147,7 @@ export default function CommercialQuotePage() {
         {!locked && perms.canEdit && (
           <button className="btn btn-ghost btn-sm" style={{ color: '#a03030' }}
             onClick={async () => {
-              if (!confirm(`Delete draft ${doc.quote_number ?? doc.proforma_number}? Issued documents cannot be deleted.`)) return
+              if (!await appConfirm(`Delete draft ${doc.quote_number ?? doc.proforma_number}? Issued documents cannot be deleted.`)) return
               const res = await fetch(`/api/admin/proformas/${id}`, { method: 'DELETE' }).then(r => r.json())
               if (!res.success) { alert(res.error ?? 'Delete failed'); return }
               router.push('/admin/quotes')

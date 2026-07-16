@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { appConfirm } from '@/lib/appConfirm'
 import { DeleteAccountDialog } from '@/components/DeleteAccountDialog'
 import { ResetPasswordMenu } from '@/components/ResetPasswordMenu'
 
@@ -55,7 +56,7 @@ export function UsersManager({
 
   async function toggleStatus(u: CustomerRow) {
     const next = u.status === 'active' ? 'suspended' : 'active'
-    if (next === 'suspended' && !confirm(`Suspend ${u.email}? They will not be able to sign in.`)) return
+    if (next === 'suspended' && !await appConfirm(`Suspend ${u.email}? They will not be able to sign in.`)) return
     setBusyId(u.id)
     try {
       const res  = await fetch(`/api/admin/users/${u.id}`, {

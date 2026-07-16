@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
     name, slug, location, short_bio, bio,
     craft_category, profile_image, gallery_images,
     website, instagram_handle, is_active = true,
+    primary_contact_name, order_email, finance_email, telephone, address, country,
   } = body
 
   if (!name?.trim() || !slug?.trim()) {
@@ -46,6 +47,12 @@ export async function POST(req: NextRequest) {
       website:          website || null,
       instagram_handle: instagram_handle || null,
       is_active,
+      primary_contact_name: primary_contact_name || null,
+      order_email:      order_email || null,
+      finance_email:    finance_email || null,
+      telephone:        telephone || null,
+      address:          address || null,
+      country:          country || null,
     })
     .select()
     .single()

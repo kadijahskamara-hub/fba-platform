@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { appConfirm } from '@/lib/appConfirm'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -17,6 +18,12 @@ type Artisan = {
   website: string | null
   instagram_handle: string | null
   is_active: boolean
+  primary_contact_name?: string | null
+  order_email?: string | null
+  finance_email?: string | null
+  telephone?: string | null
+  address?: string | null
+  country?: string | null
 }
 
 export function ArtisanEditForm({ artisan }: { artisan: Artisan }) {
@@ -36,6 +43,12 @@ export function ArtisanEditForm({ artisan }: { artisan: Artisan }) {
     website: artisan.website ?? '',
     instagramHandle: artisan.instagram_handle ?? '',
     isActive: artisan.is_active ?? true,
+    primaryContactName: artisan.primary_contact_name ?? '',
+    orderEmail: artisan.order_email ?? '',
+    financeEmail: artisan.finance_email ?? '',
+    telephone: artisan.telephone ?? '',
+    address: artisan.address ?? '',
+    country: artisan.country ?? '',
   })
 
   const update = (field: string) =>
@@ -66,6 +79,12 @@ export function ArtisanEditForm({ artisan }: { artisan: Artisan }) {
           gallery_images:  form.galleryImages.split('\n').map(s => s.trim()).filter(Boolean),
           website:         form.website || null,
           instagram_handle:form.instagramHandle || null,
+          primary_contact_name: form.primaryContactName || null,
+          order_email:     form.orderEmail || null,
+          finance_email:   form.financeEmail || null,
+          telephone:       form.telephone || null,
+          address:         form.address || null,
+          country:         form.country || null,
           is_active:       form.isActive,
         }),
       })
@@ -76,8 +95,8 @@ export function ArtisanEditForm({ artisan }: { artisan: Artisan }) {
     })
   }
 
-  const handleDelete = () => {
-    if (!confirm(`Delete artisan "${form.name}"? This cannot be undone.`)) return
+  const handleDelete = async () => {
+    if (!await appConfirm(`Delete artisan "${form.name}"? This cannot be undone.`)) return
     startDelete(async () => {
       const res = await fetch(`/api/admin/artisans/${artisan.id}`, { method: 'DELETE' })
       const data = await res.json()
@@ -165,6 +184,46 @@ export function ArtisanEditForm({ artisan }: { artisan: Artisan }) {
                 onChange={update('instagramHandle')} placeholder="@studioname" />
             </div>
           </div>
+          {/* Supplier & ordering details (QA item 15): purchase orders are
+              auto-addressed from the order email + postal address below. */}
+          <div style={{ borderTop: '1px solid var(--light-line)', margin: '24px 0 16px', paddingTop: 20 }}>
+            <div className="label label-sage" style={{ marginBottom: 14 }}>Supplier &amp; Ordering</div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Primary contact name</label>
+                <input type="text" className="form-input" value={form.primaryContactName}
+                  onChange={update('primaryContactName')} placeholder="e.g. Maria Verde" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Telephone</label>
+                <input type="tel" className="form-input" value={form.telephone}
+                  onChange={update('telephone')} placeholder="+351 …" />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Order email (POs are addressed here)</label>
+                <input type="email" className="form-input" value={form.orderEmail}
+                  onChange={update('orderEmail')} placeholder="orders@studio.com" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Finance email</label>
+                <input type="email" className="form-input" value={form.financeEmail}
+                  onChange={update('financeEmail')} placeholder="accounts@studio.com" />
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Postal address (appears on order sheets)</label>
+              <textarea className="form-textarea" rows={3} value={form.address}
+                onChange={update('address')} placeholder={'Street\nCity, Postcode'} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Country</label>
+              <input type="text" className="form-input" value={form.country}
+                onChange={update('country')} placeholder="Portugal" />
+            </div>
+          </div>
+
           <div className="form-group">
             <label className="form-checkbox">
               <input type="checkbox" checked={form.isActive}

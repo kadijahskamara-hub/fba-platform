@@ -70,7 +70,8 @@ export default async function CommercialOrdersPage() {
           </p>
         </div>
       ) : (
-        <table className="data-table">
+        <div className="table-scroll">
+<table className="data-table">
           <thead>
             <tr>
               <th>Order</th><th>Client</th><th>Project</th><th>Source</th>
@@ -110,6 +111,7 @@ export default async function CommercialOrdersPage() {
             })}
           </tbody>
         </table>
+</div>
       )}
     </>
   )

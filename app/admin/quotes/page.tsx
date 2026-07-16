@@ -136,7 +136,8 @@ export default function QuotePipelinePage() {
         <div className="empty-state"><h3>No proformas here</h3><p>Create one, or convert an incoming request above.</p></div>
       ) : (
         <div style={{ background: 'var(--warm-white)', border: '1px solid var(--light-line)' }}>
-          <table className="data-table">
+          <div className="table-scroll">
+<table className="data-table">
             <thead>
               <tr><th>Proforma</th><th>Client</th><th>Project</th><th>Items</th><th>Total</th><th>Stage</th><th>Updated</th></tr>
             </thead>
@@ -157,6 +158,7 @@ export default function QuotePipelinePage() {
               ))}
             </tbody>
           </table>
+</div>
         </div>
       )}
     </>

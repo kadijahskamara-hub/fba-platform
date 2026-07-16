@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { appConfirm } from '@/lib/appConfirm'
 import { useRouter } from 'next/navigation'
 import ProductRowActions from './ProductRowActions'
 
@@ -61,7 +62,7 @@ export default function ProductsTable({ products, isAdmin }: { products: Product
       restore: `Restore ${selected.size} selected product(s)?`,
       delete: `Permanently delete ${selected.size} selected product(s)?\n\nThis cannot be undone. Products referenced by projects, quotes or orders are kept automatically. Use Archive unless these are test or duplicate records.`,
     }
-    if (!confirm(labels[action])) return
+    if (!await appConfirm(labels[action])) return
     setBusy(true)
     try {
       const res = await fetch('/api/admin/products/bulk', {

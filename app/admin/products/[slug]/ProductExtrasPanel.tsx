@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { appConfirm } from '@/lib/appConfirm'
 
 // ============================================================
 // Product extras manager (admin brief §6): Documents (upload or
@@ -230,7 +231,7 @@ function DocumentsTab({ productId, docs, busy, mutate, reload, flash }: {
                 </td>
                 <td>
                   <button className="btn btn-ghost btn-sm" disabled={busy}
-                    onClick={() => { if (confirm('Remove this document from the product?')) mutate('document', 'delete', d.id) }}>
+                    onClick={async () => { if (await appConfirm('Remove this document from the product?')) mutate('document', 'delete', d.id) }}>
                     Remove
                   </button>
                 </td>
@@ -334,7 +335,7 @@ function FinishesTab({ category, finishes, busy, mutate }: {
                 </td>
                 <td>
                   <button className="btn btn-ghost btn-sm" disabled={busy}
-                    onClick={() => { if (confirm(`Remove finish "${f.finish_name}"?`)) mutate('finish', 'delete', f.id) }}>
+                    onClick={async () => { if (await appConfirm(`Remove finish "${f.finish_name}"?`)) mutate('finish', 'delete', f.id) }}>
                     Remove
                   </button>
                 </td>
@@ -404,7 +405,7 @@ function SizesTab({ variants, busy, mutate }: {
                 </td>
                 <td>
                   <button className="btn btn-ghost btn-sm" disabled={busy}
-                    onClick={() => { if (confirm(`Remove size "${v.variant_name}"?`)) mutate('variant', 'delete', v.id) }}>
+                    onClick={async () => { if (await appConfirm(`Remove size "${v.variant_name}"?`)) mutate('variant', 'delete', v.id) }}>
                     Remove
                   </button>
                 </td>

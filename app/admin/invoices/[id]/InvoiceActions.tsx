@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { appConfirm } from '@/lib/appConfirm'
 import { useRouter } from 'next/navigation'
 
 export default function InvoiceActions({ invoiceId, locked }: { invoiceId: string; locked: boolean }) {
@@ -23,7 +24,7 @@ export default function InvoiceActions({ invoiceId, locked }: { invoiceId: strin
       {!locked && (
         <>
           <button className="btn btn-secondary btn-sm" disabled={!!busy} onClick={() => call(`/api/admin/invoices/${invoiceId}`, { action: 'recalc' })}>Recalculate</button>
-          <button className="btn btn-primary btn-sm" disabled={!!busy} onClick={() => { if (confirm('Issue this invoice? It becomes immutable and gets an invoice number.')) call(`/api/admin/invoices/${invoiceId}/issue`) }}>Issue invoice</button>
+          <button className="btn btn-primary btn-sm" disabled={!!busy} onClick={async () => { if (await appConfirm('Issue this invoice? It becomes immutable and gets an invoice number.')) call(`/api/admin/invoices/${invoiceId}/issue`) }}>Issue invoice</button>
           <button className="btn btn-secondary btn-sm" disabled={!!busy} onClick={() => { const r = prompt('Reason for voiding this draft invoice?'); if (r) call(`/api/admin/invoices/${invoiceId}`, { action: 'void', reason: r }) }}>Void</button>
         </>
       )}

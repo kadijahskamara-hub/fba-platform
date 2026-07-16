@@ -52,7 +52,8 @@ export default async function PaymentsPage() {
           <p>No payments recorded yet.</p>
         </div>
       ) : (
-        <table className="data-table">
+        <div className="table-scroll">
+<table className="data-table">
           <thead><tr><th>Reference</th><th>Date</th><th>Method</th><th>Amount</th><th>Status</th></tr></thead>
           <tbody>
             {payments.map((p: Record<string, unknown>) => (
@@ -66,6 +67,7 @@ export default async function PaymentsPage() {
             ))}
           </tbody>
         </table>
+</div>
       )}
     </>
   )

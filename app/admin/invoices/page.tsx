@@ -50,7 +50,8 @@ export default async function InvoicesPage() {
           <p>No invoices yet. Create them from an accepted commercial order.</p>
         </div>
       ) : (
-        <table className="data-table">
+        <div className="table-scroll">
+<table className="data-table">
           <thead><tr><th>Invoice</th><th>Type</th><th>Client</th><th>Status</th><th>Total</th><th>Paid</th><th>Balance</th><th>Due</th></tr></thead>
           <tbody>
             {invoices.map((i: Record<string, unknown>) => {
@@ -71,6 +72,7 @@ export default async function InvoicesPage() {
             })}
           </tbody>
         </table>
+</div>
       )}
     </>
   )

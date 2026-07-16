@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { appConfirm } from '@/lib/appConfirm'
 import { useState } from 'react'
 
 export function RemoveItemButton({ projectId, itemId }: { projectId: string; itemId: string }) {
@@ -8,7 +9,7 @@ export function RemoveItemButton({ projectId, itemId }: { projectId: string; ite
   const [loading, setLoading] = useState(false)
 
   const handleRemove = async () => {
-    if (!confirm('Remove this piece from the project?')) return
+    if (!await appConfirm('Remove this piece from the project?')) return
     setLoading(true)
     await fetch(`/api/projects/${projectId}/items/${itemId}`, { method: 'DELETE' })
     router.refresh()
@@ -33,7 +34,7 @@ export function RequestQuoteButton({ projectId }: { projectId: string }) {
   const [error, setError] = useState<string | null>(null)
 
   const handleClick = async () => {
-    if (!confirm('This will submit a quote request to Full Bloom Artelier for all items in this project. Continue?')) return
+    if (!await appConfirm('This will submit a quote request to Full Bloom Artelier for all items in this project. Continue?')) return
     setState('sending')
     setError(null)
     try {

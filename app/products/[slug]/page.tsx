@@ -37,8 +37,14 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
 
   if (!data) return { title: 'Product not found' }
 
+  // QA item 10: the root layout template appends "— Full Bloom Artelier".
+  // When a custom SEO title already contains the brand, use it verbatim
+  // (title.absolute bypasses the template) so it is never doubled.
+  const rawTitle: string = data.seo_title ?? data.name
+  const title = /full bloom artelier/i.test(rawTitle) ? { absolute: rawTitle } : rawTitle
+
   return {
-    title:       data.seo_title ?? data.name,
+    title,
     description: data.seo_description ?? `Discover ${data.name} — handcrafted with precision, available through Full Bloom Artelier.`,
     alternates:  { canonical: `/products/${params.slug}` },
     openGraph: { images: data.images?.[0] ? [{ url: data.images[0] }] : [] },
@@ -272,20 +278,20 @@ export default async function ProductDetailPage(props: Props) {
               <div className="label label-sage" style={{ marginBottom: 20 }}>Full Specification</div>
               <table className="data-table" style={{ fontSize: 13 }}>
                 <tbody>
-                  {specs.width_mm   && <SpecRow label="Width"   value={`${specs.width_mm}mm`} />}
-                  {specs.depth_mm   && <SpecRow label="Depth"   value={`${specs.depth_mm}mm`} />}
-                  {specs.height_mm  && <SpecRow label="Height"  value={`${specs.height_mm}mm`} />}
-                  {specs.seat_height_mm && <SpecRow label="Seat height" value={`${specs.seat_height_mm}mm`} />}
-                  {specs.diameter_mm    && <SpecRow label="Diameter"    value={`${specs.diameter_mm}mm`} />}
-                  {specs.weight_kg      && <SpecRow label="Weight"      value={`${specs.weight_kg}kg`} />}
+                  {!!specs.width_mm   && <SpecRow label="Width"   value={`${specs.width_mm}mm`} />}
+                  {!!specs.depth_mm   && <SpecRow label="Depth"   value={`${specs.depth_mm}mm`} />}
+                  {!!specs.height_mm  && <SpecRow label="Height"  value={`${specs.height_mm}mm`} />}
+                  {!!specs.seat_height_mm && <SpecRow label="Seat height" value={`${specs.seat_height_mm}mm`} />}
+                  {!!specs.diameter_mm    && <SpecRow label="Diameter"    value={`${specs.diameter_mm}mm`} />}
+                  {!!specs.weight_kg      && <SpecRow label="Weight"      value={`${specs.weight_kg}kg`} />}
                   {specs.material       && <SpecRow label="Material"    value={specs.material} />}
                   {specs.finish         && <SpecRow label="Finish"      value={specs.finish} />}
                   {specs.fabric         && <SpecRow label="Fabric"      value={specs.fabric} />}
                   {specs.com_available  && <SpecRow label="COM"         value="Available" />}
                   {specs.care_instructions && <SpecRow label="Care"     value={specs.care_instructions} />}
                   {isLighting && specs.bulb_type && <SpecRow label="Bulb type" value={specs.bulb_type} />}
-                  {isLighting && specs.wattage   && <SpecRow label="Wattage"   value={specs.wattage} />}
-                  {isLighting && specs.voltage   && <SpecRow label="Voltage"   value={specs.voltage} />}
+                  {isLighting && !!specs.wattage   && <SpecRow label="Wattage"   value={specs.wattage} />}
+                  {isLighting && !!specs.voltage   && <SpecRow label="Voltage"   value={specs.voltage} />}
                   {specs.ip_rating   && <SpecRow label="IP rating"   value={specs.ip_rating} />}
                   {isLighting && typeof specs.dimmable === 'boolean' && <SpecRow label="Dimmable" value={specs.dimmable ? 'Yes' : 'No'} />}
                 </tbody>

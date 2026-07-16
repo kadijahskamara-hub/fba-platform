@@ -8,6 +8,7 @@
 //    with you — they must change it at next sign-in.
 
 import { useEffect, useRef, useState } from 'react'
+import { appConfirm } from '@/lib/appConfirm'
 
 export function ResetPasswordMenu({
   userId,
@@ -54,8 +55,8 @@ export function ResetPasswordMenu({
     }
   }
 
-  function sendLink() {
-    if (!confirm(`Email a password reset link to ${email}?`)) return
+  async function sendLink() {
+    if (!await appConfirm(`Email a password reset link to ${email}?`)) return
     call({ mode: 'link' }, `Reset link sent to ${email}`)
   }
 

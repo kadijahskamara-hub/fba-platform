@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { appConfirm } from '@/lib/appConfirm'
 
 export interface RegionCard {
   label: string
@@ -43,8 +44,8 @@ export function NetworkRegionsPanel({ initialValue }: Props) {
   }
 
   function addCard()  { setCards(prev => [...prev, { ...BLANK }]); setSaved(false) }
-  function removeCard(idx: number) {
-    if (!confirm('Remove this region card?')) return
+  async function removeCard(idx: number) {
+    if (!await appConfirm('Remove this region card?')) return
     setCards(prev => prev.filter((_, i) => i !== idx))
     setSaved(false)
   }

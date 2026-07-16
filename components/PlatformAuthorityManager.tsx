@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { appConfirm } from '@/lib/appConfirm'
 import { PURGE_CONFIRM_PHRASE } from '@/lib/commercial/authorityLogic'
 
 // ============================================================
@@ -48,7 +49,7 @@ export function PlatformAuthorityManager({
     const detail = grant
       ? `${target.first_name ?? target.email} will hold FULL platform authority: every permission, protected settings, and permanent account deletion.`
       : `${target.first_name ?? target.email} will lose platform authority and return to ordinary admin access.`
-    if (!confirm(`${verb} Ultra Admin authority?\n\n${detail}`)) return
+    if (!await appConfirm(`${verb} Ultra Admin authority?\n\n${detail}`)) return
 
     setBusyId(target.id)
     try {
@@ -203,7 +204,7 @@ function PurgeDangerZone({ onToast }: { onToast: (msg: string, type?: 'success' 
 
   async function handlePurge() {
     if (!armed || busy) return
-    if (!confirm(
+    if (!await appConfirm(
       'FINAL CONFIRMATION\n\n' +
       'This permanently deletes EVERY quote, order, purchase order, invoice, ' +
       'payment, credit note, refund, delivery, installation, document and ' +

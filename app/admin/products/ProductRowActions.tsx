@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { appConfirm } from '@/lib/appConfirm'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -97,14 +98,14 @@ export default function ProductRowActions({ productId, slug, name, visibility, i
     }
   }
 
-  function onArchive() {
-    if (confirm(`Archive "${name}"?\n\nThis will remove it from the public catalogue but keep the product record for admin history, project boards, imports, and quote references.`)) {
+  async function onArchive() {
+    if (await appConfirm(`Archive "${name}"?\n\nThis will remove it from the public catalogue but keep the product record for admin history, project boards, imports, and quote references.`)) {
       run('archive')
     }
   }
 
-  function onClear() {
-    if (confirm(`Reset "${name}" to a blank draft?\n\nThis clears the description, pricing, category, images and all specs — but keeps the product's name and link. Use this to start a product record over. It cannot be undone.`)) {
+  async function onClear() {
+    if (await appConfirm(`Reset "${name}" to a blank draft?\n\nThis clears the description, pricing, category, images and all specs — but keeps the product's name and link. Use this to start a product record over. It cannot be undone.`)) {
       run('clear')
     }
   }

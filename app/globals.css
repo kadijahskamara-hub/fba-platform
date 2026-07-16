@@ -563,7 +563,21 @@ nav.site-nav.dark {
   padding: 48px 48px 80px;
   background: #F4F1ED;
   min-height: calc(100vh - var(--nav-h));
+  /* QA item 14: a flex item's min-width defaults to auto, so one wide
+     table used to stretch the whole page beyond the viewport. Content
+     now constrains to the viewport; wide tables scroll inside
+     .table-scroll instead of scrolling the page. */
+  min-width: 0;
+  max-width: 100%;
 }
+
+/* Horizontal scroll container for wide admin tables (QA item 14). */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+.table-scroll > table { width: 100%; }
 .admin-header {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 40px; padding-bottom: 24px;

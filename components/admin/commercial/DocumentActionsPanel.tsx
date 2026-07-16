@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { appConfirm } from '@/lib/appConfirm'
 import { box, money, CommercialDoc, DocPermissions, LineItem } from './ui'
 
 // Controlled document generation: issue (freeze) quotes, pro formas
@@ -25,7 +26,7 @@ export function DocumentActionsPanel({ doc, perms, onIssue, onRevise }: {
 
   const issue = async (docType: 'quote' | 'proforma' | 'invoice' | 'service_invoice') => {
     const label = docType.replace('_', ' ')
-    if (!confirm(`Issue this ${label}? The document is frozen as an immutable snapshot; later changes will require a new revision.`)) return
+    if (!await appConfirm(`Issue this ${label}? The document is frozen as an immutable snapshot; later changes will require a new revision.`)) return
     setBusy(true); await onIssue(docType); setBusy(false)
   }
 
@@ -75,7 +76,7 @@ export function DocumentActionsPanel({ doc, perms, onIssue, onRevise }: {
         {locked && perms.canEdit && (
           <button className="btn btn-secondary btn-sm" disabled={busy}
             onClick={async () => {
-              if (!confirm(`Create revision R${String(doc.revision_number + 1).padStart(2, '0')}? Issued documents remain preserved; the working record re-opens for editing.`)) return
+              if (!await appConfirm(`Create revision R${String(doc.revision_number + 1).padStart(2, '0')}? Issued documents remain preserved; the working record re-opens for editing.`)) return
               setBusy(true); await onRevise(); setBusy(false)
             }}>
             Create new revision…
