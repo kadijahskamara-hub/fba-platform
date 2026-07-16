@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireCommercial } from '@/lib/commercial/permissions'
 import { issueDocument } from '@/lib/commercial/snapshots'
+import { mirrorProformaInvoiceToLedger } from '@/lib/commercial/invoices'
 import { logAudit } from '@/lib/audit'
 import { vUuid, vEnum, ValidationError } from '@/lib/commercial/validation'
 import type { IssuedDocType } from '@/lib/commercial/types'
@@ -30,6 +31,18 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const result = await issueDocument({ proformaId: params.id, docType, actor: cs.user })
   if ('error' in result) return NextResponse.json({ success: false, error: result.error }, { status: result.status })
 
+  // QA item 1: an invoice issued from the pipeline must exist as a real
+  // record in the /admin/invoices ledger, not just a document snapshot.
+  let ledgerInvoiceId: string | null = null
+  let ledgerError: string | null = null
+  if (docType === 'invoice' || docType === 'service_invoice') {
+    const mirror = await mirrorProformaInvoiceToLedger({
+      proformaId: params.id, issuedDocumentId: result.doc.id, docType, actor: cs.user,
+    })
+    if ('error' in mirror) ledgerError = mirror.error
+    else ledgerInvoiceId = mirror.data.invoiceId
+  }
+
   const auditAction =
     docType === 'quote' ? 'commercial.quote_issued'
     : docType === 'proforma' ? 'commercial.proforma_issued'
@@ -39,5 +52,5 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     after: { proformaId: params.id, docType, documentNumber: result.doc.document_number, revision: result.doc.revision },
   })
 
-  return NextResponse.json({ success: true, data: result.doc })
+  return NextResponse.json({ success: true, data: { ...result.doc, ledgerInvoiceId, ledgerError } })
 }

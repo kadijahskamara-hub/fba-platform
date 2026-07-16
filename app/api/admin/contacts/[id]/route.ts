@@ -29,7 +29,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     if (userRow?.id) orFilter += `,contact_user_id.eq.${userRow.id}`
     const { data } = await supabaseAdmin
       .from('proformas')
-      .select('id, proforma_number, stage, project_name, currency, updated_at, items:proforma_line_items(unit_price, quantity)')
+      .select('id, proforma_number, quote_number, stage, project_name, currency, updated_at, items:proforma_line_items(unit_price, quantity)')
       .or(orFilter)
       .order('updated_at', { ascending: false })
     proformas = data ?? []

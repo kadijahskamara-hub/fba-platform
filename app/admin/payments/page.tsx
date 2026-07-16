@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { supabaseAdmin } from '@/lib/supabase'
+import RecordPaymentModal from '@/components/admin/commercial/RecordPaymentModal'
 
 export const metadata = { title: 'Payments' }
 export const dynamic = 'force-dynamic'
@@ -27,7 +28,10 @@ export default async function PaymentsPage() {
           <h1 className="admin-title">Payments</h1>
           <p className="admin-subtitle">Payment ledger — invoice balances derive from confirmed allocations</p>
         </div>
-        <Link href="/admin/invoices" className="btn btn-secondary btn-sm">Invoices →</Link>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <RecordPaymentModal />
+          <Link href="/admin/invoices" className="btn btn-secondary btn-sm">Invoices →</Link>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 32 }}>

@@ -81,7 +81,7 @@ export default function OrderDeliveriesPage() {
           </div>
           <div style={{ fontSize: 12.5, color: 'var(--stone)', marginTop: 6 }}>
             {(client.client_company as string) || (client.client_name as string) || '—'}
-            {' · '}Proforma {source.proforma_number as string ?? '—'}
+            {' · '}Source {(source.quote_number as string) ?? (source.proforma_number as string) ?? '—'}
             {' · '}<Link href={`/admin/commercial-orders/${id}/procurement`} style={{ color: 'var(--forest)' }}>procurement</Link>
           </div>
         </div>

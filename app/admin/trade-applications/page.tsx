@@ -58,10 +58,17 @@ export default function TradeApplicationsPage() {
       })
       const data = await res.json()
       if (data.success) {
-        setActionMsg(`Done: ${action.replace(/_/g, ' ')}`)
+        let msg = `Done: ${action.replace(/_/g, ' ')}`
+        const d = (data.data ?? {}) as { emailSent?: boolean; packNumber?: string | null; packError?: string | null }
+        if (action === 'send_form') {
+          if (d.packNumber) msg += ` — pack ${d.packNumber} prepared in Communications`
+          else if (d.packError) msg += ` — pack could not be prepared: ${d.packError}`
+          msg += d.emailSent ? '; email sent' : '; email not sent (sending not configured)'
+        }
+        setActionMsg(msg)
         setSelected(null)
         loadAll()
-        setTimeout(() => setActionMsg(''), 4000)
+        setTimeout(() => setActionMsg(''), 8000)
       } else {
         setActionErr(data.error ?? 'Something went wrong')
       }

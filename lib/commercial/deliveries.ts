@@ -119,7 +119,7 @@ export async function createDelivery(params: {
 }): Promise<DomainResult<{ id: string; deliveryNumber: string }>> {
   const { data: order } = await supabaseAdmin
     .from('commercial_orders')
-    .select('id, status, order_number, source:proformas!commercial_orders_source_proforma_id_fkey(proforma_number)')
+    .select('id, status, order_number, source:proformas!commercial_orders_source_proforma_id_fkey(proforma_number, quote_number)')
     .eq('id', params.orderId).single()
   if (!order) return { error: 'Commercial order not found', status: 404 }
   if (order.status === 'cancelled') return { error: 'This order is cancelled.', status: 409 }

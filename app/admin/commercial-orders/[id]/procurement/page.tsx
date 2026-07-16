@@ -11,6 +11,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { box, inp, td, th, money } from '@/components/admin/commercial/ui'
 import { MilestoneTimeline } from '@/components/admin/operations/MilestoneTimeline'
+import OrderBillingPanel from '@/components/admin/commercial/OrderBillingPanel'
 import { UltraDeleteRecordButton } from '@/components/UltraDeleteRecordButton'
 
 interface ProcLine {
@@ -106,6 +107,9 @@ export default function ProcurementPage() {
 
       {/* Sprint 7 — derived milestone timeline + delay flags + readiness */}
       <MilestoneTimeline orderId={id} />
+
+      {/* Sprint 8 — invoices + payments for this order (QA items 1 & 2) */}
+      <OrderBillingPanel orderId={id} />
 
       {/* Product lines & allocation */}
       <div style={box}>

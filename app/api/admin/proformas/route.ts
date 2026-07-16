@@ -81,12 +81,12 @@ export async function POST(req: NextRequest) {
 
   // Seed line items from the quote request. The catalogue trade price
   // seeds the client SELLING price (that is how the studio quotes
-  // today); the supplier COST is genuinely unknown at this point and
-  // is recorded as 'unavailable' — never fabricated.
+  // today); the supplier COST seeds from the catalogue supplier_cost
+  // when set (QA item 3), otherwise it is recorded as 'unavailable'.
   if (header.quote_request_id) {
     const { data: qItems } = await supabaseAdmin
       .from('quote_request_items')
-      .select('product_id, product_name, quantity, selected_finish, selected_fabric, selected_size, notes, product:products(name, trade_price, artisan_id, sku)')
+      .select('product_id, product_name, quantity, selected_finish, selected_fabric, selected_size, notes, product:products(name, trade_price, supplier_cost, artisan_id, sku)')
       .eq('quote_request_id', header.quote_request_id)
 
     if (qItems && qItems.length > 0) {
@@ -104,8 +104,8 @@ export async function POST(req: NextRequest) {
           pricing_method: 'manual',
           selling_price_unit: (prod?.trade_price as number) ?? null,
           unit_price: (prod?.trade_price as number) ?? null,
-          supplier_cost_unit: null,
-          supplier_cost_source: 'unavailable',
+          supplier_cost_unit: (prod?.supplier_cost as number | null) ?? null,
+          supplier_cost_source: prod?.supplier_cost != null ? 'catalogue_supplier' : 'unavailable',
           tax_category: settings.default_tax_category,
           currency: header.currency,
           selected_finish: it.selected_finish ?? null,

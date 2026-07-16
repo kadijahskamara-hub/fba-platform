@@ -80,7 +80,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       // from the catalogue trade price (never treated as supplier cost).
       const productId = vUuid(body.productId, 'productId')
       const { data: product } = await supabaseAdmin
-        .from('products').select('name, trade_price, artisan_id, images, sku').eq('id', productId).single()
+        .from('products').select('name, trade_price, supplier_cost, artisan_id, images, sku').eq('id', productId).single()
       if (!product) return NextResponse.json({ success: false, error: 'Product not found' }, { status: 404 })
       row.product_id = productId
       row.is_bespoke = false
@@ -90,6 +90,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       if (row.selling_price_unit == null) {
         row.selling_price_unit = product.trade_price ?? null
         row.pricing_method = row.pricing_method ?? 'manual'
+      }
+      // QA item 3: the catalogue supplier cost flows through automatically;
+      // a manually supplied cost still wins.
+      if (row.supplier_cost_unit == null && product.supplier_cost != null) {
+        row.supplier_cost_unit = product.supplier_cost
+        row.supplier_cost_source = 'catalogue_supplier'
       }
       row.image_url = row.image_url ?? (product.images as string[] | null)?.[0] ?? null
     } else if (lineType === 'service') {

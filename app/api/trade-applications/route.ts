@@ -31,11 +31,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Required fields are missing.' }, { status: 400 })
     }
 
-    // Check if a session exists (logged-in user applying)
+    // Resolve the applicant by the SUBMITTED email — never by whoever
+    // happens to be signed in in this browser. A staff/admin session
+    // active in the same browser must not be captured as the applicant
+    // (QA item 6: applications were storing the staff member's identity
+    // instead of the submitted form fields).
+    const submittedEmail = String(email).toLowerCase().trim()
     const session = await getSession()
-    let userId: string | null = session?.id ?? null
+    let userId: string | null =
+      session && session.email && session.email.toLowerCase().trim() === submittedEmail
+        ? session.id
+        : null
 
-    // If no session, check if user already exists or create one as trade_applicant
+    // Otherwise, find or create the user that matches the submitted email.
     if (!userId) {
       const { data: existingUser } = await supabaseAdmin
         .from('users')

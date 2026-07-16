@@ -25,6 +25,7 @@ export interface PackEntities {
   sales_invoice_id?: string | null
   purchase_order_id?: string | null
   delivery_id?: string | null
+  trade_application_id?: string | null
 }
 
 export interface AttachmentSpec {
@@ -52,6 +53,7 @@ export interface PackRow {
   sales_invoice_id: string | null
   purchase_order_id: string | null
   delivery_id: string | null
+  trade_application_id: string | null
   created_at: string
 }
 
@@ -145,6 +147,21 @@ async function resolveContext(entities: PackEntities): Promise<Context> {
     }
   }
 
+  
+  if (entities.trade_application_id) {
+    const { data } = await supabaseAdmin.from('trade_applications')
+      .select('company_name, user:users!trade_applications_user_id_fkey(first_name, last_name, email)')
+      .eq('id', entities.trade_application_id).single()
+    if (data) {
+      const u = (data.user ?? {}) as unknown as Record<string, unknown>
+      const applicantEmail = u.email ? String(u.email) : null
+      const applicantName = [u.first_name, u.last_name].filter(Boolean).join(' ')
+      if (applicantEmail) { to.push(applicantEmail); if (applicantName) names[applicantEmail] = applicantName }
+      if (applicantName) vars.client_name = applicantName
+      if (data.company_name) vars.applicant_company = String(data.company_name)
+    }
+  }
+
   return { recipients: normalizeRecipients({ to, cc, names }), vars, documentNumber }
 }
 
@@ -213,6 +230,7 @@ export async function preparePack(req: PrepareRequest): Promise<Result<PackRow>>
     sales_invoice_id: req.entities.sales_invoice_id ?? null,
     purchase_order_id: req.entities.purchase_order_id ?? null,
     delivery_id: req.entities.delivery_id ?? null,
+    trade_application_id: req.entities.trade_application_id ?? null,
     recipients_snapshot: ctx.recipients,
     subject: rendered.subject,
     body: rendered.body,

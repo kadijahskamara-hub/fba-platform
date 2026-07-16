@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getSession, isStaffRole } from '@/lib/auth'
 import { Resend } from 'resend'
+import { preparePack } from '@/lib/commercial/communicationPacks'
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 const FROM_EMAIL = 'Full Bloom Artelier <info@fullbloom.uk.com>'
@@ -128,18 +129,41 @@ export async function PATCH(
     }
   }
 
-  // Send notification email
-  if (resend && appBefore?.user) {
-    const applicant = appBefore.user as Record<string, string>
-    await sendNotificationEmail(action, {
-      firstName: applicant.first_name,
-      email:     applicant.email,
-      companyName: appBefore.company_name as string,
-      setPasswordUrl,
+  // "Send Detailed Form" must produce a visible output (QA item 7):
+  // prepare a communications pack, consistent with quotes/invoices/POs.
+  let packNumber: string | null = null
+  let packError: string | null = null
+  if (action === 'send_form') {
+    const packRes = await preparePack({
+      templateKey: 'trade_detailed_form',
+      entities: { trade_application_id: id },
+      attachments: [],
+      actor: session,
+      varsExtra: { form_url: `${SITE_URL}/trade/apply?step=detail` },
     })
+    if ('error' in packRes) packError = packRes.error
+    else packNumber = packRes.data.pack_number
   }
 
-  return NextResponse.json({ success: true })
+  // Send notification email (best effort — the pack above is the system
+  // of record; email only goes out when Resend is configured).
+  let emailSent = false
+  if (resend && appBefore?.user) {
+    const applicant = appBefore.user as Record<string, string>
+    try {
+      await sendNotificationEmail(action, {
+        firstName: applicant.first_name,
+        email:     applicant.email,
+        companyName: appBefore.company_name as string,
+        setPasswordUrl,
+      })
+      emailSent = true
+    } catch (e) {
+      console.error('Trade application notification email failed:', e)
+    }
+  }
+
+  return NextResponse.json({ success: true, data: { emailSent, packNumber, packError } })
 }
 
 // ── Email helpers ─────────────────────────────────────────────

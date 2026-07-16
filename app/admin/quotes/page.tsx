@@ -7,7 +7,7 @@ import { PROFORMA_STAGES, stageLabel } from '@/lib/pipeline'
 type Item = { id: string; name: string; quantity: number; unit_price: number | null; manufacturer_id: string | null; manufacturer_name: string | null; is_bespoke: boolean }
 type Contact = { id: string; first_name: string | null; last_name: string | null; email: string } | null
 type Proforma = {
-  id: string; proforma_number: string; stage: string
+  id: string; proforma_number: string; quote_number: string | null; stage: string
   client_name: string | null; client_company: string | null; client_email: string | null
   project_name: string | null; project_location: string | null; currency: string
   quote_request_id: string | null; updated_at: string
@@ -143,7 +143,7 @@ export default function QuotePipelinePage() {
             <tbody>
               {visible.map(p => (
                 <tr key={p.id} style={{ cursor: 'pointer' }} onClick={() => router.push(`/admin/quotes/${p.id}`)}>
-                  <td style={{ fontWeight: 500, fontSize: 13 }}>{p.proforma_number}</td>
+                  <td style={{ fontWeight: 500, fontSize: 13 }}>{p.quote_number ?? p.proforma_number}</td>
                   <td style={{ fontSize: 13 }}>
                     {p.client_name || (p.contact ? `${p.contact.first_name ?? ''} ${p.contact.last_name ?? ''}`.trim() : '—')}
                     {p.client_company && <div style={{ fontSize: 11, color: 'var(--stone)' }}>{p.client_company}</div>}

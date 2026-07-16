@@ -23,7 +23,7 @@ type Contact = {
 }
 
 type Note = { id: string; body: string; created_at: string; author: { first_name: string | null; last_name: string | null } | null }
-type PipeEntry = { id: string; proforma_number: string; stage: string; project_name: string | null; currency: string; updated_at: string; items: { unit_price: number | null; quantity: number }[] }
+type PipeEntry = { id: string; proforma_number: string; quote_number: string | null; stage: string; project_name: string | null; currency: string; updated_at: string; items: { unit_price: number | null; quantity: number }[] }
 
 const TYPE_LABELS: Record<string, string> = {
   retail: 'Retail', trade: 'Trade', retail_customer: 'Retail', trade_prospect: 'Trade Prospect',
@@ -268,7 +268,7 @@ export default function AdminContactsPage() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       {detail.proformas.map(p => (
                         <Link key={p.id} href={`/admin/quotes/${p.id}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 13, padding: '8px 12px', background: 'var(--cream)', textDecoration: 'none', color: 'inherit' }}>
-                          <span><strong>{p.proforma_number}</strong> · {p.project_name ?? 'Untitled'}</span>
+                          <span><strong>{p.quote_number ?? p.proforma_number}</strong> · {p.project_name ?? 'Untitled'}</span>
                           <span style={{ color: 'var(--stone)' }}>{stageLabel(p.stage)} · {money(entryTotal(p), p.currency)}</span>
                         </Link>
                       ))}

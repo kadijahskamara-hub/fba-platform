@@ -37,7 +37,7 @@ export function QuoteHeaderForm({ doc, locked, busy, onPatch, onChangeStage }: {
             {doc.invoice_number && <span className="status-pill" style={{ background: 'var(--forest)', color: '#fff' }}>{doc.invoice_number}</span>}
           </div>
           <div style={{ fontSize: 12, color: 'var(--stone)', marginTop: 6 }}>
-            Pro forma ref {doc.proforma_number} · Quote date {doc.quote_date ?? '—'} · Valid until {doc.valid_until ?? '—'}
+            Quote date {doc.quote_date ?? '—'} · Valid until {doc.valid_until ?? '—'}
             {doc.valid_until && new Date(doc.valid_until) < new Date() && (
               <strong style={{ color: '#a03030' }}> · EXPIRED</strong>
             )}

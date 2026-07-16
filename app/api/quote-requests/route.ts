@@ -94,35 +94,59 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: quoteError.message }, { status: 500 })
   }
 
-  // Link products to the quote — rich items carry selections through
+  // Link products to the quote — rich items carry selections through.
+  // quote_request_items.product_name is NOT NULL, so resolve names first
+  // (QA item 4: missing names made every item insert fail silently, and
+  // converted proformas started with no lines).
+  const allProductIds = Array.from(new Set([
+    ...richItems.map(i => i.productId),
+    ...projectLineItems.map(i => i.productId),
+    ...resolvedProductIds,
+  ]))
+  const productNames = new Map<string, string>()
+  if (allProductIds.length) {
+    const { data: prods } = await supabaseAdmin
+      .from('products').select('id, name').in('id', allProductIds)
+    for (const pr of prods ?? []) productNames.set(pr.id as string, (pr.name as string) ?? 'Item')
+  }
+  const nameFor = (pid: string) => productNames.get(pid) ?? 'Item'
+
+  let itemsError: string | null = null
   if (richItems.length) {
-    await supabaseAdmin.from('quote_request_items').insert(
+    const { error } = await supabaseAdmin.from('quote_request_items').insert(
       richItems.map(i => ({
         quote_request_id: quote.id,
         product_id:       i.productId,
+        product_name:     nameFor(i.productId),
         quantity:         i.quantity,
         selected_finish:  i.selectedFinish,
         selected_fabric:  i.selectedFabric,
         selected_size:    i.selectedSize,
       }))
     )
+    itemsError = error?.message ?? null
   } else if (projectLineItems.length) {
-    await supabaseAdmin.from('quote_request_items').insert(
+    const { error } = await supabaseAdmin.from('quote_request_items').insert(
       projectLineItems.map(i => ({
         quote_request_id: quote.id,
         product_id:       i.productId,
+        product_name:     nameFor(i.productId),
         quantity:         i.quantity,
       }))
     )
+    itemsError = error?.message ?? null
   } else if (resolvedProductIds.length) {
-    await supabaseAdmin.from('quote_request_items').insert(
+    const { error } = await supabaseAdmin.from('quote_request_items').insert(
       resolvedProductIds.map((pid: string) => ({
         quote_request_id: quote.id,
         product_id:       pid,
+        product_name:     nameFor(pid),
         quantity:         1,
       }))
     )
+    itemsError = error?.message ?? null
   }
+  if (itemsError) console.error('quote_request_items insert failed:', itemsError)
 
   // Also record in contacts
   await supabaseAdmin.from('contacts').upsert({

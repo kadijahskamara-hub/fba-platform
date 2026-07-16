@@ -310,3 +310,100 @@ export async function voidInvoice(invoiceId: string, actor: SessionUser, reason:
   await logAudit({ actor, action: 'commercial.invoice_voided', entityType: 'sales_invoice', entityId: invoiceId, after: { reason } })
   return { data: { voided: true } }
 }
+
+// ── Pipeline invoice → ledger mirror (QA item 1) ─────────────
+//
+// The Quote Pipeline can issue an invoice document directly from the
+// working proforma record. Historically that produced only an immutable
+// issued_documents snapshot and never appeared in /admin/invoices. This
+// mirrors the issued document into the sales_invoices ledger so there is
+// exactly ONE coherent invoice ledger. Idempotent on invoice_number.
+export async function mirrorProformaInvoiceToLedger(params: {
+  proformaId: string
+  issuedDocumentId: string
+  docType: 'invoice' | 'service_invoice'
+  actor: SessionUser
+}): Promise<DomainResult<{ invoiceId: string; invoiceNumber: string; alreadyExisted: boolean }>> {
+  const { proformaId, issuedDocumentId, docType, actor } = params
+
+  const { data: pf } = await supabaseAdmin
+    .from('proformas')
+    .select('id, invoice_number, invoice_date, invoice_due_date, revision_number, contact_user_id, client_name, client_email, client_company, project_name, currency, totals')
+    .eq('id', proformaId).single()
+  if (!pf) return { error: 'Proforma not found', status: 404 }
+  if (!pf.invoice_number) return { error: 'The document has no invoice number; convert it to an invoice first.', status: 409 }
+
+  // Idempotency: one ledger record per invoice number.
+  const { data: existing } = await supabaseAdmin
+    .from('sales_invoices').select('id, invoice_number').eq('invoice_number', pf.invoice_number).maybeSingle()
+  if (existing) return { data: { invoiceId: existing.id, invoiceNumber: existing.invoice_number, alreadyExisted: true } }
+
+  // Link to the commercial order born from this proforma, when one exists.
+  const { data: order } = await supabaseAdmin
+    .from('commercial_orders').select('id, project_id').eq('source_proforma_id', proformaId).maybeSingle()
+
+  const totals = (pf.totals ?? {}) as Record<string, unknown>
+  const netSubtotal = Number(totals.netSubtotal ?? 0)
+  const vatTotal = Number(totals.vatTotal ?? 0)
+  const grossTotal = Number(totals.grossTotal ?? 0)
+  const now = new Date().toISOString()
+
+  const { data: inv, error: invErr } = await supabaseAdmin.from('sales_invoices').insert({
+    invoice_number: pf.invoice_number,
+    invoice_type: docType === 'service_invoice' ? 'service' : 'final',
+    commercial_order_id: order?.id ?? null,
+    source_proforma_id: proformaId,
+    source_issued_document_id: issuedDocumentId,
+    source_revision: pf.revision_number ?? null,
+    client_id: pf.contact_user_id ?? null,
+    project_id: order?.project_id ?? null,
+    currency: pf.currency ?? 'GBP',
+    status: 'issued',
+    issue_date: pf.invoice_date ?? now.slice(0, 10),
+    due_date: pf.invoice_due_date ?? null,
+    client_snapshot: { name: pf.client_name, email: pf.client_email, company: pf.client_company, project: pf.project_name },
+    subtotal: netSubtotal,
+    tax_total: vatTotal,
+    gross_total: grossTotal,
+    amount_paid: 0,
+    credit_total: 0,
+    balance_due: grossTotal,
+    issued_by: actor.id,
+    issued_at: now,
+    locked_at: now,
+  }).select('id, invoice_number').single()
+  if (invErr || !inv) return { error: `Could not create the invoice ledger record: ${invErr?.message ?? 'insert failed'}`, status: 500 }
+
+  // Client-facing line snapshots (selling prices only — no supplier
+  // cost, markup or margin ever enters an invoice line).
+  const { data: lines } = await supabaseAdmin
+    .from('proforma_line_items')
+    .select('id, line_type, product_id, service_catalogue_id, name, description, spec_details, quantity, unit_of_measure, selling_price_unit, unit_price, tax_category, line_net_total, line_tax_total, line_gross_total, sort_order')
+    .eq('proforma_id', proformaId).order('sort_order')
+  if (lines && lines.length) {
+    await supabaseAdmin.from('sales_invoice_lines').insert(lines.map((l, i) => ({
+      sales_invoice_id: inv.id,
+      source_line_item_id: l.id,
+      line_type: l.line_type ?? 'product',
+      product_id: l.product_id ?? null,
+      service_catalogue_id: l.service_catalogue_id ?? null,
+      name_snapshot: l.name ?? 'Item',
+      description_snapshot: l.description ?? null,
+      specification_snapshot: l.spec_details ?? null,
+      quantity: Number(l.quantity ?? 1) > 0 ? Number(l.quantity ?? 1) : 1,
+      unit_of_measure: l.unit_of_measure ?? 'each',
+      unit_price: Number(l.selling_price_unit ?? l.unit_price ?? 0),
+      tax_category: l.tax_category ?? 'standard',
+      line_net_total: Number(l.line_net_total ?? 0),
+      line_tax_total: Number(l.line_tax_total ?? 0),
+      line_gross_total: Number(l.line_gross_total ?? 0),
+      sort_order: l.sort_order ?? i,
+    })))
+  }
+
+  await logAudit({
+    actor, action: 'commercial.invoice_issued', entityType: 'sales_invoice', entityId: inv.id,
+    after: { invoiceNumber: inv.invoice_number, mirroredFromProforma: proformaId, issuedDocumentId },
+  })
+  return { data: { invoiceId: inv.id, invoiceNumber: inv.invoice_number, alreadyExisted: false } }
+}
