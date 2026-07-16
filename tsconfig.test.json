@@ -20,6 +20,7 @@
     "lib/commercial/accountingLogic.ts",
     "lib/commercial/authorityLogic.ts",
     "lib/commercial/operationsLogic.ts",
+    "lib/customMatch/logic.ts",
     "tests/**/*.ts"
   ]
 }
