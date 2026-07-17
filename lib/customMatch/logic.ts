@@ -94,6 +94,42 @@ export function fieldsForMaterial(slug: string): string[] {
   return MATERIAL_FIELD_SETS[slug] ?? MATERIAL_FIELD_SETS.other
 }
 
+/** Human labels for the material-conditional dimension fields (§11.3). */
+export const DIMENSION_FIELD_LABELS: Record<string, string> = {
+  application_component: 'Application / component',
+  coverage_quantity: 'Required coverage / quantity',
+  unit_of_measure: 'Unit of measure',
+  repeat_dimensions: 'Repeat / pattern dimensions',
+  roll_width: 'Roll width',
+  usable_width: 'Usable width',
+  hide_size: 'Leather hide size',
+  slab_size: 'Stone slab size',
+  timber_thickness: 'Timber thickness',
+  wastage_allowance: 'Wastage allowance',
+  fire_treatment: 'Fire treatment requirement',
+  backing_interlining: 'Backing / interlining',
+  rub_count_requirement: 'Durability / rub-count requirement',
+  indoor_outdoor: 'Indoor / outdoor use',
+}
+
+/**
+ * Keep only the dimension fields relevant to the material type; values
+ * are coerced to trimmed strings with a hard length cap. Never trust the
+ * shape of a client payload (§17.2).
+ */
+export function filterDimensionsPayload(materialSlug: string, raw: unknown): Record<string, string> {
+  const allowed = new Set(fieldsForMaterial(materialSlug))
+  const out: Record<string, string> = {}
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (!allowed.has(k)) continue
+      const val = typeof v === 'string' ? v.trim() : typeof v === 'number' && isFinite(v) ? String(v) : ''
+      if (val) out[k] = val.slice(0, 300)
+    }
+  }
+  return out
+}
+
 // ── Finish configuration (§5) ────────────────────────────────
 
 export interface FinishGroupDef {

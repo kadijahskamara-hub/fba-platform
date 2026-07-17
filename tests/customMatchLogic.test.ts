@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   canTransition, nextStatuses, isUnresolvedForProcurement,
-  CUSTOM_MATCH_STATUSES, fieldsForMaterial,
+  CUSTOM_MATCH_STATUSES, fieldsForMaterial, filterDimensionsPayload,
   applySelection, clearSelection, configurationCompleteness,
   optionBlockedBy, validateConfiguration, configurationAdjustments,
   validateAttachment,
@@ -183,4 +183,26 @@ test('attachment validation: allowlist, size, extension/MIME agreement', () => {
   assert.equal(validateAttachment({ filename: 'empty.png', mimeType: 'image/png', size: 0 }).ok, false)
   // extension/MIME mismatch (renamed executable)
   assert.equal(validateAttachment({ filename: 'photo.png', mimeType: 'application/pdf', size: 10 }).ok, false)
+})
+
+// ── Dimensions payload filtering (Sprint 13) ─────────────────
+
+test('filterDimensionsPayload keeps only material-relevant fields and coerces values', () => {
+  const out = filterDimensionsPayload('fabric-upholstery', {
+    roll_width: ' 140cm ',
+    hide_size: '5 sqm',            // leather-only — dropped for fabric
+    coverage_quantity: 12,          // number → string
+    wastage_allowance: '',          // empty → dropped
+    __proto__x: 'nope',
+    evil: '<script>',
+  })
+  assert.deepEqual(out, { roll_width: '140cm', coverage_quantity: '12' })
+})
+
+test('filterDimensionsPayload survives junk payloads', () => {
+  assert.deepEqual(filterDimensionsPayload('timber', null), {})
+  assert.deepEqual(filterDimensionsPayload('timber', [1, 2, 3]), {})
+  assert.deepEqual(filterDimensionsPayload('timber', 'string'), {})
+  const long = filterDimensionsPayload('timber', { timber_thickness: 'x'.repeat(500) })
+  assert.equal(long.timber_thickness.length, 300)
 })

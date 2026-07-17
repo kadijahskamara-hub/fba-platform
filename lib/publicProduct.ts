@@ -11,6 +11,7 @@ import { isStaffRole } from './auth'
 // when active+public+verified+unexpired; internal spec rows excluded.
 
 export interface PublicConfigurationPayload {
+  materialTypes: Array<{ id: string; name: string; slug: string }>
   groups: Array<Record<string, unknown>>
   rules: Array<{ sourceFinishOptionId: string; targetFinishOptionId: string; isAllowed: boolean; explanation: string | null; isActive: boolean }>
   media: Array<{ id: string; url: string; finishOptionId: string | null; role: string; altText: string | null; isPrimary: boolean }>
@@ -30,7 +31,9 @@ export async function getPublicProductConfiguration(
   const isTradeOrStaff = !!session && (session.role === 'trade_user' || isStaffRole(session))
   const nowIso = new Date().toISOString()
 
-  const [groupsRes, rulesRes, mediaRes, passportRes, specRes] = await Promise.all([
+  const [typesRes, groupsRes, rulesRes, mediaRes, passportRes, specRes] = await Promise.all([
+    supabaseAdmin.from('material_types')
+      .select('id, name, slug').eq('is_active', true).order('sort_order'),
     supabaseAdmin.from('product_finish_groups')
       .select(`id, label, key, required, help_text, sort_order,
         material_type:material_types(id, name, slug),
@@ -87,6 +90,7 @@ export async function getPublicProductConfiguration(
   }))
 
   return {
+    materialTypes: (typesRes.data ?? []).map(t => ({ id: t.id as string, name: t.name as string, slug: t.slug as string })),
     groups,
     rules: (rulesRes.data ?? []).map(r => ({
       sourceFinishOptionId: r.source_finish_option_id as string,

@@ -9,6 +9,7 @@ import { ProductDetailClient } from './ProductDetailClient'
 import { AddToBagButton } from '@/components/AddToBagButton'
 import ProductConfigurator, { type FinishOption, type SizeOption } from './ProductConfigurator'
 import CuratedFinishes, { type PublicGroup, type PublicMedia } from './CuratedFinishes'
+import CustomMatchLauncher from './CustomMatchLauncher'
 import { getPublicProductConfiguration } from '@/lib/publicProduct'
 
 interface Props {
@@ -90,6 +91,14 @@ export default async function ProductDetailPage(props: Props) {
   // spec rows from the Custom Match data model.
   const configuration = await getPublicProductConfiguration(product.id, session)
   const hasCuratedFinishes = configuration.groups.length > 0 && product.hide_finish_options !== true
+
+  const customMatchSummary = {
+    id: product.id as string,
+    name: product.name as string,
+    sku: (product.reference_code as string | null) ?? null,
+    makerName: product.public_brand_visible === true && product.artisan ? (product.artisan.name as string) : null,
+    imageUrl: configuration.media.find(m => m.isPrimary)?.url ?? (product.images as string[] | null)?.[0] ?? null,
+  }
 
   const price = resolvePrice(product, session)
   const specs = product.specifications
@@ -232,16 +241,26 @@ export default async function ProductDetailPage(props: Props) {
                 media={configuration.media as PublicMedia[]}
                 isLoggedIn={Boolean(session)}
                 currencySymbol={'£'}
+                productSummary={customMatchSummary}
+                materialTypes={configuration.materialTypes}
+                defaultEmail={session?.email ?? null}
               />
             ) : (
-              <ProductConfigurator
-                productId={product.id}
-                slug={product.slug}
-                hardFinishes={hardFinishes}
-                upholstery={upholstery}
-                sizes={sizes}
-                isLoggedIn={Boolean(session)}
-              />
+              <>
+                <ProductConfigurator
+                  productId={product.id}
+                  slug={product.slug}
+                  hardFinishes={hardFinishes}
+                  upholstery={upholstery}
+                  sizes={sizes}
+                  isLoggedIn={Boolean(session)}
+                />
+                <CustomMatchLauncher
+                  product={customMatchSummary}
+                  materialTypes={configuration.materialTypes}
+                  defaultEmail={session?.email ?? null}
+                />
+              </>
             )}
 
             {/* Technical Passport™ — verified, public, unexpired claims only */}

@@ -14,6 +14,7 @@ import {
   optionBlockedBy, configurationAdjustments,
   type ProductConfiguration, type FinishGroupDef, type CompatibilityRule,
 } from '@/lib/customMatch/logic'
+import CustomMatchModal, { type CustomMatchProductSummary } from './CustomMatchModal'
 
 export interface PublicOption {
   id: string
@@ -41,13 +42,16 @@ export interface PublicMedia {
 // gallery (separate client component in the left column) listens.
 export const FINISH_MEDIA_EVENT = 'fba:finish-selected'
 
-export default function CuratedFinishes({ productId, groups, rules, media, isLoggedIn, currencySymbol }: {
+export default function CuratedFinishes({ productId, groups, rules, media, isLoggedIn, currencySymbol, productSummary, materialTypes, defaultEmail }: {
   productId: string
   groups: PublicGroup[]
   rules: CompatibilityRule[]
   media: PublicMedia[]
   isLoggedIn: boolean
   currencySymbol: string
+  productSummary: CustomMatchProductSummary
+  materialTypes: Array<{ id: string; name: string; slug: string }>
+  defaultEmail?: string | null
 }) {
   const router = useRouter()
   const groupDefs: FinishGroupDef[] = useMemo(
@@ -66,6 +70,7 @@ export default function CuratedFinishes({ productId, groups, rules, media, isLog
   })
   const [qty, setQty] = useState(1)
   const [saveOpen, setSaveOpen] = useState(false)
+  const [customMatchOpen, setCustomMatchOpen] = useState(false)
 
   const completeness = configurationCompleteness(groupDefs, config)
   const adjustments = configurationAdjustments(config)
@@ -209,7 +214,27 @@ export default function CuratedFinishes({ productId, groups, rules, media, isLog
             Sign in to Save to Project
           </a>
         )}
+        {/* CUSTOM MATCH — full-width outlined action (reference §2.4) */}
+        <button className="btn btn-secondary btn-full" onClick={() => setCustomMatchOpen(true)} style={{ minHeight: 48 }}>
+          <span style={{ display: 'block' }}>Custom Match</span>
+          <span style={{ display: 'block', fontSize: 10.5, letterSpacing: '0.06em', textTransform: 'none', opacity: 0.75 }}>
+            Bring your own marble, timber or fabric — we&apos;ll match it
+          </span>
+        </button>
       </div>
+
+      {customMatchOpen && (
+        <CustomMatchModal
+          product={productSummary}
+          materialTypes={materialTypes}
+          selections={Object.values(config.selections).map(s => ({
+            finishOptionId: s.finishOptionId, groupLabel: s.groupLabel, finishLabel: s.finishLabel,
+          }))}
+          quantity={qty}
+          defaultEmail={defaultEmail}
+          onClose={() => setCustomMatchOpen(false)}
+        />
+      )}
 
       {saveOpen && (
         <SaveToProjectModal
