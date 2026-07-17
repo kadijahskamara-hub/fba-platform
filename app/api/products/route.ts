@@ -62,7 +62,25 @@ export async function GET(req: NextRequest) {
   if (material)              query = query.ilike('material', `%${material}%`)              as typeof query
   if (minPrice)              query = query.gte('retail_price', parseFloat(minPrice))        as typeof query
   if (maxPrice)              query = query.lte('retail_price', parseFloat(maxPrice))        as typeof query
-  if (finishType)            query = query.eq('finish_type', finishType)                   as typeof query
+  if (finishType) {
+    // Match the legacy free-text finish_type OR products whose curated
+    // finish groups use a material type with this name (Sprint 12).
+    const { data: mt } = await supabaseAdmin
+      .from('material_types').select('id').eq('name', finishType).maybeSingle()
+    let groupProductIds: string[] = []
+    if (mt) {
+      const { data: pg } = await supabaseAdmin
+        .from('product_finish_groups').select('product_id')
+        .eq('material_type_id', mt.id).eq('is_active', true)
+      groupProductIds = Array.from(new Set((pg ?? []).map(g => g.product_id as string)))
+    }
+    if (groupProductIds.length > 0) {
+      const quoted = `"${finishType.replace(/"/g, '')}"`
+      query = query.or(`finish_type.eq.${quoted},id.in.(${groupProductIds.join(',')})`) as typeof query
+    } else {
+      query = query.eq('finish_type', finishType) as typeof query
+    }
+  }
   if (region)                query = query.eq('origin_region', region)                     as typeof query
   if (fireRetardant === 'true') query = query.eq('fire_retardant', true)                   as typeof query
   if (stainProofed  === 'true') query = query.eq('stain_proofed', true)                    as typeof query

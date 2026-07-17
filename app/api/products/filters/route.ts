@@ -49,11 +49,24 @@ export async function GET(req: NextRequest) {
   }
   const materials = Array.from(materialSet).sort()
 
-  // Distinct finish types
+  // Distinct finish types: legacy products.finish_type values PLUS the
+  // material types of curated finish groups on published products
+  // (Sprint 12 — backend-driven FINISH TYPE filter, md doc §2.2).
   const finishSet = new Set<string>()
   for (const p of products) {
     const f = (p as Record<string, unknown>).finish_type as string | null
     if (f && f.trim()) finishSet.add(f.trim())
+  }
+  const { data: groupTypes } = await supabaseAdmin
+    .from('product_finish_groups')
+    .select('material_type:material_types(name, is_active), product:products(visibility, archived_at, deleted_at)')
+    .eq('is_active', true)
+  for (const g of groupTypes ?? []) {
+    const mt = g.material_type as unknown as { name?: string; is_active?: boolean } | null
+    const pr = g.product as unknown as { visibility?: string; archived_at?: string | null; deleted_at?: string | null } | null
+    if (mt?.name && mt.is_active !== false && pr?.visibility === 'published' && !pr.archived_at && !pr.deleted_at) {
+      finishSet.add(mt.name)
+    }
   }
   const finishTypes = Array.from(finishSet).sort()
 

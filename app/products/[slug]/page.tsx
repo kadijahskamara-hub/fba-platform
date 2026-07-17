@@ -8,6 +8,8 @@ import { resolvePrice } from '@/lib/pricing'
 import { ProductDetailClient } from './ProductDetailClient'
 import { AddToBagButton } from '@/components/AddToBagButton'
 import ProductConfigurator, { type FinishOption, type SizeOption } from './ProductConfigurator'
+import CuratedFinishes, { type PublicGroup, type PublicMedia } from './CuratedFinishes'
+import { getPublicProductConfiguration } from '@/lib/publicProduct'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -84,6 +86,11 @@ export default async function ProductDetailPage(props: Props) {
       .limit(4),
   ])
 
+  // Sprint 12: curated finish groups, structured media, passport and
+  // spec rows from the Custom Match data model.
+  const configuration = await getPublicProductConfiguration(product.id, session)
+  const hasCuratedFinishes = configuration.groups.length > 0 && product.hide_finish_options !== true
+
   const price = resolvePrice(product, session)
   const specs = product.specifications
   // Electrical specs (bulb, wattage, voltage, dimmable) only apply to
@@ -141,8 +148,8 @@ export default async function ProductDetailPage(props: Props) {
       <div className="container" style={{ paddingBottom: 80 }}>
         <div className="fba-grid-2" style={{ gap: 80 }}>
 
-          {/* Left: Image gallery */}
-          <ProductDetailClient product={product} />
+          {/* Left: Image gallery (structured media w/ finish switching) */}
+          <ProductDetailClient product={product} media={configuration.media as PublicMedia[]} />
 
           {/* Right: Product info */}
           <div style={{ paddingTop: 8 }}>
@@ -216,15 +223,41 @@ export default async function ProductDetailPage(props: Props) {
               </div>
             )}
 
-            {/* Configurator: finishes / upholstery / sizes / quantity + CTAs */}
-            <ProductConfigurator
-              productId={product.id}
-              slug={product.slug}
-              hardFinishes={hardFinishes}
-              upholstery={upholstery}
-              sizes={sizes}
-              isLoggedIn={Boolean(session)}
-            />
+            {/* Curated finishes (Sprint 12) with legacy fallback */}
+            {hasCuratedFinishes ? (
+              <CuratedFinishes
+                productId={product.id}
+                groups={configuration.groups as unknown as PublicGroup[]}
+                rules={configuration.rules}
+                media={configuration.media as PublicMedia[]}
+                isLoggedIn={Boolean(session)}
+                currencySymbol={'£'}
+              />
+            ) : (
+              <ProductConfigurator
+                productId={product.id}
+                slug={product.slug}
+                hardFinishes={hardFinishes}
+                upholstery={upholstery}
+                sizes={sizes}
+                isLoggedIn={Boolean(session)}
+              />
+            )}
+
+            {/* Technical Passport™ — verified, public, unexpired claims only */}
+            {configuration.passport.length > 0 && (
+              <div style={{
+                background: 'var(--sage-light, #E8EDE6)', padding: '16px 20px',
+                marginBottom: 24, display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px 20px',
+              }}>
+                {configuration.passport.map(pa => (
+                  <div key={pa.label} style={{ fontSize: 12.5, color: 'var(--forest)' }}>
+                    <span aria-hidden>✓ </span>{pa.label}{pa.value ? ` — ${pa.value}` : ''}
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Retail purchase (fixed-price retail pieces only) */}
             {price.type === 'fixed' && product.audience !== 'trade' && (
@@ -294,6 +327,9 @@ export default async function ProductDetailPage(props: Props) {
                   {isLighting && !!specs.voltage   && <SpecRow label="Voltage"   value={specs.voltage} />}
                   {specs.ip_rating   && <SpecRow label="IP rating"   value={specs.ip_rating} />}
                   {isLighting && typeof specs.dimmable === 'boolean' && <SpecRow label="Dimmable" value={specs.dimmable ? 'Yes' : 'No'} />}
+                  {configuration.specRows.map(r => (
+                    <SpecRow key={r.id} label={r.label} value={`${r.value}${r.unit ? ` ${r.unit}` : ''}`} />
+                  ))}
                 </tbody>
               </table>
               {specs.technical_notes && (
