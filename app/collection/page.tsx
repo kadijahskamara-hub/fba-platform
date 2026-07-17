@@ -50,7 +50,17 @@ async function getInitialPieces(role: string | null | undefined) {
     .eq('is_fba_collection', true)
   q = applyAudienceFilter(q, role)
   const { data } = await q.order('created_at', { ascending: false }).limit(60)
-  return data ?? []
+  // Sprint 15 security pass (md doc §17): these rows serialise into a
+  // client component's props — strip internal commercial figures for
+  // non-staff viewers before they leave the server.
+  const isStaff = role === 'admin' || role === 'staff'
+  return (data ?? []).map(prd => {
+    if (isStaff) return prd
+    const cleaned = { ...(prd as Record<string, unknown>) }
+    delete cleaned.supplier_cost
+    if (role !== 'trade_user') delete cleaned.trade_price
+    return cleaned
+  })
 }
 
 // ─── Page ────────────────────────────────────────────────────────────────────

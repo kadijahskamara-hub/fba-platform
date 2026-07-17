@@ -34,6 +34,16 @@ export async function GET(
     return NextResponse.json({ success: false, error: 'Product not found' }, { status: 404 })
   }
 
+  // Sprint 15 security pass (md doc §17): internal commercial figures
+  // never leave the server for non-staff callers. supplier_cost is
+  // internal-only; trade_price is restricted to trade accounts.
+  if (session?.role !== 'admin' && session?.role !== 'staff') {
+    const cleaned = { ...(data as Record<string, unknown>) }
+    delete cleaned.supplier_cost
+    if (session?.role !== 'trade_user') delete cleaned.trade_price
+    return NextResponse.json({ success: true, data: cleaned })
+  }
+
   return NextResponse.json({ success: true, data })
 }
 

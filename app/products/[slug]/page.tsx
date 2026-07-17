@@ -158,7 +158,7 @@ export default async function ProductDetailPage(props: Props) {
         <div className="fba-grid-2" style={{ gap: 80 }}>
 
           {/* Left: Image gallery (structured media w/ finish switching) */}
-          <ProductDetailClient product={product} media={configuration.media as PublicMedia[]} />
+          <ProductDetailClient product={{ images: product.images ?? [], name: product.name }} media={configuration.media as PublicMedia[]} />
 
           {/* Right: Product info */}
           <div style={{ paddingTop: 8 }}>
@@ -278,10 +278,21 @@ export default async function ProductDetailPage(props: Props) {
               </div>
             )}
 
-            {/* Retail purchase (fixed-price retail pieces only) */}
+            {/* Retail purchase (fixed-price retail pieces only).
+                Client components receive a SLIM product object — the full
+                row contains internal figures (supplier_cost, trade_price)
+                that must never serialise into client props (md doc §17). */}
             {price.type === 'fixed' && product.audience !== 'trade' && (
               <div style={{ marginBottom: 24 }}>
-                <AddToBagButton product={product} price={price} />
+                <AddToBagButton
+                  product={{
+                    id: product.id, slug: product.slug, name: product.name,
+                    images: product.images ?? [], audience: product.audience,
+                    artisan: product.artisan ? { name: product.artisan.name } : null,
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  } as any}
+                  price={price}
+                />
               </div>
             )}
 

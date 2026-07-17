@@ -117,7 +117,17 @@ export async function GET(req: NextRequest) {
 
   // Audience/visibility filtering is now applied in SQL (above), so `data`
   // and `count` are consistent — no post-fetch filtering needed.
-  const products = data ?? []
+  // Sprint 15 security pass (md doc §17): internal commercial figures are
+  // stripped for non-staff callers — supplier_cost never leaves the
+  // server publicly; trade_price only for trade accounts.
+  const isStaffRole = session?.role === 'admin' || session?.role === 'staff'
+  const products = (data ?? []).map(pr => {
+    if (isStaffRole) return pr
+    const cleaned = { ...(pr as Record<string, unknown>) }
+    delete cleaned.supplier_cost
+    if (session?.role !== 'trade_user') delete cleaned.trade_price
+    return cleaned
+  })
 
   return NextResponse.json({
     success: true,
