@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
   // If a projectId is given, collect its items (carrying quantity through)
   let resolvedProductIds: string[] = productIds
-  let projectLineItems: Array<{ productId: string; quantity: number }> = []
+  let projectLineItems: Array<{ projectItemId: string; productId: string; quantity: number; selectionSummary: string | null }> = []
 
   if (projectId && !productIds.length && !richItems.length) {
     // Verify ownership FIRST before fetching any project data
@@ -64,12 +64,16 @@ export async function POST(req: NextRequest) {
 
     const { data: items } = await supabaseAdmin
       .from('project_items')
-      .select('product_id, quantity')
+      .select('id, product_id, quantity, selections:project_item_finish_selections(group_label, finish_label)')
       .eq('project_id', projectId)
 
     projectLineItems = (items ?? []).map(i => ({
+      projectItemId: i.id as string,
       productId: i.product_id as string,
       quantity:  Math.min(999, Math.max(1, Number(i.quantity) || 1)),
+      // Sprint 14: the saved configuration travels with the request
+      selectionSummary: ((i.selections ?? []) as Array<{ group_label: string; finish_label: string }>)
+        .map(sel => `${sel.group_label}: ${sel.finish_label}`).join('; ').slice(0, 190) || null,
     }))
     resolvedProductIds = projectLineItems.map(i => i.productId)
   }
@@ -132,6 +136,8 @@ export async function POST(req: NextRequest) {
         product_id:       i.productId,
         product_name:     nameFor(i.productId),
         quantity:         i.quantity,
+        project_item_id:  i.projectItemId,
+        selected_finish:  i.selectionSummary,
       }))
     )
     itemsError = error?.message ?? null

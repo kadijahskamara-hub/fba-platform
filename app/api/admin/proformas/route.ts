@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
   if (header.quote_request_id) {
     const { data: qItems } = await supabaseAdmin
       .from('quote_request_items')
-      .select('product_id, product_name, quantity, selected_finish, selected_fabric, selected_size, notes, product:products(name, trade_price, supplier_cost, artisan_id, sku)')
+      .select('product_id, product_name, quantity, selected_finish, selected_fabric, selected_size, notes, project_item_id, product:products(name, trade_price, supplier_cost, artisan_id, sku)')
       .eq('quote_request_id', header.quote_request_id)
 
     if (qItems && qItems.length > 0) {
@@ -115,7 +115,31 @@ export async function POST(req: NextRequest) {
           sort_order: i,
         }
       })
-      await supabaseAdmin.from('proforma_line_items').insert(rows)
+      const { data: insertedLines } = await supabaseAdmin
+        .from('proforma_line_items').insert(rows).select('id, sort_order')
+
+      // Sprint 14: copy each project item's STRUCTURED finish selections
+      // onto its quote line (label/code/adjustment snapshots — md §14.12).
+      if (insertedLines && insertedLines.length > 0) {
+        const bySort = new Map(insertedLines.map(l => [l.sort_order as number, l.id as string]))
+        const selRows: Array<Record<string, unknown>> = []
+        for (let i = 0; i < qItems.length; i++) {
+          const projectItemId = qItems[i].project_item_id as string | null
+          const lineId = bySort.get(i)
+          if (!projectItemId || !lineId) continue
+          const { data: sels } = await supabaseAdmin
+            .from('project_item_finish_selections')
+            .select('finish_group_id, finish_option_id, finish_id, group_key, group_label, finish_label, finish_code, price_adjustment, lead_time_adjustment_weeks')
+            .eq('project_item_id', projectItemId)
+          for (const sel of sels ?? []) {
+            selRows.push({ ...sel, proforma_line_item_id: lineId })
+          }
+        }
+        if (selRows.length > 0) {
+          const { error: selErr } = await supabaseAdmin.from('quote_item_finish_selections').insert(selRows)
+          if (selErr) console.error('quote_item_finish_selections insert failed:', selErr.message)
+        }
+      }
     }
   }
 

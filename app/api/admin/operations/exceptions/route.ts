@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isUnresolvedForProcurement, CUSTOM_MATCH_STATUS_LABELS, type CustomMatchStatus } from '@/lib/customMatch/logic'
 import { supabaseAdmin } from '@/lib/supabase'
 import { requireAnyCommercial } from '@/lib/commercial/permissions'
 import { getOperationsSettings, todayIso } from '@/lib/commercial/operations'
@@ -66,6 +67,34 @@ export async function GET(req: NextRequest) {
     })
   }
 
+  // Sprint 14 (md doc §12.5): unresolved Custom Match requests attached
+  // to commercial work are filterable procurement exceptions.
+  const { data: cmRows } = await supabaseAdmin
+    .from('custom_match_requests')
+    .select(`id, reference_number, status, quantity, created_at,
+      product:products(name), material_type:material_types(name),
+      proforma:proformas(id, quote_number, proforma_number),
+      commercial_order:commercial_orders(id, order_number)`)
+    .not('status', 'in', '(approved,rejected,converted_to_quote,converted_to_order,closed)')
+    .order('created_at')
+  const customMatch = ((cmRows ?? []) as Array<Record<string, unknown>>)
+    .filter(r => isUnresolvedForProcurement(r.status as CustomMatchStatus))
+    .map(r => ({
+      id: r.id,
+      reference: r.reference_number,
+      status: r.status,
+      statusLabel: CUSTOM_MATCH_STATUS_LABELS[r.status as CustomMatchStatus] ?? r.status,
+      product: (r.product as { name?: string } | null)?.name ?? null,
+      materialType: (r.material_type as { name?: string } | null)?.name ?? null,
+      quantity: Number(r.quantity ?? 1),
+      proformaId: (r.proforma as { id?: string } | null)?.id ?? null,
+      quoteNumber: (r.proforma as { quote_number?: string; proforma_number?: string } | null)?.quote_number
+        ?? (r.proforma as { proforma_number?: string } | null)?.proforma_number ?? null,
+      orderId: (r.commercial_order as { id?: string } | null)?.id ?? null,
+      orderNumber: (r.commercial_order as { order_number?: string } | null)?.order_number ?? null,
+      createdAt: r.created_at,
+    }))
+
   return NextResponse.json({
     success: true,
     data: {
@@ -73,6 +102,8 @@ export async function GET(req: NextRequest) {
       open: exceptions.filter(x => x.resolutionStatus === 'open' || x.resolutionStatus === 'reordering').length,
       stale: exceptions.filter(x => x.stale).length,
       staleThresholdDays: settings.backorder_flag_days,
+      customMatch,
+      customMatchOpen: customMatch.length,
     },
   })
 }

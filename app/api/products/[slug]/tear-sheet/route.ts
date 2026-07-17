@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabase, supabaseAdmin } from '@/lib/supabase'
 
 // GET /api/products/:slug/tear-sheet
 // One- or two-page A4 product tear sheet as a real PDF (jsPDF).
@@ -56,6 +56,20 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ slug: stri
     .single()
 
   if (!productRow) return new NextResponse('Product not found', { status: 404 })
+
+  // Sprint 14: curated finish groups + verified passport claims from the
+  // Custom Match data model (backend-generated, never hard-coded).
+  const nowIso = new Date().toISOString()
+  const [{ data: curatedGroups }, { data: passportAttrs }] = await Promise.all([
+    supabaseAdmin.from('product_finish_groups')
+      .select('label, sort_order, options:product_finish_options(is_available, sort_order, finish:finishes(name, code, is_active))')
+      .eq('product_id', (productRow as { id: string }).id).eq('is_active', true).order('sort_order'),
+    supabaseAdmin.from('product_passport_attributes')
+      .select('label, value_text, expires_at, sort_order')
+      .eq('product_id', (productRow as { id: string }).id)
+      .eq('is_active', true).eq('is_public', true).eq('is_verified', true)
+      .order('sort_order'),
+  ])
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const product: any = productRow
 
@@ -157,9 +171,26 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ slug: stri
     y = renderTwoCol(doc, full, y)
   }
 
-  // Materials & finishes
+  // Curated finishes (Sprint 14 — finish groups from the finish library)
+  type CuratedGroup = { label: string; options?: Array<{ is_available: boolean; finish?: { name?: string; code?: string | null; is_active?: boolean } | null }> }
+  const curated = ((curatedGroups ?? []) as CuratedGroup[])
+    .map(g => ({
+      label: g.label,
+      names: (g.options ?? [])
+        .filter(o => o.is_available && o.finish?.is_active !== false && o.finish?.name)
+        .map(o => o.finish!.code ? `${o.finish!.name} (${o.finish!.code})` : o.finish!.name as string),
+    }))
+    .filter(g => g.names.length > 0)
+  if (curated.length && product.hide_finish_options !== true) {
+    y = sectionHead(doc, 'Curated Finishes', y)
+    for (const g of curated) {
+      y = renderWrapText(doc, `${g.label}: ${g.names.join(' · ')}`, y)
+    }
+  }
+
+  // Materials & finishes (legacy per-product swatch rows)
   const finishes = (product.finishes ?? []) as Array<{ finish_name: string; material?: string; colour?: string }>
-  if (finishes.length && product.hide_finish_options !== true) {
+  if (finishes.length && product.hide_finish_options !== true && curated.length === 0) {
     y = sectionHead(doc, 'Materials & Finishes', y)
     const names = finishes.map(f => [f.finish_name, f.material, f.colour].filter(Boolean).join(' · ')).filter(Boolean)
     y = renderWrapText(doc, names.join('   ·   '), y)
@@ -179,10 +210,14 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ slug: stri
     y = renderWrapText(doc, techDesc, y)
   }
 
-  // Technical Passport
-  if (specs.technical_notes) {
+  // Technical Passport — verified public claims first, legacy notes after
+  const passportClaims = ((passportAttrs ?? []) as Array<{ label: string; value_text: string | null; expires_at: string | null }>)
+    .filter(a => !a.expires_at || a.expires_at > nowIso)
+    .map(a => a.value_text ? `${a.label} — ${a.value_text}` : a.label)
+  if (passportClaims.length || specs.technical_notes) {
     y = sectionHead(doc, 'Technical Passport™', y)
-    y = renderWrapText(doc, String(specs.technical_notes), y)
+    if (passportClaims.length) y = renderWrapText(doc, passportClaims.map(c => `✓ ${c}`).join('   ·   '), y)
+    if (specs.technical_notes) y = renderWrapText(doc, String(specs.technical_notes), y)
   }
 
   // Customisation & delivery

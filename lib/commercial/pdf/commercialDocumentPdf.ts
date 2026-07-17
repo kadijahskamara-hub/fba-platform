@@ -52,13 +52,28 @@ export function buildCommercialDocumentModel(snapshot: Snap): DocModel {
   }
 
   const lines = (snapshot.lines ?? []) as Snap[]
-  const rows = lines.map(l => [
-    [l.name, l.description, l.section].filter(Boolean).join(' — ').slice(0, 200),
-    String(Number(l.quantity ?? 0)),
-    money(l.selling_price_unit != null ? Number(l.selling_price_unit) : null, currency),
-    l.tax_category ? String(l.tax_category) : '—',
-    money(l.line_gross_total != null ? Number(l.line_gross_total) : null, currency),
-  ])
+  // Sprint 14: every configured selection and Custom Match specification
+  // appears on the client document (client-facing fields only — the
+  // snapshot's `internal` block is never rendered here).
+  const rows = lines.map(l => {
+    const selectionBits = [
+      l.selected_finish && `Finishes: ${l.selected_finish}`,
+      l.selected_fabric && `Fabric: ${l.selected_fabric}`,
+      l.selected_size && `Size: ${l.selected_size}`,
+    ].filter(Boolean).join(' · ')
+    const cell = [
+      [l.name, l.description, l.section].filter(Boolean).join(' — ').slice(0, 200),
+      selectionBits,
+      l.spec_details ? String(l.spec_details).slice(0, 700) : null,
+    ].filter(Boolean).join('\n')
+    return [
+      cell,
+      String(Number(l.quantity ?? 0)),
+      money(l.selling_price_unit != null ? Number(l.selling_price_unit) : null, currency),
+      l.tax_category ? String(l.tax_category) : '—',
+      money(l.line_gross_total != null ? Number(l.line_gross_total) : null, currency),
+    ]
+  })
 
   const totalRows: DocModel['totals'] = []
   const push = (label: string, key: string, emph = false) => {

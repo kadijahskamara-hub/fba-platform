@@ -38,18 +38,27 @@ interface Workload {
   totalOpenItems: number
   queues: { ownerId: string | null; ownerName: string; items: QueueItem[] }[]
 }
+interface CmException {
+  id: string; reference: string; statusLabel: string; product: string | null
+  materialType: string | null; quantity: number
+  proformaId: string | null; quoteNumber: string | null
+  orderId: string | null; orderNumber: string | null
+}
 
 const VISIBLE_LANES = ['accepted', 'procurement', 'production', 'dispatch', 'delivered', 'installed', 'closed']
 
 export function OperationsHub() {
   const [overview, setOverview] = useState<Overview | null>(null)
   const [workload, setWorkload] = useState<Workload | null>(null)
+  const [cmExceptions, setCmExceptions] = useState<CmException[]>([])
   const [error, setError] = useState('')
 
   useEffect(() => {
     fetch('/api/admin/operations/overview').then(r => r.json())
       .then(res => res.success ? setOverview(res.data) : setError(res.error ?? 'Failed to load'))
       .catch(() => setError('Network error'))
+    fetch('/api/admin/operations/exceptions').then(r => r.json())
+      .then(j => { if (j.success) setCmExceptions(j.data.customMatch ?? []) }).catch(() => {})
     fetch('/api/admin/operations/workload').then(r => r.json())
       .then(res => { if (res.success) setWorkload(res.data) })
       .catch(() => {})
@@ -151,6 +160,32 @@ export function OperationsHub() {
           ))}
         </div>
       </div>
+
+      {/* Sprint 14 — unresolved Custom Match requests (md doc §12.5) */}
+      {cmExceptions.length > 0 && (
+        <div style={box}>
+          <div className="label" style={{ marginBottom: 12 }}>
+            Custom Match — unresolved ({cmExceptions.length})
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {cmExceptions.map(cm => (
+              <div key={cm.id} style={{ fontSize: 12.5, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <Link href={`/admin/custom-match/${cm.id}`} style={{ color: 'var(--forest)', fontWeight: 600 }}>{cm.reference}</Link>
+                <span className="status-pill">{cm.statusLabel}</span>
+                <span style={{ color: 'var(--stone)' }}>
+                  {[cm.product, cm.materialType, `qty ${cm.quantity}`].filter(Boolean).join(' · ')}
+                </span>
+                {cm.proformaId && (
+                  <Link href={`/admin/quotes/${cm.proformaId}`} style={{ color: 'var(--forest)' }}>{cm.quoteNumber ?? 'quote'}</Link>
+                )}
+                {cm.orderId && (
+                  <Link href={`/admin/commercial-orders/${cm.orderId}/procurement`} style={{ color: 'var(--forest)' }}>{cm.orderNumber ?? 'order'}</Link>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Workload & exceptions */}
       <div style={box}>

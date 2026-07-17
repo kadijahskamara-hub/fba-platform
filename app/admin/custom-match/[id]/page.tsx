@@ -232,9 +232,32 @@ export default function CustomMatchDetailPage() {
                 {['not_requested','requested','approved','rejected'].map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
               </select>
             </Field>
+            {d.allowedNextStatuses.includes('converted_to_quote') && (
+              <button className="btn btn-primary btn-full" disabled={busy} style={{ marginTop: 10 }}
+                onClick={async () => {
+                  setErr(''); setBusy(true)
+                  const res = await fetch(`/api/admin/custom-match/${id}/convert-to-quote`, { method: 'POST' })
+                    .then(r => r.json()).catch(() => ({ success: false, error: 'Request failed.' }))
+                  setBusy(false)
+                  if (!res.success) setErr(res.error ?? 'Conversion failed')
+                  else {
+                    setMsg(res.data.createdQuote ? 'Converted — a new quote was created.' : 'Converted — the line was added to the linked quote.')
+                    load()
+                  }
+                }}>
+                Convert to quote line
+              </button>
+            )}
+            {typeof d.proforma_id === 'string' && d.proforma_id && (
+              <p style={{ fontSize: 12.5, marginTop: 10 }}>
+                <Link href={`/admin/quotes/${d.proforma_id}`} style={{ color: 'var(--forest)', fontWeight: 500 }}>
+                  Open linked quote →
+                </Link>
+              </p>
+            )}
             <p style={{ fontSize: 12, color: 'var(--stone)', marginTop: 8 }}>
-              Convert-to-quote arrives with the commercial integration sprint: an approved request
-              will attach to a quote line and flow through to order sheets.
+              Converting adds a fully-specified line to the quote — the Custom Match specification
+              flows into client documents, supplier POs and order-sheet snapshots automatically.
             </p>
           </div>
         </div>
