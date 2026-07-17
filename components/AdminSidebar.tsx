@@ -45,6 +45,7 @@ const NAV_GROUPS: NavGroup[] = [
     section: 'Catalogue',
     items: [
       { href: '/admin/products',     label: 'Products',           icon: TagIcon,        permission: 'products' },
+      { href: '/admin/finishes',     label: 'Finish Library',     icon: TagIcon,        permission: 'products' },
       { href: '/admin/artisans',     label: 'Artisans',           icon: StarIcon,       permission: 'artisans' },
       { href: '/admin/collection',   label: 'FBA Collection',     icon: CollectionIcon, permission: 'products' },
       { href: '/admin/home',         label: 'FBA Home',           icon: HomeIcon,       permission: 'products' },
@@ -57,6 +58,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/admin/operations',        label: 'Operations',       icon: GridIcon,      permission: 'delivery_view' },
       { href: '/admin/quotes',            label: 'Quote Pipeline',   icon: DocumentIcon,  permission: 'quote_pipeline' },
+      { href: '/admin/custom-match',      label: 'Custom Match',     icon: TagIcon,       permission: 'quote_pipeline' },
       { href: '/admin/retail-orders',     label: 'Retail Orders',    icon: BagIcon,       permission: 'retail_orders' },
       { href: '/admin/commercial-orders', label: 'Commercial Orders', icon: BuildingIcon, permission: 'commercial_orders' },
       { href: '/admin/purchase-orders',   label: 'Purchase Orders',  icon: BuildingIcon,  permission: 'commercial_orders' },

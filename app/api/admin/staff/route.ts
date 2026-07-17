@@ -1,8 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import { requireAdmin } from '@/lib/auth'
+import { requireAdmin, isStaff } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 import type { StaffPermission } from '@/lib/types'
+
+// GET /api/admin/staff — lightweight active staff list (Sprint 11:
+// used for assignment dropdowns, e.g. Custom Match).
+export async function GET() {
+  if (!(await isStaff())) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+  const { data, error } = await supabaseAdmin
+    .from('users')
+    .select('id, first_name, last_name, email, role')
+    .in('role', ['admin', 'staff'])
+    .eq('status', 'active')
+    .order('first_name')
+  if (error) return NextResponse.json({ success: false, error: 'Query failed' }, { status: 500 })
+  return NextResponse.json({ success: true, data: data ?? [] })
+}
 
 // POST /api/admin/staff — create a new staff member
 export async function POST(req: NextRequest) {

@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { supabaseAdmin } from '@/lib/supabase'
 import AdminProductForm from '../AdminProductForm'
@@ -25,6 +26,12 @@ export default async function EditProductPage(ctx: { params: Promise<{ slug: str
 
   return (
     <>
+      {/* Sprint 11: curated finishes / media / passport / specs editor */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+        <Link href={`/admin/products/${product.slug}/configuration`} className="btn btn-secondary btn-sm">
+          Configuration: finishes, media &amp; passport →
+        </Link>
+      </div>
       <AdminProductForm
         mode="edit"
         product={product}
