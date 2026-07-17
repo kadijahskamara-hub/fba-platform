@@ -90,6 +90,8 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       proformaId = pf.id
       created = true
     }
+    // proformaId is definitely set on every path above; give TS the proof.
+    const targetProformaId: string = proformaId!
 
     // ── Compose the structured CM specification (order-sheet ready) ──
     const selections = (cm.selected_finishes_snapshot ?? []) as Array<{ groupLabel?: string; finishLabel?: string; finishCode?: string | null }>
@@ -125,12 +127,12 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     const supplierCostUnit = baseCost != null ? baseCost + costAdj : (costAdj !== 0 ? costAdj : null)
 
     const { data: maxSort } = await supabaseAdmin
-      .from('proforma_line_items').select('sort_order').eq('proforma_id', proformaId)
+      .from('proforma_line_items').select('sort_order').eq('proforma_id', targetProformaId)
       .order('sort_order', { ascending: false }).limit(1)
     const nextSort = ((maxSort?.[0]?.sort_order as number) ?? -1) + 1
 
     const { data: line, error: lineErr } = await supabaseAdmin.from('proforma_line_items').insert({
-      proforma_id: proformaId,
+      proforma_id: targetProformaId,
       line_type: 'product',
       product_id: product.id,
       is_bespoke: false,
@@ -166,11 +168,11 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       )
     }
 
-    await recalculateAndPersist(proformaId)
+    await recalculateAndPersist(targetProformaId)
 
     // Link + transition (map-enforced above)
     await supabaseAdmin.from('custom_match_requests').update({
-      proforma_id: proformaId,
+      proforma_id: targetProformaId,
       proforma_line_item_id: line.id,
       status: 'converted_to_quote',
       updated_at: new Date().toISOString(),
@@ -178,10 +180,10 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
 
     await logAudit({
       actor: cs.user, action: 'custom_match.converted_to_quote', entityType: 'custom_match_request',
-      entityId: cm.id, after: { reference: cm.reference_number, proformaId, lineId: line.id, createdQuote: created },
+      entityId: cm.id, after: { reference: cm.reference_number, proformaId: targetProformaId, lineId: line.id, createdQuote: created },
     })
 
-    return NextResponse.json({ success: true, data: { proformaId, lineId: line.id, createdQuote: created } })
+    return NextResponse.json({ success: true, data: { proformaId: targetProformaId, lineId: line.id, createdQuote: created } })
   } catch (e) {
     if (e instanceof ValidationError) return NextResponse.json({ success: false, error: e.message }, { status: 400 })
     console.error('convert-to-quote failed:', e)
