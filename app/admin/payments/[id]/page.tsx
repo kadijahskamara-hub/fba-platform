@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { supabaseAdmin } from '@/lib/supabase'
+import { noCandidateReason } from '@/lib/commercial/invoiceCalculations'
 import PaymentActions from './PaymentActions'
 import { PaymentRefundControls } from '@/components/PaymentRefundControls'
 import { UltraDeleteRecordButton } from '@/components/UltraDeleteRecordButton'
@@ -28,13 +29,41 @@ export default async function PaymentDetailPage(ctx: { params: Promise<{ id: str
   const refundsUsed = (refundRows ?? []).filter(r => r.status !== 'cancelled').reduce((s, r) => s + Number(r.amount ?? 0), 0)
   const refundable = pay.status === 'confirmed' ? Math.max(0, Number(pay.amount) - refundsUsed) : 0
 
-  // Candidate issued invoices to allocate to (same client, outstanding balance, matching currency).
-  const { data: openInvoices } = await supabaseAdmin.from('sales_invoices')
-    .select('id, invoice_number, balance_due')
-    .eq('client_id', pay.client_id ?? '00000000-0000-0000-0000-000000000000')
-    .eq('currency', cur).not('locked_at', 'is', null).gt('balance_due', 0)
-    .order('due_date', { ascending: true })
-  const invoiceOpts = (openInvoices ?? []).map(i => ({ id: i.id as string, label: (i.invoice_number as string) ?? 'INV', balance: Number(i.balance_due ?? 0) }))
+  // Candidate issued invoices to allocate to: issued, outstanding, matching
+  // currency, belonging to the same party. Sprint 16 — matching on client_id
+  // alone returned nothing, because orders in the quote->proforma->order flow
+  // carry a client_snapshot rather than a client_id, so payments and invoices
+  // both sit with client_id = null. Match on client OR commercial order.
+  const payClientId = (pay.client_id as string | null) ?? null
+  const payOrderId = (pay.commercial_order_id as string | null) ?? null
+  const hasParty = !!(payClientId || payOrderId)
+
+  const orFilter = [
+    payClientId ? `client_id.eq.${payClientId}` : null,
+    payOrderId ? `commercial_order_id.eq.${payOrderId}` : null,
+  ].filter(Boolean).join(',')
+
+  const { data: openInvoices } = hasParty
+    ? await supabaseAdmin.from('sales_invoices')
+        .select('id, invoice_number, gross_total, amount_paid, credit_total, balance_due, due_date')
+        .or(orFilter)
+        .eq('currency', cur).not('locked_at', 'is', null).gt('balance_due', 0)
+        .order('due_date', { ascending: true })
+    : { data: [] as Record<string, unknown>[] }
+
+  const invoiceOpts = (openInvoices ?? []).map(i => ({
+    id: i.id as string,
+    label: (i.invoice_number as string) ?? 'Draft invoice',
+    balance: Number(i.balance_due ?? 0),
+    dueDate: (i.due_date as string | null) ?? null,
+  }))
+
+  const noCandidatesReason = noCandidateReason({
+    paymentStatus: pay.status as string,
+    unallocated,
+    hasParty,
+    candidateCount: invoiceOpts.length,
+  })
 
   return (
     <>
@@ -56,7 +85,14 @@ export default async function PaymentDetailPage(ctx: { params: Promise<{ id: str
       </div>
 
       <div style={{ marginBottom: 22 }}>
-        <PaymentActions paymentId={params.id} status={pay.status as string} unallocated={unallocated} invoices={invoiceOpts} hasReceipt={!!receipt} />
+        <PaymentActions paymentId={params.id} status={pay.status as string} unallocated={unallocated}
+          invoices={invoiceOpts} hasReceipt={!!receipt} currency={cur}
+          allocations={(allocs ?? []).map((a: Record<string, unknown>) => ({
+            id: a.id as string,
+            amount: Number(a.amount ?? 0),
+            invoiceNumber: (((a.invoice ?? {}) as Record<string, unknown>).invoice_number as string) ?? '—',
+          }))}
+          noCandidatesReason={noCandidatesReason} />
       </div>
 
       <div style={{ marginBottom: 22 }}>

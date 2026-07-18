@@ -227,3 +227,106 @@ export function findForbiddenClientInvoiceFields(obj: unknown, path = ''): strin
   }
   return hits
 }
+
+// ── Payment allocation party matching & exceptions ───────────
+//
+// Sprint 16. A payment and an invoice may be linked to a client
+// record, a commercial order, or (in the quote→proforma→order
+// flow) neither — orders carry a client_snapshot rather than a
+// client_id. Matching on client_id alone silently hid every
+// candidate invoice, which is why allocation appeared impossible.
+
+export interface AllocationParty {
+  clientId?: string | null
+  commercialOrderId?: string | null
+}
+
+/**
+ * True when a payment and an invoice belong to the same party.
+ * Matches on client when BOTH sides carry one, otherwise falls
+ * back to the commercial order. Two nulls never match — an
+ * unattached payment must be attached before it can be allocated.
+ */
+export function allocationPartyMatches(payment: AllocationParty, invoice: AllocationParty): boolean {
+  if (payment.clientId && invoice.clientId) return payment.clientId === invoice.clientId
+  if (payment.commercialOrderId && invoice.commercialOrderId) {
+    return payment.commercialOrderId === invoice.commercialOrderId
+  }
+  return false
+}
+
+/** Human-readable reason a payment has no allocation candidates. */
+export function noCandidateReason(params: {
+  paymentStatus: string
+  unallocated: number
+  hasParty: boolean
+  candidateCount: number
+}): string | null {
+  if (params.paymentStatus !== 'confirmed') {
+    return `This payment is ${params.paymentStatus}. Only confirmed payments can be allocated.`
+  }
+  if (params.unallocated <= 0.005) return null
+  if (!params.hasParty) {
+    return 'This payment is not linked to a client or a commercial order, so no invoices can be matched to it. Attach it to an order first.'
+  }
+  if (params.candidateCount === 0) {
+    return 'No issued invoices with an outstanding balance and matching currency were found for this client or order. A draft invoice must be issued before payment can be allocated to it.'
+  }
+  return null
+}
+
+export interface UnallocatedPaymentRow {
+  reference: string
+  status: string
+  amount: number
+  allocatedTotal: number
+}
+
+/**
+ * Confirmed payments carrying money that has not been applied to
+ * any invoice. Mirrors the Operations "Workload & Open Items"
+ * detector so the reconciliation report cannot contradict it.
+ */
+export function unallocatedPaymentExceptions(
+  rows: UnallocatedPaymentRow[],
+): Array<{ reference: string; unallocated: number; kind: 'payment_unallocated' | 'payment_part_allocated' }> {
+  const out: Array<{ reference: string; unallocated: number; kind: 'payment_unallocated' | 'payment_part_allocated' }> = []
+  for (const r of rows) {
+    if (r.status !== 'confirmed') continue
+    const free = fromMinor(toMinor(r.amount) - toMinor(r.allocatedTotal))
+    if (free <= 0.005) continue
+    out.push({
+      reference: r.reference,
+      unallocated: free,
+      kind: r.allocatedTotal > 0.005 ? 'payment_part_allocated' : 'payment_unallocated',
+    })
+  }
+  return out
+}
+
+/**
+ * Derive the figures shown on BOTH sides of an allocation.
+ *
+ * `toThisInvoice` are the amounts allocated against the invoice in
+ * question; `elsewhereOnPayment` are the same payment's allocations
+ * to other invoices. Keeping them separate is what makes a split
+ * payment add up: the invoice only counts its own share, while the
+ * payment counts every share when working out what is left.
+ */
+export function applyAllocations(params: {
+  grossTotal: number
+  creditTotal?: number
+  paymentAmount: number
+  toThisInvoice: number[]
+  elsewhereOnPayment?: number[]
+}): { paid: number; balanceDue: number; allocated: number; unallocated: number } {
+  const thisMinor = params.toThisInvoice.reduce((s, a) => s + toMinor(a), 0)
+  const otherMinor = (params.elsewhereOnPayment ?? []).reduce((s, a) => s + toMinor(a), 0)
+  const paid = fromMinor(thisMinor)
+  return {
+    paid,
+    balanceDue: invoiceBalance(params.grossTotal, paid, params.creditTotal ?? 0),
+    allocated: fromMinor(thisMinor + otherMinor),
+    unallocated: fromMinor(toMinor(params.paymentAmount) - thisMinor - otherMinor),
+  }
+}

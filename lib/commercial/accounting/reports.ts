@@ -5,6 +5,7 @@ import {
   agedDebtorBuckets, vatSummary, vatTotals, TAX_CATEGORIES,
   type AgedInvoice, type TaxLine,
 } from '../accountingLogic'
+import { unallocatedPaymentExceptions } from '../invoiceCalculations'
 
 // ============================================================
 // Accounting audit reports (Sprint 6). Each builder returns a
@@ -136,6 +137,22 @@ export async function reconciliationExceptionsReport(): Promise<ReportTable> {
   const { data: cns } = await supabaseAdmin.from('credit_notes').select('credit_note_number, gross_total, allocated_total, status').in('status', ['issued', 'allocated'])
   for (const c of cns ?? []) {
     if (Number(c.gross_total ?? 0) - Number(c.allocated_total ?? 0) > 0.005) rows.push(['credit_unallocated', 'credit_notes', c.credit_note_number])
+  }
+  // Confirmed payments still carrying unallocated money (Sprint 16).
+  // This report previously ignored them entirely and reported "everything
+  // reconciles" while the Operations "Workload & Open Items" panel listed
+  // the very same payments as exceptions. Both now use one rule.
+  const { data: payRows } = await supabaseAdmin.from('payments')
+    .select('payment_reference, amount, status, payment_allocations(amount)')
+    .eq('status', 'confirmed')
+  for (const e of unallocatedPaymentExceptions(((payRows ?? []) as Record<string, unknown>[]).map(p => ({
+    reference: (p.payment_reference as string) ?? '',
+    status: (p.status as string) ?? '',
+    amount: Number(p.amount ?? 0),
+    allocatedTotal: ((p.payment_allocations as { amount: number }[] | null) ?? [])
+      .reduce((s, a) => s + Number(a.amount ?? 0), 0),
+  })))) {
+    rows.push([e.kind, 'payments', `${e.reference} (${money(e.unallocated)} unallocated)`])
   }
   return {
     title: 'Reconciliation exceptions',

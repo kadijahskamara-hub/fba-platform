@@ -5,6 +5,7 @@ import InvoiceActions from './InvoiceActions'
 import { DocumentsCommsPanel } from '@/components/DocumentsCommsPanel'
 import { InvoiceAccountingControls } from '@/components/InvoiceAccountingControls'
 import { UltraDeleteRecordButton } from '@/components/UltraDeleteRecordButton'
+import { InvoiceApplyPayment, type CandidatePayment } from '@/components/InvoiceApplyPayment'
 
 export const dynamic = 'force-dynamic'
 function sym(cur: string) { return cur === 'EUR' ? '€' : cur === 'USD' ? '$' : '£' }
@@ -18,6 +19,52 @@ export default async function InvoiceDetailPage(ctx: { params: Promise<{ id: str
   const { data: allocs } = await supabaseAdmin.from('payment_allocations').select('amount, payment:payments(payment_reference, status)').eq('sales_invoice_id', params.id)
   const cur = (inv.currency as string) ?? 'GBP'
   const cl = (inv.client_snapshot ?? {}) as Record<string, unknown>
+
+  // Sprint 16 — confirmed payments for this party that still carry
+  // unallocated money, so staff can apply one from the invoice side.
+  // Matched on client OR commercial order: orders in the
+  // quote->proforma->order flow carry a client_snapshot, not a
+  // client_id, so client-only matching finds nothing.
+  const invClientId = (inv.client_id as string | null) ?? null
+  const invOrderId = (inv.commercial_order_id as string | null) ?? null
+  const balanceDue = Number(inv.balance_due ?? 0)
+  const issued = !!inv.locked_at
+
+  let candidatePayments: CandidatePayment[] = []
+  let applyReason: string | null = null
+
+  if (issued && balanceDue > 0.005) {
+    const partyFilter = [
+      invClientId ? `client_id.eq.${invClientId}` : null,
+      invOrderId ? `commercial_order_id.eq.${invOrderId}` : null,
+    ].filter(Boolean).join(',')
+
+    if (!partyFilter) {
+      applyReason = 'This invoice is not linked to a client or a commercial order, so no payments can be matched to it.'
+    } else {
+      const { data: payRows } = await supabaseAdmin.from('payments')
+        .select('id, payment_reference, payment_date, payment_method, amount, payment_allocations(amount)')
+        .or(partyFilter)
+        .eq('status', 'confirmed').eq('currency', cur)
+        .order('payment_date', { ascending: true })
+
+      candidatePayments = ((payRows ?? []) as Record<string, unknown>[]).map(p => {
+        const used = ((p.payment_allocations as { amount: number }[] | null) ?? [])
+          .reduce((s, a) => s + Number(a.amount ?? 0), 0)
+        return {
+          id: p.id as string,
+          reference: (p.payment_reference as string) ?? 'Payment',
+          paymentDate: (p.payment_date as string | null) ?? null,
+          method: (p.payment_method as string | null) ?? null,
+          unallocated: Math.round((Number(p.amount ?? 0) - used) * 100) / 100,
+        }
+      }).filter(p => p.unallocated > 0.005)
+
+      if (candidatePayments.length === 0) {
+        applyReason = 'No confirmed payments with an unallocated balance and matching currency were found for this client or order.'
+      }
+    }
+  }
 
   return (
     <>
@@ -49,6 +96,18 @@ export default async function InvoiceDetailPage(ctx: { params: Promise<{ id: str
             reconciliationStatus={(inv.reconciliation_status as string) ?? 'not_exported'}
             replacedByInvoiceId={(inv.replaced_by_invoice_id as string) ?? null}
             replacesInvoiceId={(inv.replaces_invoice_id as string) ?? null}
+          />
+        </div>
+      )}
+
+      {issued && balanceDue > 0.005 && (
+        <div style={{ marginBottom: 20 }}>
+          <InvoiceApplyPayment
+            invoiceId={params.id}
+            currency={cur}
+            balanceDue={balanceDue}
+            payments={candidatePayments}
+            reason={applyReason}
           />
         </div>
       )}

@@ -171,7 +171,9 @@ function allocationError(code: string | undefined, available: number | undefined
   switch (code) {
     case 'payment_not_confirmed': return 'The payment must be confirmed before it can be allocated.'
     case 'invoice_not_issued': return 'The invoice must be issued before payments can be allocated to it.'
-    case 'currency_mismatch': return 'Payment and invoice currencies do not match.'
+    case 'currency_mismatch': return 'Payment and invoice currencies do not match. Allocate this payment to an invoice in the same currency.'
+    case 'party_mismatch': return 'This payment and invoice belong to different clients or orders, so they cannot be allocated to each other.'
+    case 'invoice_voided': return 'This invoice has been voided and cannot receive payment allocations.'
     case 'exceeds_payment_balance': return `Allocation exceeds the unallocated payment balance${available != null ? ` (${available} available)` : ''}.`
     case 'exceeds_invoice_balance': return `Allocation exceeds the invoice outstanding balance${available != null ? ` (${available} available)` : ''}.`
     default: return code ?? 'Allocation failed.'
