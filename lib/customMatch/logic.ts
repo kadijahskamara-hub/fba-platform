@@ -300,3 +300,30 @@ export function validateAttachment(input: { filename: string; mimeType: string; 
   if (!extMime[ext]?.includes(mime)) return { ok: false, error: 'The file type and extension do not match.' }
   return { ok: true }
 }
+
+// ── Attachment upload error mapping (Sprint 17) ──────────────
+//
+// Supabase storage errors are operator-language ("Bucket not found",
+// "new row violates row-level security policy"). Translate them into
+// something a client submitting a Custom Match request can act on,
+// while the raw message goes to the server log for us.
+
+export function attachmentUploadError(supabaseMessage: string): string {
+  const m = (supabaseMessage || '').toLowerCase()
+  if (m.includes('bucket not found') || m.includes('not found')) {
+    return 'Attachment storage is not configured. Your request was submitted — please email the files to us and quote your reference.'
+  }
+  if (m.includes('row-level security') || m.includes('unauthorized') || m.includes('permission')) {
+    return 'We are not permitted to store that file right now. Your request was submitted — please email the files to us and quote your reference.'
+  }
+  if (m.includes('payload too large') || m.includes('exceeded') || m.includes('too large')) {
+    return 'That file is too large to accept. Files must be 15 MB or smaller.'
+  }
+  if (m.includes('duplicate') || m.includes('already exists')) {
+    return 'That file appears to have been uploaded already.'
+  }
+  if (m.includes('mime') || m.includes('content type')) {
+    return 'That file type is not accepted. Please attach a PDF, JPG, PNG or WEBP.'
+  }
+  return 'The file could not be stored. Your request was submitted — please email the files to us and quote your reference.'
+}

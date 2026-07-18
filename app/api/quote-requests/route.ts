@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { splitFinishSelections } from '@/lib/commercial/finishSelections'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
 
@@ -47,13 +48,21 @@ export async function POST(req: NextRequest) {
 
   // If a projectId is given, collect its items (carrying quantity through)
   let resolvedProductIds: string[] = productIds
-  let projectLineItems: Array<{ projectItemId: string; productId: string; quantity: number; selectionSummary: string | null }> = []
+  let projectLineItems: Array<{ projectItemId: string; productId: string; quantity: number; selectionSummary: string | null; fabricSummary: string | null; specDetails: string | null }> = []
+
+  // Sprint 17: the project's own name/location, resolved server-side. The
+  // "Request quote for all items" button sends only { projectId }, so
+  // project_name was persisted as null and the Quote Pipeline rendered
+  // "Untitled" for every project-originated request. The name is ours to
+  // read — don't depend on the client to echo it back.
+  let resolvedProjectName: string | null = null
+  let resolvedProjectLocation: string | null = null
 
   if (projectId && !productIds.length && !richItems.length) {
     // Verify ownership FIRST before fetching any project data
     const { data: project } = await supabaseAdmin
       .from('projects')
-      .select('id')
+      .select('id, name, location')
       .eq('id', projectId)
       .eq('user_id', session.id)
       .single()
@@ -62,19 +71,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Project not found.' }, { status: 404 })
     }
 
+    resolvedProjectName = (project.name as string | null)?.trim() || null
+    resolvedProjectLocation = (project.location as string | null)?.trim() || null
+
     const { data: items } = await supabaseAdmin
       .from('project_items')
       .select('id, product_id, quantity, selections:project_item_finish_selections(group_label, finish_label)')
       .eq('project_id', projectId)
 
-    projectLineItems = (items ?? []).map(i => ({
-      projectItemId: i.id as string,
-      productId: i.product_id as string,
-      quantity:  Math.min(999, Math.max(1, Number(i.quantity) || 1)),
-      // Sprint 14: the saved configuration travels with the request
-      selectionSummary: ((i.selections ?? []) as Array<{ group_label: string; finish_label: string }>)
-        .map(sel => `${sel.group_label}: ${sel.finish_label}`).join('; ').slice(0, 190) || null,
-    }))
+    projectLineItems = (items ?? []).map(i => {
+      // Sprint 14: the saved configuration travels with the request.
+      // Sprint 17: route soft finishes to the fabric field and keep the
+      // full list for the line's specification, instead of flattening
+      // everything into selected_finish.
+      const split = splitFinishSelections(
+        ((i.selections ?? []) as Array<{ group_label: string; finish_label: string }>)
+          .map(sel => ({ groupLabel: sel.group_label, finishLabel: sel.finish_label })),
+      )
+      return {
+        projectItemId: i.id as string,
+        productId: i.product_id as string,
+        quantity:  Math.min(999, Math.max(1, Number(i.quantity) || 1)),
+        selectionSummary: split.selectedFinish,
+        fabricSummary: split.selectedFabric,
+        specDetails: split.specDetails,
+      }
+    })
     resolvedProductIds = projectLineItems.map(i => i.productId)
   }
 
@@ -84,8 +106,10 @@ export async function POST(req: NextRequest) {
     .insert({
       user_id:          session.id,
       project_id:       projectId ?? null,
-      project_name:     projectName?.trim() || null,
-      project_location: projectLocation?.trim() || null,
+      // Client-supplied name wins only when the user typed one on the
+      // standalone quote form; otherwise fall back to the project's own name.
+      project_name:     projectName?.trim() || resolvedProjectName,
+      project_location: projectLocation?.trim() || resolvedProjectLocation,
       budget:           budget ?? null,
       required_by:      requiredBy ?? null,
       notes:            notes?.trim() || null,
@@ -138,6 +162,7 @@ export async function POST(req: NextRequest) {
         quantity:         i.quantity,
         project_item_id:  i.projectItemId,
         selected_finish:  i.selectionSummary,
+        selected_fabric:  i.fabricSummary,
       }))
     )
     itemsError = error?.message ?? null

@@ -21,6 +21,7 @@
     "lib/commercial/authorityLogic.ts",
     "lib/commercial/operationsLogic.ts",
     "lib/customMatch/logic.ts",
+    "lib/commercial/finishSelections.ts",
     "tests/**/*.ts"
   ]
 }

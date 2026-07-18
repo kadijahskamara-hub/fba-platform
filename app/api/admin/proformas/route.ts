@@ -111,6 +111,11 @@ export async function POST(req: NextRequest) {
           selected_finish: it.selected_finish ?? null,
           selected_fabric: it.selected_fabric ?? null,
           selected_size: it.selected_size ?? null,
+          // Sprint 17: seed the line's Full specification from the carried
+          // selections so the admin editor is not blank while the PDF shows
+          // the same detail. Staff can overwrite it; it is only a starting point.
+          spec_details: [it.selected_finish, it.selected_fabric, it.selected_size]
+            .filter(Boolean).join('\n').slice(0, 700) || null,
           notes: it.notes ?? null,
           sort_order: i,
         }

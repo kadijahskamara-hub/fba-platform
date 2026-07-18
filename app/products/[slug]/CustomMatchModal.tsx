@@ -124,15 +124,28 @@ export default function CustomMatchModal({ product, materialTypes, selections, q
       }).then(r => r.json())
       if (!res.success) { setErr(res.error ?? 'Submission failed. Please try again.'); setBusy(false); return }
 
-      // Upload attachments (best effort, reported honestly)
-      let uploaded = 0, failed = 0
+      // Upload attachments (best effort, reported honestly).
+      // Sprint 17: previously this counted successes and failures but threw
+      // away each response's `error`, so a failing upload reported only
+      // "0 attached, 1 failed" with no reason — undiagnosable for the client
+      // and for us. Keep the per-file reason and show it.
+      let uploaded = 0
+      const failures: string[] = []
       for (const file of files.slice(0, 5)) {
         const fd = new FormData(); fd.append('file', file)
         const up = await fetch(`/api/custom-match/${res.data.id}/attachments`, { method: 'POST', body: fd })
-          .then(r => r.json()).catch(() => ({ success: false }))
-        if (up.success) uploaded++; else failed++
+          .then(r => r.json())
+          .catch(() => ({ success: false, error: 'The connection dropped during upload.' }))
+        if (up.success) uploaded++
+        else failures.push(`${file.name}: ${up.error ?? 'upload failed'}`)
       }
-      if (files.length > 0) setUploadNote(failed === 0 ? `${uploaded} file${uploaded === 1 ? '' : 's'} attached.` : `${uploaded} attached, ${failed} failed — you can email them to us instead.`)
+      if (files.length > 0) {
+        setUploadNote(
+          failures.length === 0
+            ? `${uploaded} file${uploaded === 1 ? '' : 's'} attached.`
+            : `${uploaded} of ${files.length} attached. ${failures.join(' ')}`,
+        )
+      }
       setReference(res.data.referenceNumber)
     } catch { setErr('Submission failed. Please try again.') }
     setBusy(false)

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { supabaseAdmin } from '@/lib/supabase'
 import { checkRateLimit, getClientIp } from '@/lib/rateLimit'
-import { validateAttachment } from '@/lib/customMatch/logic'
+import { validateAttachment, attachmentUploadError } from '@/lib/customMatch/logic'
 
 // POST /api/custom-match/[id]/attachments — public upload window for a
 // just-submitted request (Sprint 13). Constraints (md doc §17.3): the id
@@ -14,6 +14,7 @@ import { validateAttachment } from '@/lib/customMatch/logic'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const MAX_FILES = 5
+const ATTACHMENT_BUCKET = 'custom-match'
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const params = await ctx.params
@@ -53,9 +54,25 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const ext = file.name.toLowerCase().split('.').pop()
   const path = `requests/${params.id}/${randomBytes(10).toString('hex')}.${ext}`
   const buffer = Buffer.from(await file.arrayBuffer())
-  const { error: upErr } = await supabaseAdmin.storage.from('custom-match')
+  const { error: upErr } = await supabaseAdmin.storage.from(ATTACHMENT_BUCKET)
     .upload(path, buffer, { contentType: file.type, upsert: false })
-  if (upErr) return NextResponse.json({ success: false, error: 'Upload failed. Please try again.' }, { status: 500 })
+  if (upErr) {
+    // Sprint 17: this branch previously returned a generic string and logged
+    // nothing, which made a reproducible QA failure ("0 attached, 1 failed")
+    // impossible to diagnose after the fact — the one piece of information
+    // that would have explained it was discarded here. Log the real cause and
+    // return a message the submitter can act on.
+    console.error('custom-match attachment upload failed:', {
+      requestId: params.id, bucket: ATTACHMENT_BUCKET, path,
+      filename: file.name, mimeType: file.type, size: file.size,
+      supabaseError: upErr.message,
+    })
+    return NextResponse.json({
+      success: false,
+      error: attachmentUploadError(upErr.message),
+      detail: upErr.message,
+    }, { status: 500 })
+  }
 
   const { data, error } = await supabaseAdmin.from('custom_match_attachments').insert({
     custom_match_request_id: params.id,
@@ -65,7 +82,19 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     file_size: file.size,
     visibility: 'internal',
   }).select('id, original_filename').single()
-  if (error) return NextResponse.json({ success: false, error: 'Could not record the attachment.' }, { status: 500 })
+  if (error) {
+    // The bytes are in storage but the row failed — remove the orphan so a
+    // retry cannot leave the bucket littered with unreferenced files.
+    console.error('custom-match attachment row insert failed:', {
+      requestId: params.id, path, supabaseError: error.message,
+    })
+    await supabaseAdmin.storage.from(ATTACHMENT_BUCKET).remove([path]).catch(() => {})
+    return NextResponse.json({
+      success: false,
+      error: 'The file uploaded but could not be recorded against your request. Please try again.',
+      detail: error.message,
+    }, { status: 500 })
+  }
 
   return NextResponse.json({ success: true, data })
 }
