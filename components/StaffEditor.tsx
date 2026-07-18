@@ -29,9 +29,19 @@ const PERMISSION_LABELS: Record<StaffPermission, string> = {
   quote_discount_override: 'Quotes — apply discounts',
   quote_approve:           'Quotes — approve (Commercial Admin)',
   commercial_settings_view: 'Commercial settings — view',
+  invoice_view:            'Invoices — view',
   invoice_create:          'Invoices — create',
+  invoice_approve:         'Invoices — approve (segregated)',
   invoice_issue:           'Invoices — issue',
   payment_view:            'Payments — view',
+  payment_record:          'Payments — record',
+  payment_confirm:         'Payments — confirm (segregated)',
+  payment_allocate:        'Payments — allocate to invoices',
+  payment_reverse:         'Payments — reverse (segregated)',
+  // Sprint 18 (QA P0) — credit notes were approvable server-side but the
+  // permissions never appeared in this list, so no one could be granted them.
+  credit_note_create:      'Credit notes — create drafts & void',
+  credit_note_approve:     'Credit notes — approve & issue (segregated)',
   purchase_order_prepare:  'Purchase orders — prepare (future)',
   purchase_order_approve:  'Purchase orders — approve (future)',
   // Delivery & logistics (Sprint 4)

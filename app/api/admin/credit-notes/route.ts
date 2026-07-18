@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const cs = await requireCommercial('invoice_view')
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
   let q = supabaseAdmin.from('credit_notes')
-    .select('id, credit_note_number, sales_invoice_id, status, currency, gross_total, allocated_total, reason, created_at')
+    .select('id, credit_note_number, sales_invoice_id, status, approval_status, currency, gross_total, allocated_total, reason, created_at')
     .order('created_at', { ascending: false }).limit(500)
   const inv = req.nextUrl.searchParams.get('invoice'); if (inv) q = q.eq('sales_invoice_id', inv)
   const { data, error } = await q

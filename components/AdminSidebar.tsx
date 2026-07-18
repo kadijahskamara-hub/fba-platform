@@ -64,6 +64,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/purchase-orders',   label: 'Purchase Orders',  icon: BuildingIcon,  permission: 'commercial_orders' },
       { href: '/admin/invoices',          label: 'Invoices',         icon: DocumentIcon,  permission: 'commercial_orders' },
       { href: '/admin/payments',          label: 'Payments',         icon: DocumentIcon,  permission: 'commercial_orders' },
+      { href: '/admin/credit-notes',      label: 'Credit Notes',     icon: DocumentIcon,  permission: 'commercial_orders' },
       { href: '/admin/communications',    label: 'Communications',   icon: MailIcon,      permission: 'communication_prepare' },
       { href: '/admin/accounting',        label: 'Accounting',       icon: DocumentIcon,  permission: 'accounting_view' },
     ],

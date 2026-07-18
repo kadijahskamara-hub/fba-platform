@@ -4,6 +4,7 @@ import { logAudit } from '../audit'
 import { getCommercialSettings } from './settings'
 import {
   calculateInvoice, calculateDeposit, remainingInvoiceable, assertInvoiceable,
+  stageFinalRequestedGross, acceptanceSatisfied,
   InvoiceLineInput, InvoiceType,
 } from './invoiceCalculations'
 import { toMinor, fromMinor } from './calculations'
@@ -80,7 +81,17 @@ export async function createDraftInvoice(params: {
   const { data: pf } = await supabaseAdmin
     .from('proformas').select('*').eq('id', order.source_proforma_id).single()
   if (!pf) return { error: 'Source commercial record not found', status: 404 }
-  if (pf.acceptance_status !== 'accepted' && invoiceType !== 'deposit') {
+  // Sprint 18 QA fix: acceptance evidence lives on EITHER record —
+  // proformas.acceptance_status (secure-link / admin-recorded flow) or
+  // commercial_orders.accepted_at (set by the order-conversion flow).
+  // Previously only the proforma field was checked, and it defaults to
+  // 'unknown' with no UI control, so stage/final creation was blocked
+  // on every order converted through the normal pipeline.
+  if (!acceptanceSatisfied({
+    invoiceType,
+    acceptanceStatus: (pf.acceptance_status as string | null) ?? null,
+    orderAcceptedAt: (order.accepted_at as string | null) ?? null,
+  })) {
     return { error: 'The commercial record is not accepted. Record client acceptance before issuing stage/final invoices.', status: 409 }
   }
 
@@ -112,6 +123,35 @@ export async function createDraftInvoice(params: {
       taxCategory: vatRegistered ? 'standard' : 'zero',
       taxRate: vatRegistered ? standardRate : 0,
       meta: { name_snapshot: `Deposit — order ${order.order_number}`, line_type: 'fee' },
+    }]
+  } else if ((invoiceType === 'stage' || invoiceType === 'final') && stageFinalRequestedGross({
+    invoiceType, stageAmount: params.stageAmount ?? null,
+    priorInvoiced: state.priorInvoiced, remainingToInvoice: state.remainingToInvoice,
+  }) != null) {
+    // Sprint 18 QA fix: the entered stage amount (or, for a final
+    // invoice, the order's remaining invoiceable balance) becomes a
+    // single balance line. Previously stageAmount was ignored and the
+    // invoice was rebuilt from every proforma line at the full order
+    // total, so any second invoice failed the over-invoicing guard no
+    // matter what was typed in the form.
+    const requestedGross = stageFinalRequestedGross({
+      invoiceType, stageAmount: params.stageAmount ?? null,
+      priorInvoiced: state.priorInvoiced, remainingToInvoice: state.remainingToInvoice,
+    })!
+    if (!(requestedGross > 0)) {
+      return { error: 'Nothing remains to invoice on this order.', status: 409 }
+    }
+    const net = vatRegistered ? fromMinor(Math.round(toMinor(requestedGross) / (1 + standardRate / 100))) : requestedGross
+    lineInputs = [{
+      quantity: 1, unitPrice: net, discountAmount: 0,
+      taxCategory: vatRegistered ? 'standard' : 'zero',
+      taxRate: vatRegistered ? standardRate : 0,
+      meta: {
+        name_snapshot: invoiceType === 'stage'
+          ? `Stage payment — order ${order.order_number}`
+          : `Final balance — order ${order.order_number}`,
+        line_type: 'fee',
+      },
     }]
   } else {
     const chosen = (srcLines ?? []).filter(l =>

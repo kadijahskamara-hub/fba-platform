@@ -50,7 +50,7 @@ export default function OrderBillingPanel({ orderId }: { orderId: string }) {
     setErr(''); setBusy(true)
     try {
       const body: Record<string, unknown> = { invoiceType }
-      if (invoiceType === 'stage' && stageAmount) body.stageAmount = parseFloat(stageAmount)
+      if ((invoiceType === 'stage' || invoiceType === 'final') && stageAmount) body.stageAmount = parseFloat(stageAmount)
       const res = await fetch(`/api/admin/commercial-orders/${orderId}/invoices`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       })
@@ -70,10 +70,11 @@ export default function OrderBillingPanel({ orderId }: { orderId: string }) {
             value={invoiceType} onChange={e => setInvoiceType(e.target.value)} aria-label="Invoice type">
             {TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
-          {invoiceType === 'stage' && (
-            <input type="number" min="0.01" step="0.01" className="form-input" placeholder="Stage amount"
-              style={{ width: 130, padding: '6px 10px', fontSize: 13 }}
-              value={stageAmount} onChange={e => setStageAmount(e.target.value)} aria-label="Stage amount" />
+          {(invoiceType === 'stage' || invoiceType === 'final') && (
+            <input type="number" min="0.01" step="0.01" className="form-input"
+              placeholder={invoiceType === 'stage' ? 'Stage amount' : 'Amount (blank = remaining)'}
+              style={{ width: invoiceType === 'stage' ? 130 : 175, padding: '6px 10px', fontSize: 13 }}
+              value={stageAmount} onChange={e => setStageAmount(e.target.value)} aria-label="Invoice amount" />
           )}
           <button className="btn btn-secondary btn-sm" disabled={busy} onClick={createInvoice}>
             {busy ? 'Creating…' : 'Create invoice'}

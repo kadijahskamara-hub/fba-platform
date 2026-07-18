@@ -6,6 +6,7 @@ import { DocumentsCommsPanel } from '@/components/DocumentsCommsPanel'
 import { InvoiceAccountingControls } from '@/components/InvoiceAccountingControls'
 import { UltraDeleteRecordButton } from '@/components/UltraDeleteRecordButton'
 import { InvoiceApplyPayment, type CandidatePayment } from '@/components/InvoiceApplyPayment'
+import { creditNoteStage } from '@/lib/commercial/creditNoteLogic'
 
 export const dynamic = 'force-dynamic'
 function sym(cur: string) { return cur === 'EUR' ? '€' : cur === 'USD' ? '$' : '£' }
@@ -17,6 +18,11 @@ export default async function InvoiceDetailPage(ctx: { params: Promise<{ id: str
   if (!inv) notFound()
   const { data: lines } = await supabaseAdmin.from('sales_invoice_lines').select('*').eq('sales_invoice_id', params.id).order('sort_order')
   const { data: allocs } = await supabaseAdmin.from('payment_allocations').select('amount, payment:payments(payment_reference, status)').eq('sales_invoice_id', params.id)
+  // Sprint 18 QA (P0): credit notes drafted from this invoice used to be
+  // invisible after a reload — nothing on this page listed or linked them.
+  const { data: creditNotes } = await supabaseAdmin.from('credit_notes')
+    .select('id, credit_note_number, status, approval_status, gross_total, allocated_total, reason, created_at')
+    .eq('sales_invoice_id', params.id).order('created_at', { ascending: false })
   const cur = (inv.currency as string) ?? 'GBP'
   const cl = (inv.client_snapshot ?? {}) as Record<string, unknown>
 
@@ -154,6 +160,26 @@ export default async function InvoiceDetailPage(ctx: { params: Promise<{ id: str
           ))}
         </tbody>
       </table>
+
+      {(creditNotes ?? []).length > 0 && (
+        <>
+          <h3 style={{ marginTop: 28, color: 'var(--forest)' }}>Credit notes against this invoice</h3>
+          <table className="data-table">
+            <thead><tr><th>Credit note</th><th>Stage</th><th>Gross</th><th>Allocated</th><th>Reason</th></tr></thead>
+            <tbody>
+              {(creditNotes ?? []).map((c: Record<string, unknown>) => (
+                <tr key={c.id as string}>
+                  <td><Link href={`/admin/credit-notes/${c.id}`} style={{ color: 'var(--forest)', fontWeight: 500 }}>{(c.credit_note_number as string) ?? 'DRAFT'}</Link></td>
+                  <td><span className="status-pill">{creditNoteStage(c.status as string, (c.approval_status as string) ?? 'none')}</span></td>
+                  <td>{money(c.gross_total, cur)}</td>
+                  <td>{money(c.allocated_total, cur)}</td>
+                  <td style={{ fontSize: 13 }}>{(c.reason as string) ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
 
       {(allocs ?? []).length > 0 && (
         <>

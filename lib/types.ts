@@ -568,6 +568,13 @@ export type StaffPermission =
   // are NOT grantable here (Ultra-by-default, segregation of duties).
   | 'accounting_view' | 'accounting_export' | 'reconciliation_manage'
   | 'refund_record' | 'invoice_void'
+  // Sprint 18 (QA P0) — segregated finance controls that permissions.ts
+  // has always honoured for staff but the Staff & Permissions screen
+  // never offered: Ultra Admin holds them implicitly; they are
+  // explicitly grantable to trusted staff.
+  | 'invoice_view' | 'invoice_approve'
+  | 'payment_record' | 'payment_confirm' | 'payment_allocate' | 'payment_reverse'
+  | 'credit_note_create' | 'credit_note_approve'
 
 export interface StaffPermissions {
   id: string

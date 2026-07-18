@@ -9,8 +9,8 @@ import { useEffect, useState, useCallback } from 'react'
 // enforced server-side.
 // ============================================================
 
-type Tab = 'periods' | 'exports' | 'refunds' | 'reports' | 'mappings'
-const TABS: Array<[Tab, string]> = [['periods', 'Periods'], ['exports', 'Exports'], ['refunds', 'Refunds'], ['reports', 'Reports'], ['mappings', 'Account codes']]
+type Tab = 'periods' | 'exports' | 'credit_notes' | 'refunds' | 'reports' | 'mappings'
+const TABS: Array<[Tab, string]> = [['periods', 'Periods'], ['exports', 'Exports'], ['credit_notes', 'Credit notes'], ['refunds', 'Refunds'], ['reports', 'Reports'], ['mappings', 'Account codes']]
 
 export default function AccountingHub() {
   const [tab, setTab] = useState<Tab>('periods')
@@ -29,6 +29,7 @@ export default function AccountingHub() {
       </div>
       {tab === 'periods' && <Periods />}
       {tab === 'exports' && <Exports />}
+      {tab === 'credit_notes' && <CreditNotes />}
       {tab === 'refunds' && <Refunds />}
       {tab === 'reports' && <Reports />}
       {tab === 'mappings' && <Mappings />}
@@ -80,6 +81,37 @@ function Periods() {
               : <button onClick={() => reopen(p.id as string)} style={btnGhostSm}>Reopen</button>}</td>
           </tr>))}
           {periods.length === 0 && <tr><td colSpan={4} style={{ ...td, color: '#9E9589' }}>No periods yet.</td></tr>}
+        </tbody></table>
+    </div>
+  )
+}
+
+// Sprint 18 QA (P0): the accounting hub had no credit-note section, so
+// drafted credit notes could not be found, approved or issued anywhere.
+// The queue links through to the new /admin/credit-notes screens.
+function CreditNotes() {
+  const [rows, setRows] = useState<Array<Record<string, unknown>>>([])
+  const load = useCallback(async () => { const r = await fetch('/api/admin/credit-notes'); const j = await r.json(); setRows(j.data ?? []) }, [])
+  useEffect(() => { load() }, [load])
+  const stage = (s: string, a: string) =>
+    s === 'void' ? 'void' : s === 'allocated' ? 'allocated' : s === 'issued' ? 'issued'
+      : a === 'approved' ? 'approved — ready to issue' : 'draft — awaiting approval'
+  return (
+    <div>
+      <p style={{ fontSize: 13, color: '#6b6257', marginTop: 0 }}>
+        Draft → approve → issue → allocate or refund. Open a credit note to action it, or see the full list at{' '}
+        <a href="/admin/credit-notes" style={{ color: '#1B4332' }}>Credit Notes</a>.
+      </p>
+      <table style={table}><thead><tr style={trh}><th style={th}>Credit note</th><th style={th}>Stage</th><th style={th}>Gross</th><th style={th}>Allocated</th><th style={th}>Reason</th></tr></thead>
+        <tbody>{rows.map(r => (
+          <tr key={r.id as string} style={tr}>
+            <td style={td}><a href={`/admin/credit-notes/${r.id}`} style={{ color: '#1B4332', fontWeight: 600 }}>{(r.credit_note_number as string) ?? 'DRAFT'}</a></td>
+            <td style={td}>{stage(r.status as string, (r.approval_status as string) ?? '')}</td>
+            <td style={td}>{(r.currency as string) ?? 'GBP'} {Number(r.gross_total ?? 0).toFixed(2)}</td>
+            <td style={td}>{(r.currency as string) ?? 'GBP'} {Number(r.allocated_total ?? 0).toFixed(2)}</td>
+            <td style={{ ...td, maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(r.reason as string) ?? '—'}</td>
+          </tr>))}
+          {rows.length === 0 && <tr><td colSpan={5} style={{ ...td, color: '#9E9589' }}>No credit notes yet. Create one from an issued invoice.</td></tr>}
         </tbody></table>
     </div>
   )

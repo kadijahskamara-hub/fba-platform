@@ -171,6 +171,54 @@ export function remainingInvoiceable(s: OrderInvoiceState): number {
   )
 }
 
+// ── Stage/final invoicing (Sprint 18 QA fix) ─────────────────
+//
+// The create-invoice endpoint accepted a stageAmount but never used
+// it: stage/final invoices were always built from every proforma
+// line, so their gross equalled the FULL order total and the
+// over-invoicing guard rejected any second invoice with
+// "Invoice of £2220.00 exceeds the remaining invoiceable amount
+// (£1110.00)" regardless of the amount entered. This helper decides
+// the requested gross for a stage/final invoice; null means "build
+// itemized lines from the proforma" (the legacy behaviour, still
+// correct for a first, full-value invoice).
+
+export function stageFinalRequestedGross(params: {
+  invoiceType: string
+  stageAmount: number | null
+  priorInvoiced: number
+  remainingToInvoice: number
+}): number | null {
+  if (params.invoiceType === 'stage') {
+    // The amount typed in the form wins. Without one, fall back to
+    // itemized lines (valid only while nothing has been invoiced).
+    return params.stageAmount != null ? fromMinor(toMinor(params.stageAmount)) : null
+  }
+  if (params.invoiceType === 'final') {
+    if (params.stageAmount != null) return fromMinor(toMinor(params.stageAmount))
+    // A final invoice after earlier invoices bills exactly what remains.
+    return params.priorInvoiced > 0 ? params.remainingToInvoice : null
+  }
+  return null
+}
+
+// ── Acceptance gate (Sprint 18 QA fix) ───────────────────────
+//
+// proformas.acceptance_status defaults to 'unknown' and has no UI
+// control, yet gated stage/final invoice creation. Orders converted
+// through the existing flow DO carry commercial_orders.accepted_at,
+// so acceptance evidence on either record satisfies the gate.
+// Deposits were never gated and still are not.
+
+export function acceptanceSatisfied(params: {
+  invoiceType: string
+  acceptanceStatus: string | null
+  orderAcceptedAt: string | null
+}): boolean {
+  if (params.invoiceType === 'deposit') return true
+  return params.acceptanceStatus === 'accepted' || Boolean(params.orderAcceptedAt)
+}
+
 /** Guard: a new invoice of `requested` gross must not exceed the remaining invoiceable amount. */
 export function assertInvoiceable(requested: number, s: OrderInvoiceState): { ok: boolean; remaining: number; error?: string } {
   const remaining = remainingInvoiceable(s)
