@@ -5,6 +5,7 @@ import { getCommercialSession } from '@/lib/commercial/permissions'
 import { refundableForCreditNote } from '@/lib/commercial/refunds'
 import { creditNoteAvailability, creditNoteStage } from '@/lib/commercial/creditNoteLogic'
 import CreditNoteActions, { type AllocTarget } from './CreditNoteActions'
+import { UltraDeleteRecordButton } from '@/components/UltraDeleteRecordButton'
 
 // ============================================================
 // Credit-note detail (Sprint 18, QA P0): approve, issue, allocate
@@ -92,7 +93,15 @@ export default async function CreditNoteDetailPage(ctx: { params: Promise<{ id: 
               : '—'}
           </p>
         </div>
-        <Link href="/admin/credit-notes" className="btn btn-secondary btn-sm">← All credit notes</Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Link href="/admin/credit-notes" className="btn btn-secondary btn-sm">← All credit notes</Link>
+          <UltraDeleteRecordButton
+            entity="credit_note"
+            recordId={params.id}
+            label={(cn.credit_note_number as string) ?? 'Draft credit note'}
+            redirectTo="/admin/credit-notes"
+          />
+        </div>
       </div>
 
       <div style={{ marginBottom: 20 }}>

@@ -9,6 +9,7 @@ import { ProductDetailClient } from './ProductDetailClient'
 import { AddToBagButton } from '@/components/AddToBagButton'
 import ProductConfigurator, { type FinishOption, type SizeOption } from './ProductConfigurator'
 import CuratedFinishes, { type PublicGroup, type PublicMedia } from './CuratedFinishes'
+import LivePrice from './LivePrice'
 import CustomMatchLauncher from './CustomMatchLauncher'
 import { getPublicProductConfiguration } from '@/lib/publicProduct'
 
@@ -188,9 +189,13 @@ export default async function ProductDetailPage(props: Props) {
             <div style={{ marginBottom: 28, padding: '16px 0', borderTop: '1px solid var(--light-line)', borderBottom: '1px solid var(--light-line)' }}>
               {price.type === 'fixed' ? (
                 <div>
-                  <div style={{ fontSize: 20, fontWeight: 500, color: session?.role === 'trade_user' ? 'var(--caramel)' : 'var(--forest)' }}>
-                    {price.label}
-                  </div>
+                  {/* QA item 7: headline updates live when a finish option
+                      with a price adjustment is selected. */}
+                  <LivePrice
+                    baseAmount={price.amount}
+                    currencySymbol={'£'}
+                    isTrade={session?.role === 'trade_user'}
+                  />
                   {(session?.role === 'trade_user' || session?.role === 'admin') && (
                     <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--caramel)', marginTop: 3 }}>
                       Trade price

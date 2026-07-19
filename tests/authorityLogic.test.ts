@@ -17,6 +17,7 @@ import {
   anonymisedShortId, anonymisedEmail, anonymisedUserFields, anonymisationIsClean,
   DELETABLE_ENTITIES, isDeletableEntity, PURGE_CONFIRM_PHRASE,
   validatePurgeRequest, validateRecordDeletion,
+  PURGE_SECTIONS, isPurgeSection, validateSectionPurgeRequest,
   type AuthorityAccount,
 } from '../lib/commercial/authorityLogic'
 
@@ -229,4 +230,47 @@ test('record deletion requires a known entity and a reason', () => {
   assert.equal(!badEntity.allowed && badEntity.code, 'INVALID_TARGET')
   const noReason = validateRecordDeletion({ entity: 'payment', reason: '' })
   assert.equal(!noReason.allowed && noReason.code, 'REASON_REQUIRED')
+})
+
+// ── Sectioned data resets + new entities (Sprint 19) ─────────
+
+test('Sprint 19 entities are deletable: custom_match, trade_application, service_enquiry', () => {
+  assert.equal(isDeletableEntity('custom_match'), true)
+  assert.equal(isDeletableEntity('trade_application'), true)
+  assert.equal(isDeletableEntity('service_enquiry'), true)
+  assert.deepEqual(validateRecordDeletion({ entity: 'custom_match', reason: 'test CM request' }), { allowed: true })
+  assert.deepEqual(validateRecordDeletion({ entity: 'trade_application', reason: 'test application' }), { allowed: true })
+  assert.deepEqual(validateRecordDeletion({ entity: 'service_enquiry', reason: 'test enquiry' }), { allowed: true })
+})
+
+test('purge section allowlist is exact and matches the SQL cases', () => {
+  const expected = [
+    'communications', 'accounting', 'finance', 'deliveries', 'procurement',
+    'commercial_orders', 'quotes', 'custom_match', 'quote_requests',
+    'retail_orders', 'service_enquiries', 'projects_carts',
+    'trade_contacts', 'customer_accounts',
+  ]
+  assert.deepEqual(PURGE_SECTIONS.map(s => s.key), expected)
+  for (const s of expected) assert.equal(isPurgeSection(s), true)
+  assert.equal(isPurgeSection('users'), false)
+  assert.equal(isPurgeSection('everything'), false)
+  assert.equal(isPurgeSection(''), false)
+  assert.equal(isPurgeSection(null), false)
+})
+
+test('every purge section carries a human label and hint for the UI', () => {
+  for (const s of PURGE_SECTIONS) {
+    assert.equal(typeof s.label === 'string' && s.label.length > 0, true, `${s.key} label`)
+    assert.equal(typeof s.hint === 'string' && s.hint.length > 0, true, `${s.key} hint`)
+  }
+})
+
+test('section purge requires a known section and a reason', () => {
+  assert.deepEqual(validateSectionPurgeRequest({ section: 'quote_requests', reason: 'fresh QA round' }), { allowed: true })
+  const badSection = validateSectionPurgeRequest({ section: 'products', reason: 'x' })
+  assert.equal(!badSection.allowed && badSection.code, 'INVALID_TARGET')
+  const noReason = validateSectionPurgeRequest({ section: 'finance', reason: '   ' })
+  assert.equal(!noReason.allowed && noReason.code, 'REASON_REQUIRED')
+  const nullSection = validateSectionPurgeRequest({ section: null, reason: 'x' })
+  assert.equal(!nullSection.allowed && nullSection.code, 'INVALID_TARGET')
 })

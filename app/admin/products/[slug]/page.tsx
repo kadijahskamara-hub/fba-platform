@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation'
 import { supabaseAdmin } from '@/lib/supabase'
 import AdminProductForm from '../AdminProductForm'
 import ProductExtrasPanel from './ProductExtrasPanel'
+import ProductCompletenessChecklist from '@/components/admin/ProductCompletenessChecklist'
+import type { ProductHealthChecks } from '@/lib/productCompleteness'
 
 export async function generateMetadata(ctx: { params: Promise<{ slug: string }> }) {
   const params = await ctx.params
@@ -24,6 +26,14 @@ export default async function EditProductPage(ctx: { params: Promise<{ slug: str
 
   if (!product) notFound()
 
+  // QA item 1: completeness checklist — which of the 11 checks are
+  // outstanding, shown at the top of the edit page.
+  const { data: health } = await supabaseAdmin
+    .from('product_health')
+    .select('has_hero_image, has_three_images, has_category, has_artisan, has_origin, has_short_description, has_technical_description, has_lead_time, has_seo, has_spec_doc, has_finishes')
+    .eq('id', product.id)
+    .single()
+
   return (
     <>
       {/* Sprint 11: curated finishes / media / passport / specs editor */}
@@ -32,6 +42,7 @@ export default async function EditProductPage(ctx: { params: Promise<{ slug: str
           Configuration: finishes, media &amp; passport →
         </Link>
       </div>
+      <ProductCompletenessChecklist health={(health as Partial<ProductHealthChecks> | null) ?? null} />
       <AdminProductForm
         mode="edit"
         product={product}

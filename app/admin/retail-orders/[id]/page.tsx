@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { supabaseAdmin } from '@/lib/supabase'
 import { OrderStatusActions } from './OrderStatusActions'
+import { UltraDeleteRecordButton } from '@/components/UltraDeleteRecordButton'
 
 interface Props { params: Promise<{ id: string }> }
 
@@ -58,8 +59,16 @@ export default async function AdminOrderDetailPage(props: Props) {
             {(order.status as string).replace('_', ' ')}
           </span>
         </div>
-        <div style={{ fontSize: 12, color: 'var(--stone)' }}>
-          {new Date(order.created_at as string).toLocaleString('en-GB')}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 12, color: 'var(--stone)' }}>
+            {new Date(order.created_at as string).toLocaleString('en-GB')}
+          </span>
+          <UltraDeleteRecordButton
+            entity="retail_order"
+            recordId={order.id as string}
+            label={`Retail order #${order.order_number}`}
+            redirectTo="/admin/retail-orders"
+          />
         </div>
       </div>
 

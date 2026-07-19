@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { PROFORMA_STAGES, stageLabel } from '@/lib/pipeline'
+import { UltraDeleteRecordButton } from '@/components/UltraDeleteRecordButton'
 
 type Item = { id: string; name: string; quantity: number; unit_price: number | null; manufacturer_id: string | null; manufacturer_name: string | null; is_bespoke: boolean }
 type Contact = { id: string; first_name: string | null; last_name: string | null; email: string } | null
@@ -43,10 +44,12 @@ export default function QuotePipelinePage() {
     ])
     const pfs: Proforma[] = pfRes.success ? pfRes.data : []
     setProformas(pfs)
-    // Inbox = quote requests not yet converted into a proforma.
+    // Inbox = OPEN quote requests (new / reviewing) not yet converted into
+    // a proforma. Requests that were quoted and later had their proforma
+    // deleted are closed as rejected and no longer resurface here.
     const converted = new Set(pfs.map(p => p.quote_request_id).filter(Boolean))
     const reqs: QuoteReq[] = qrRes.success ? qrRes.data : []
-    setInbox(reqs.filter(r => !converted.has(r.id)))
+    setInbox(reqs.filter(r => !converted.has(r.id) && ['new', 'reviewing'].includes(r.status)))
     setLoading(false)
   }, [])
 
@@ -114,6 +117,12 @@ export default function QuotePipelinePage() {
                 <button className="btn btn-secondary btn-sm" disabled={creating} onClick={() => seedFromRequest(r)}>
                   Create proforma →
                 </button>
+                <UltraDeleteRecordButton
+                  entity="quote_request"
+                  recordId={r.id}
+                  label={`Quote request · ${r.project_name ?? 'Untitled'} · ${r.user ? `${r.user.first_name} ${r.user.last_name}` : '—'}`}
+                  onDeleted={load}
+                />
               </div>
             ))}
           </div>

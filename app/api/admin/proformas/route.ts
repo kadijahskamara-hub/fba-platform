@@ -148,6 +148,16 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Move the source request out of the "incoming" inbox: it now has a
+  // live proforma, so it shows as quoted rather than new/reviewing.
+  if (header.quote_request_id) {
+    await supabaseAdmin
+      .from('quote_requests')
+      .update({ status: 'quoted' })
+      .eq('id', header.quote_request_id)
+      .in('status', ['new', 'reviewing'])
+  }
+
   await recalculateAndPersist(proforma.id)
 
   await logAudit({

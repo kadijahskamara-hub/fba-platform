@@ -22,6 +22,15 @@ async function api(url: string, method: string, body?: unknown): Promise<{ succe
 export default function ProductConfigurationPanel({ productId }: { productId: string }) {
   const [tab, setTab] = useState<Tab>('finishes')
   const [err, setErr] = useState('')
+  const [msg, setMsg] = useState('')
+
+  // QA item 10: brief success indicator when rows are added/changed —
+  // previously inputs silently reset with no confirmation at all.
+  const flash = useCallback((text: string) => {
+    setMsg(text)
+    window.setTimeout(() => setMsg(m => (m === text ? '' : m)), 3000)
+  }, [])
+
   return (
     <div>
       <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
@@ -30,10 +39,15 @@ export default function ProductConfigurationPanel({ productId }: { productId: st
         ))}
       </div>
       {err && <p style={{ color: '#a33', fontSize: 13 }}>{err}</p>}
-      {tab === 'finishes' && <FinishGroupsTab productId={productId} setErr={setErr} />}
+      {msg && (
+        <p role="status" style={{ padding: '8px 12px', background: '#DCFCE7', color: '#166534', fontSize: 13, borderRadius: 4 }}>
+          ✓ {msg}
+        </p>
+      )}
+      {tab === 'finishes' && <FinishGroupsTab productId={productId} setErr={setErr} flash={flash} />}
       {tab === 'media' && <MediaTab productId={productId} setErr={setErr} />}
-      {tab === 'passport' && <PassportTab productId={productId} setErr={setErr} />}
-      {tab === 'specs' && <SpecsTab productId={productId} setErr={setErr} />}
+      {tab === 'passport' && <PassportTab productId={productId} setErr={setErr} flash={flash} />}
+      {tab === 'specs' && <SpecsTab productId={productId} setErr={setErr} flash={flash} />}
     </div>
   )
 }
@@ -59,7 +73,7 @@ type Rule = {
   explanation: string | null
 }
 
-function FinishGroupsTab({ productId, setErr }: { productId: string; setErr: (s: string) => void }) {
+function FinishGroupsTab({ productId, setErr, flash }: { productId: string; setErr: (s: string) => void; flash: (s: string) => void }) {
   const [groups, setGroups] = useState<Group[]>([])
   const [rules, setRules] = useState<Rule[]>([])
   const [types, setTypes] = useState<Array<{ id: string; name: string; is_active: boolean }>>([])
@@ -80,9 +94,21 @@ function FinishGroupsTab({ productId, setErr }: { productId: string; setErr: (s:
   }, [productId])
   useEffect(() => { load() }, [load])
 
-  const run = async (p: Promise<{ success: boolean; error?: string }>) => {
+  const run = async (p: Promise<{ success: boolean; error?: string }>, okMsg?: string) => {
     const res = await p
-    if (!res.success) setErr(res.error ?? 'Action failed'); else { setErr(''); load() }
+    if (!res.success) setErr(res.error ?? 'Action failed'); else { setErr(''); if (okMsg) flash(okMsg); load() }
+  }
+
+  // QA fix: optimistic checkbox/radio state — the visual state used to
+  // lag behind the click by a full server round-trip, tempting admins
+  // to re-click and undo their own change.
+  const setOptionLocal = (groupId: string, optionId: string, patch: Partial<Option>, exclusiveDefault = false) => {
+    setGroups(gs => gs.map(g => g.id !== groupId ? g : {
+      ...g,
+      options: (g.options ?? []).map(o =>
+        o.id === optionId ? { ...o, ...patch }
+        : exclusiveDefault ? { ...o, is_default: false } : o),
+    }))
   }
 
   const allOptions = groups.flatMap(g => (g.options ?? []).map(o => ({
@@ -91,6 +117,16 @@ function FinishGroupsTab({ productId, setErr }: { productId: string; setErr: (s:
 
   return (
     <div>
+      {/* QA item 4: differentiate this system from the legacy "Hard
+          finishes" list on the product edit page. */}
+      <div style={{
+        marginBottom: 16, padding: '10px 14px', fontSize: 12.5, lineHeight: 1.6,
+        background: 'var(--cream, #f7f3ec)', border: '1px solid var(--light-line)', color: 'var(--stone)',
+      }}>
+        <strong style={{ color: 'var(--forest)' }}>Finish Groups power the customer-facing configurator</strong> —
+        selectable swatches with price and lead-time adjustments. When a product has at least one active group,
+        the legacy “Hard finishes” list on the product edit page is <em>not</em> shown to customers.
+      </div>
       {groups.map(g => (
         <div key={g.id} className="admin-card" style={{ padding: 16, marginBottom: 14, opacity: g.is_active ? 1 : 0.5 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
@@ -122,11 +158,17 @@ function FinishGroupsTab({ productId, setErr }: { productId: string; setErr: (s:
                   <td>{o.finish?.name ?? '?'}{o.finish?.code ? ` (${o.finish.code})` : ''}</td>
                   <td>
                     <input type="radio" name={`default-${g.id}`} checked={o.is_default} aria-label="Default option"
-                      onChange={() => run(api(`/api/admin/products/${productId}/finish-groups/${g.id}/options/${o.id}`, 'PATCH', { isDefault: true }))} />
+                      onChange={() => {
+                        setOptionLocal(g.id, o.id, { is_default: true }, true)
+                        run(api(`/api/admin/products/${productId}/finish-groups/${g.id}/options/${o.id}`, 'PATCH', { isDefault: true }))
+                      }} />
                   </td>
                   <td>
                     <input type="checkbox" checked={o.is_available} aria-label="Available"
-                      onChange={() => run(api(`/api/admin/products/${productId}/finish-groups/${g.id}/options/${o.id}`, 'PATCH', { isAvailable: !o.is_available }))} />
+                      onChange={() => {
+                        setOptionLocal(g.id, o.id, { is_available: !o.is_available })
+                        run(api(`/api/admin/products/${productId}/finish-groups/${g.id}/options/${o.id}`, 'PATCH', { isAvailable: !o.is_available }))
+                      }} />
                   </td>
                   <td>
                     <input type="number" step="0.01" defaultValue={o.price_adjustment} style={{ ...inp, width: 90 }} aria-label="Price adjustment"
@@ -146,7 +188,17 @@ function FinishGroupsTab({ productId, setErr }: { productId: string; setErr: (s:
             </tbody>
           </table>
 
-          <AddOptionRow group={g} library={library} onAdd={(finishId) => run(api(`/api/admin/products/${productId}/finish-groups/${g.id}/options`, 'POST', { finishId }))} />
+          <AddOptionRow
+            group={g}
+            library={library}
+            onAdd={(finishId) => run(api(`/api/admin/products/${productId}/finish-groups/${g.id}/options`, 'POST', { finishId }), `Option added to ${g.label}.`)}
+            onCreateFinish={async (payload) => {
+              const res = await api('/api/admin/finishes', 'POST', payload)
+              if (!res.success) { setErr(res.error ?? 'Could not create the finish.'); return null }
+              flash('Finish created in the library.')
+              return (res.data as { id: string }).id
+            }}
+          />
         </div>
       ))}
 
@@ -166,7 +218,7 @@ function FinishGroupsTab({ productId, setErr }: { productId: string; setErr: (s:
             run(api(`/api/admin/products/${productId}/finish-groups`, 'POST', {
               label: newGroup.label.trim(), materialTypeId: newGroup.materialTypeId || null,
               required: newGroup.required, sortOrder: (groups.length + 1) * 10,
-            }))
+            }), `Group "${newGroup.label.trim()}" added.`)
             setNewGroup({ label: '', materialTypeId: '', required: false })
           }}>Add group</button>
         </div>
@@ -186,24 +238,87 @@ function FinishGroupsTab({ productId, setErr }: { productId: string; setErr: (s:
         ))}
         {rules.length === 0 && <p style={{ fontSize: 13, color: 'var(--stone)' }}>No rules — every combination is allowed.</p>}
         <AddRuleRow options={allOptions} onAdd={(sourceId, targetId, explanation) =>
-          run(api(`/api/admin/products/${productId}/compatibility`, 'POST', { sourceFinishOptionId: sourceId, targetFinishOptionId: targetId, explanation: explanation || null }))} />
+          run(api(`/api/admin/products/${productId}/compatibility`, 'POST', { sourceFinishOptionId: sourceId, targetFinishOptionId: targetId, explanation: explanation || null }), 'Compatibility rule added.')} />
       </div>
     </div>
   )
 }
 
-function AddOptionRow({ group, library, onAdd }: { group: Group; library: LibFinish[]; onAdd: (finishId: string) => void }) {
+function AddOptionRow({ group, library, onAdd, onCreateFinish }: {
+  group: Group
+  library: LibFinish[]
+  onAdd: (finishId: string) => void
+  // QA item 5: inline "+ create new finish" — no more leaving the page
+  // to seed the Finish Library before an option can be added.
+  onCreateFinish: (payload: { name: string; code: string | null; hexColour: string | null; materialTypeId: string | null }) => Promise<string | null>
+}) {
   const [sel, setSel] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [draft, setDraft] = useState({ name: '', code: '', hex: '' })
+  const [busy, setBusy] = useState(false)
   const usedIds = new Set((group.options ?? []).map(o => o.finish_id))
   const candidates = library.filter(f =>
     !usedIds.has(f.id) && (!group.material_type_id || f.material_type_id === group.material_type_id))
+
+  async function createAndAdd() {
+    if (!draft.name.trim()) return
+    setBusy(true)
+    try {
+      const id = await onCreateFinish({
+        name: draft.name.trim(),
+        code: draft.code.trim() || null,
+        hexColour: /^#[0-9a-f]{3,8}$/i.test(draft.hex.trim()) ? draft.hex.trim() : null,
+        materialTypeId: group.material_type_id ?? null,
+      })
+      if (id) {
+        onAdd(id)
+        setDraft({ name: '', code: '', hex: '' })
+        setCreating(false)
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
-    <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center' }}>
-      <select style={{ ...inp, maxWidth: 320 }} value={sel} onChange={e => setSel(e.target.value)} aria-label={`Add option to ${group.label}`}>
-        <option value="">— add a finish from the library —</option>
-        {candidates.map(f => <option key={f.id} value={f.id}>{f.name}{f.code ? ` (${f.code})` : ''}</option>)}
-      </select>
-      <button className="btn btn-ghost btn-sm" disabled={!sel} onClick={() => { onAdd(sel); setSel('') }}>Add option</button>
+    <div style={{ marginTop: 10 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <select
+          style={{ ...inp, maxWidth: 320 }}
+          value={creating ? '__new__' : sel}
+          onChange={e => {
+            if (e.target.value === '__new__') { setCreating(true); setSel('') }
+            else { setCreating(false); setSel(e.target.value) }
+          }}
+          aria-label={`Add option to ${group.label}`}
+        >
+          <option value="">
+            {candidates.length === 0
+              ? `— no ${group.material_type?.name ?? ''} finishes in the library yet —`
+              : '— add a finish from the library —'}
+          </option>
+          {candidates.map(f => <option key={f.id} value={f.id}>{f.name}{f.code ? ` (${f.code})` : ''}</option>)}
+          <option value="__new__">＋ Create new finish…</option>
+        </select>
+        {!creating && <button className="btn btn-ghost btn-sm" disabled={!sel} onClick={() => { onAdd(sel); setSel('') }}>Add option</button>}
+      </div>
+      {creating && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8, padding: '10px 12px', background: 'var(--cream, #f7f3ec)', border: '1px solid var(--light-line)' }}>
+          <input style={{ ...inp, width: 180 }} placeholder="Finish name *" value={draft.name} autoFocus
+            onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} />
+          <input style={{ ...inp, width: 90 }} placeholder="Code" value={draft.code}
+            onChange={e => setDraft(d => ({ ...d, code: e.target.value }))} />
+          <input style={{ ...inp, width: 110 }} placeholder="#hex colour" value={draft.hex}
+            onChange={e => setDraft(d => ({ ...d, hex: e.target.value }))} />
+          <button className="btn btn-secondary btn-sm" disabled={busy || !draft.name.trim()} onClick={createAndAdd}>
+            {busy ? 'Creating…' : `Create & add to ${group.label}`}
+          </button>
+          <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setCreating(false)}>Cancel</button>
+          <span style={{ fontSize: 11, color: 'var(--stone)', flexBasis: '100%' }}>
+            Saved to the shared Finish Library{group.material_type?.name ? ` under ${group.material_type.name}` : ''} — reusable on other products.
+          </span>
+        </div>
+      )}
     </div>
   )
 }
@@ -315,7 +430,7 @@ type Passport = {
   verifier?: { first_name: string; last_name: string } | null
 }
 
-function PassportTab({ productId, setErr }: { productId: string; setErr: (s: string) => void }) {
+function PassportTab({ productId, setErr, flash }: { productId: string; setErr: (s: string) => void; flash: (s: string) => void }) {
   const [attrs, setAttrs] = useState<Passport[]>([])
   const [form, setForm] = useState({ label: '', valueText: '' })
 
@@ -325,10 +440,14 @@ function PassportTab({ productId, setErr }: { productId: string; setErr: (s: str
   }, [productId])
   useEffect(() => { load() }, [load])
 
-  const run = async (p: Promise<{ success: boolean; error?: string }>) => {
+  const run = async (p: Promise<{ success: boolean; error?: string }>, okMsg?: string) => {
     const res = await p
-    if (!res.success) setErr(res.error ?? 'Action failed'); else { setErr(''); load() }
+    if (!res.success) setErr(res.error ?? 'Action failed'); else { setErr(''); if (okMsg) flash(okMsg); load() }
   }
+
+  // Optimistic toggle (QA fix: checkbox state lagged the click)
+  const setLocal = (id: string, patch: Partial<Passport>) =>
+    setAttrs(list => list.map(a => a.id === id ? { ...a, ...patch } : a))
 
   return (
     <div>
@@ -346,9 +465,9 @@ function PassportTab({ productId, setErr }: { productId: string; setErr: (s: str
                 <input style={{ ...inp, width: 160 }} defaultValue={a.value_text ?? ''} aria-label="Detail"
                   onBlur={e => { if (e.target.value !== (a.value_text ?? '')) run(api(`/api/admin/products/${productId}/passport/${a.id}`, 'PATCH', { valueText: e.target.value })) }} />
               </td>
-              <td><input type="checkbox" checked={a.is_public} aria-label="Public" onChange={() => run(api(`/api/admin/products/${productId}/passport/${a.id}`, 'PATCH', { isPublic: !a.is_public }))} /></td>
+              <td><input type="checkbox" checked={a.is_public} aria-label="Public" onChange={() => { setLocal(a.id, { is_public: !a.is_public }); run(api(`/api/admin/products/${productId}/passport/${a.id}`, 'PATCH', { isPublic: !a.is_public })) }} /></td>
               <td>
-                <input type="checkbox" checked={a.is_verified} aria-label="Verified" onChange={() => run(api(`/api/admin/products/${productId}/passport/${a.id}`, 'PATCH', { isVerified: !a.is_verified }))} />
+                <input type="checkbox" checked={a.is_verified} aria-label="Verified" onChange={() => { setLocal(a.id, { is_verified: !a.is_verified }); run(api(`/api/admin/products/${productId}/passport/${a.id}`, 'PATCH', { isVerified: !a.is_verified })) }} />
                 {a.is_verified && a.verifier && <span style={{ fontSize: 11, color: 'var(--stone)', marginLeft: 6 }}>{a.verifier.first_name} {a.verifier.last_name}</span>}
               </td>
               <td>
@@ -368,7 +487,7 @@ function PassportTab({ productId, setErr }: { productId: string; setErr: (s: str
         <input style={{ ...inp, width: 220 }} placeholder="Claim, e.g. Crib 5 Fire Retardant" value={form.label} onChange={e => setForm(v => ({ ...v, label: e.target.value }))} />
         <input style={{ ...inp, width: 180 }} placeholder="Detail (optional)" value={form.valueText} onChange={e => setForm(v => ({ ...v, valueText: e.target.value }))} />
         <button className="btn btn-secondary btn-sm" disabled={!form.label.trim()} onClick={() => {
-          run(api(`/api/admin/products/${productId}/passport`, 'POST', { label: form.label.trim(), valueText: form.valueText || null }))
+          run(api(`/api/admin/products/${productId}/passport`, 'POST', { label: form.label.trim(), valueText: form.valueText || null }), `Claim "${form.label.trim()}" added.`)
           setForm({ label: '', valueText: '' })
         }}>Add claim</button>
       </div>
@@ -380,7 +499,7 @@ function PassportTab({ productId, setErr }: { productId: string; setErr: (s: str
 
 type SpecRow = { id: string; label: string; value: string; unit: string | null; visibility: string; sort_order: number }
 
-function SpecsTab({ productId, setErr }: { productId: string; setErr: (s: string) => void }) {
+function SpecsTab({ productId, setErr, flash }: { productId: string; setErr: (s: string) => void; flash: (s: string) => void }) {
   const [rows, setRows] = useState<SpecRow[]>([])
   const [form, setForm] = useState({ label: '', value: '', unit: '', visibility: 'public' })
 
@@ -390,9 +509,9 @@ function SpecsTab({ productId, setErr }: { productId: string; setErr: (s: string
   }, [productId])
   useEffect(() => { load() }, [load])
 
-  const run = async (p: Promise<{ success: boolean; error?: string }>) => {
+  const run = async (p: Promise<{ success: boolean; error?: string }>, okMsg?: string) => {
     const res = await p
-    if (!res.success) setErr(res.error ?? 'Action failed'); else { setErr(''); load() }
+    if (!res.success) setErr(res.error ?? 'Action failed'); else { setErr(''); if (okMsg) flash(okMsg); load() }
   }
 
   const move = (row: SpecRow, dir: -1 | 1) => {
@@ -453,7 +572,7 @@ function SpecsTab({ productId, setErr }: { productId: string; setErr: (s: string
           <option value="public">public</option><option value="trade">trade</option><option value="internal">internal</option>
         </select>
         <button className="btn btn-secondary btn-sm" disabled={!form.label.trim() || !form.value.trim()} onClick={() => {
-          run(api(`/api/admin/products/${productId}/spec-rows`, 'POST', { label: form.label.trim(), value: form.value.trim(), unit: form.unit || null, visibility: form.visibility }))
+          run(api(`/api/admin/products/${productId}/spec-rows`, 'POST', { label: form.label.trim(), value: form.value.trim(), unit: form.unit || null, visibility: form.visibility }), `Spec row "${form.label.trim()}" added.`)
           setForm({ label: '', value: '', unit: '', visibility: 'public' })
         }}>Add row</button>
       </div>

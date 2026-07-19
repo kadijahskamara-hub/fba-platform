@@ -64,7 +64,12 @@
 }
 
 /* ── BASE ────────────────────────────────────────────────────── */
-html { scroll-behavior: smooth; }
+/* scrollbar-gutter (QA item 9, July 2026): reserve the scrollbar
+   track permanently so pages that grow/shrink while scrolling or tab
+   switching no longer shift the viewport width — the cause of the
+   intermittent width/scale jumps seen on the admin edit and Finish
+   Library pages. */
+html { scroll-behavior: smooth; scrollbar-gutter: stable; }
 body {
   font-family: var(--font-body);
   background: var(--warm-white);

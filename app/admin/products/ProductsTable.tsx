@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { appConfirm } from '@/lib/appConfirm'
 import { useRouter } from 'next/navigation'
 import ProductRowActions from './ProductRowActions'
+import { completenessBreakdown, type ProductHealthChecks } from '@/lib/productCompleteness'
 
 // ============================================================
 // Client table: checkbox selection + bulk action toolbar.
@@ -26,6 +27,59 @@ export interface ProductRow {
   artisan_name: string | null
   created_at: string
   completeness?: number | null
+  health?: ProductHealthChecks | null
+}
+
+// QA item 1: click the % to see exactly which of the 11 checks are
+// outstanding, with a hint for where each one lives.
+function CompletenessBadge({ percent, health }: { percent: number; health: ProductHealthChecks | null }) {
+  const [open, setOpen] = useState(false)
+  const b = completenessBreakdown(health)
+  const colour = percent >= 80 ? '#166534' : percent >= 50 ? '#B45309' : '#B91C1C'
+  const summary = health
+    ? (b.missing.length === 0 ? 'All 11 checks complete' : `Missing: ${b.missing.map(m => m.label).join(', ')}`)
+    : undefined
+
+  return (
+    <span style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        title={summary}
+        aria-expanded={open}
+        aria-label={`Completeness ${percent}%${summary ? ` — ${summary}` : ''}`}
+        style={{
+          fontSize: 12, fontWeight: 600, color: colour, background: 'none', border: 'none',
+          cursor: health ? 'pointer' : 'default', padding: 0,
+          textDecoration: health ? 'underline dotted' : 'none', textUnderlineOffset: 3,
+        }}
+      >
+        {percent}%
+      </button>
+      {open && health && (
+        <span style={{
+          position: 'absolute', zIndex: 60, top: 'calc(100% + 6px)', right: 0, width: 250,
+          background: 'var(--warm-white)', border: '1px solid var(--light-line)', borderRadius: 6,
+          boxShadow: '0 6px 18px rgba(24,32,26,0.14)', padding: '10px 12px', textAlign: 'left',
+        }}>
+          <span style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--forest)', marginBottom: 6 }}>
+            {b.done}/{b.total} checks complete
+          </span>
+          {b.missing.length === 0 ? (
+            <span style={{ display: 'block', fontSize: 12, color: '#166534' }}>Nothing outstanding.</span>
+          ) : b.missing.map(m => (
+            <span key={m.key} style={{ display: 'block', fontSize: 11.5, color: 'var(--stone)', margin: '3px 0', fontWeight: 400 }}>
+              <span style={{ color: '#B91C1C' }}>✗</span> {m.label}
+              <span style={{ opacity: 0.7 }}> — {m.hint}</span>
+            </span>
+          ))}
+          <button type="button" className="btn btn-ghost btn-sm" style={{ marginTop: 6, fontSize: 11 }} onClick={() => setOpen(false)}>
+            Close
+          </button>
+        </span>
+      )}
+    </span>
+  )
 }
 
 const BULK_ACTIONS = [
@@ -167,12 +221,7 @@ export default function ProductsTable({ products, isAdmin }: { products: Product
                   </td>
                   <td>
                     {typeof p.completeness === 'number' ? (
-                      <span style={{
-                        fontSize: 12, fontWeight: 600,
-                        color: p.completeness >= 80 ? '#166534' : p.completeness >= 50 ? '#B45309' : '#B91C1C',
-                      }}>
-                        {p.completeness}%
-                      </span>
+                      <CompletenessBadge percent={p.completeness} health={p.health ?? null} />
                     ) : '—'}
                   </td>
                   <td>

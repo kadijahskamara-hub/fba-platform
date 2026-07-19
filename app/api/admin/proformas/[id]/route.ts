@@ -201,7 +201,7 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   if (!cs) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 
   const { data: pf } = await supabaseAdmin
-    .from('proformas').select('id, proforma_number, locked_at, document_status').eq('id', params.id).single()
+    .from('proformas').select('id, proforma_number, locked_at, document_status, quote_request_id').eq('id', params.id).single()
   if (!pf) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 })
   if (pf.locked_at || pf.document_status === 'issued') {
     return NextResponse.json({ success: false, error: 'Issued documents cannot be deleted. Cancellations require a credit note (Finance / Ultra Admin).' }, { status: 409 })
@@ -209,6 +209,17 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
 
   const { error } = await supabaseAdmin.from('proformas').delete().eq('id', params.id)
   if (error) return NextResponse.json({ success: false, error: 'Delete failed.' }, { status: 500 })
+
+  // Don't resurrect the source request in the incoming inbox: the studio
+  // deliberately deleted this quote, so the request is closed as rejected
+  // (it stays on record and can still be deleted outright by Ultra Admin).
+  if (pf.quote_request_id) {
+    await supabaseAdmin
+      .from('quote_requests')
+      .update({ status: 'rejected' })
+      .eq('id', pf.quote_request_id)
+      .not('status', 'in', '("converted_to_order","accepted")')
+  }
 
   await logAudit({ actor: cs.user, action: 'proforma.deleted', entityType: 'proforma', entityId: params.id, before: { number: pf.proforma_number } })
   return NextResponse.json({ success: true })

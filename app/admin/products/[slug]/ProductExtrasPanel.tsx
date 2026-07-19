@@ -101,7 +101,7 @@ export default function ProductExtrasPanel({ productId, slug, initialFulfilment 
     setTimeout(() => setMsg(''), 3500)
   }
 
-  async function mutate(kind: string, action: string, id?: string, data?: Record<string, unknown>) {
+  async function mutate(kind: string, action: string, id?: string, data?: Record<string, unknown>): Promise<boolean> {
     setBusy(true)
     try {
       const res = await fetch(`/api/admin/products/${productId}/extras`, {
@@ -110,10 +110,12 @@ export default function ProductExtrasPanel({ productId, slug, initialFulfilment 
         body: JSON.stringify({ kind, action, id, data }),
       })
       const json = await res.json()
-      if (!json.success) alert(json.error ?? 'Action failed')
-      else await load()
+      if (!json.success) { alert(json.error ?? 'Action failed'); return false }
+      await load()
+      return true
     } catch {
       alert('Network error — please try again.')
+      return false
     } finally {
       setBusy(false)
     }
@@ -153,11 +155,11 @@ export default function ProductExtrasPanel({ productId, slug, initialFulfilment 
         ) : tab === 'Documents' ? (
           <DocumentsTab productId={productId} docs={docs} busy={busy} mutate={mutate} reload={load} flash={flash} />
         ) : tab === 'Hard finishes' ? (
-          <FinishesTab category="hard_finish" finishes={finishes.filter(f => f.finish_category === 'hard_finish')} busy={busy} mutate={mutate} />
+          <FinishesTab category="hard_finish" slug={slug} finishes={finishes.filter(f => f.finish_category === 'hard_finish')} busy={busy} mutate={mutate} flash={flash} />
         ) : tab === 'Upholstery' ? (
-          <FinishesTab category="upholstery" finishes={finishes.filter(f => f.finish_category === 'upholstery')} busy={busy} mutate={mutate} />
+          <FinishesTab category="upholstery" slug={slug} finishes={finishes.filter(f => f.finish_category === 'upholstery')} busy={busy} mutate={mutate} flash={flash} />
         ) : tab === 'Sizes' ? (
-          <SizesTab variants={variants} busy={busy} mutate={mutate} />
+          <SizesTab variants={variants} busy={busy} mutate={mutate} flash={flash} />
         ) : (
           <FulfilmentTab slug={slug} initial={initialFulfilment} flash={flash} />
         )}
@@ -172,7 +174,7 @@ function DocumentsTab({ productId, docs, busy, mutate, reload, flash }: {
   productId: string
   docs: DocRow[]
   busy: boolean
-  mutate: (kind: string, action: string, id?: string, data?: Record<string, unknown>) => Promise<void>
+  mutate: (kind: string, action: string, id?: string, data?: Record<string, unknown>) => Promise<boolean>
   reload: () => Promise<void>
   flash: (t: string) => void
 }) {
@@ -183,8 +185,10 @@ function DocumentsTab({ productId, docs, busy, mutate, reload, flash }: {
 
   async function addByUrl() {
     if (!url.trim().startsWith('https://')) { alert('Paste a full https:// URL.'); return }
-    await mutate('document', 'create', undefined, { document_type: docType, url: url.trim() })
-    setUrl('')
+    if (await mutate('document', 'create', undefined, { document_type: docType, url: url.trim() })) {
+      setUrl('')
+      flash('Document added.')
+    }
   }
 
   async function upload() {
@@ -268,11 +272,13 @@ function DocumentsTab({ productId, docs, busy, mutate, reload, flash }: {
 
 // ── Finishes (hard + upholstery share this) ──────────────────
 
-function FinishesTab({ category, finishes, busy, mutate }: {
+function FinishesTab({ category, slug, finishes, busy, mutate, flash }: {
   category: 'hard_finish' | 'upholstery'
+  slug: string
   finishes: FinishRow[]
   busy: boolean
-  mutate: (kind: string, action: string, id?: string, data?: Record<string, unknown>) => Promise<void>
+  mutate: (kind: string, action: string, id?: string, data?: Record<string, unknown>) => Promise<boolean>
+  flash: (t: string) => void
 }) {
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
@@ -294,12 +300,29 @@ function FinishesTab({ category, finishes, busy, mutate }: {
       data.com_accepted = com
       data.rub_count = rub ? Math.max(0, parseInt(rub, 10) || 0) : null
     }
-    await mutate('finish', 'create', undefined, data)
-    setName(''); setCode(''); setColour(''); setSwatch(''); setCom(false); setRub('')
+    if (await mutate('finish', 'create', undefined, data)) {
+      setName(''); setCode(''); setColour(''); setSwatch(''); setCom(false); setRub('')
+      flash(`${category === 'hard_finish' ? 'Hard finish' : 'Upholstery'} option added.`)
+    }
   }
 
   return (
     <div>
+      {/* QA item 4: this legacy list is easily confused with the
+          Configuration page's Finish Groups — spell out the difference. */}
+      <div style={{
+        marginBottom: 14, padding: '10px 14px', fontSize: 12.5, lineHeight: 1.6,
+        background: 'var(--cream, #f7f3ec)', border: '1px solid var(--light-line)', color: 'var(--stone)',
+      }}>
+        <strong style={{ color: 'var(--forest)' }}>
+          {category === 'hard_finish' ? 'Hard finishes' : 'Upholstery'} — simple legacy swatches.
+        </strong>{' '}
+        These appear on the product page <em>only when the product has no Finish Groups</em>, and cannot carry
+        price or lead-time adjustments. For the customer-facing configurator with priced options, use{' '}
+        <a href={`/admin/products/${slug}/configuration`} style={{ color: 'var(--caramel)', textDecoration: 'underline' }}>
+          Configuration → Finish Groups
+        </a>.
+      </div>
       {finishes.length === 0 ? (
         <p style={{ fontSize: 13, color: 'var(--stone)', marginBottom: 16 }}>
           No {category === 'hard_finish' ? 'hard finish' : 'upholstery'} options yet — the section is hidden on the public page until options exist.
@@ -366,21 +389,24 @@ function FinishesTab({ category, finishes, busy, mutate }: {
 
 // ── Sizes / variants ─────────────────────────────────────────
 
-function SizesTab({ variants, busy, mutate }: {
+function SizesTab({ variants, busy, mutate, flash }: {
   variants: VariantRow[]
   busy: boolean
-  mutate: (kind: string, action: string, id?: string, data?: Record<string, unknown>) => Promise<void>
+  mutate: (kind: string, action: string, id?: string, data?: Record<string, unknown>) => Promise<boolean>
+  flash: (t: string) => void
 }) {
   const [name, setName] = useState('')
   const [lead, setLead] = useState('')
 
   async function add() {
     if (!name.trim()) { alert('Size name is required (e.g. "245cm x 108cm").'); return }
-    await mutate('variant', 'create', undefined, {
+    if (await mutate('variant', 'create', undefined, {
       variant_name: name.trim().slice(0, 120),
       lead_time_override: lead.trim().slice(0, 80) || null,
-    })
-    setName(''); setLead('')
+    })) {
+      setName(''); setLead('')
+      flash('Size added.')
+    }
   }
 
   return (

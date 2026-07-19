@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { CUSTOM_MATCH_STATUS_LABELS, type CustomMatchStatus } from '@/lib/customMatch/logic'
+import { UltraDeleteRecordButton } from '@/components/UltraDeleteRecordButton'
 
 type Detail = Record<string, unknown> & {
   id: string; reference_number: string; status: CustomMatchStatus
@@ -83,6 +84,12 @@ export default function CustomMatchDetailPage() {
             {d.product?.slug && <> · <Link href={`/admin/products/${d.product.slug}`} style={{ color: 'var(--forest)' }}>open product</Link></>}
           </p>
         </div>
+        <UltraDeleteRecordButton
+          entity="custom_match"
+          recordId={d.id}
+          label={d.reference_number}
+          redirectTo="/admin/custom-match"
+        />
       </div>
 
       {err && <p style={{ color: '#a33', fontSize: 13 }}>{err}</p>}

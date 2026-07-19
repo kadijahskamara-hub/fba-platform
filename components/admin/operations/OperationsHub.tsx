@@ -47,10 +47,17 @@ interface CmException {
 
 const VISIBLE_LANES = ['accepted', 'procurement', 'production', 'dispatch', 'delivered', 'installed', 'closed']
 
+interface ProfitSummary {
+  projected: number
+  settled: number
+  incompleteOrders: number
+}
+
 export function OperationsHub() {
   const [overview, setOverview] = useState<Overview | null>(null)
   const [workload, setWorkload] = useState<Workload | null>(null)
   const [cmExceptions, setCmExceptions] = useState<CmException[]>([])
+  const [profit, setProfit] = useState<ProfitSummary | null>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -61,6 +68,19 @@ export function OperationsHub() {
       .then(j => { if (j.success) setCmExceptions(j.data.customMatch ?? []) }).catch(() => {})
     fetch('/api/admin/operations/workload').then(r => r.json())
       .then(res => { if (res.success) setWorkload(res.data) })
+      .catch(() => {})
+    // Profit headline (PRICE-LEVEL — the API refuses without quote_price_edit,
+    // in which case the cards simply don't render).
+    fetch('/api/admin/operations/profitability').then(r => r.json())
+      .then(res => {
+        if (!res.success) return
+        const rows: { settled: boolean; projectedMargin: number | null }[] = res.data.orders ?? []
+        setProfit({
+          projected: rows.reduce((s, r) => s + (r.projectedMargin ?? 0), 0),
+          settled: rows.filter(r => r.settled).reduce((s, r) => s + (r.projectedMargin ?? 0), 0),
+          incompleteOrders: rows.filter(r => r.projectedMargin === null).length,
+        })
+      })
       .catch(() => {})
   }, [])
 
@@ -76,6 +96,20 @@ export function OperationsHub() {
     { label: 'Open deliveries', value: kpis.deliveriesOpen },
     { label: 'Margin at risk (unresolved)', value: kpis.marginAtRiskUnresolved, tone: kpis.marginAtRiskUnresolved > 0 ? '#a03030' : undefined },
     ...(canSeeMoney ? [{ label: 'Net cash exposure', value: money(kpis.netExposure, 'GBP'), tone: (kpis.netExposure ?? 0) > 0 ? '#8a6d1a' : undefined }] : []),
+    ...(canSeeMoney && profit ? [
+      {
+        label: profit.incompleteOrders > 0
+          ? `Projected profit (${profit.incompleteOrders} order${profit.incompleteOrders !== 1 ? 's' : ''} missing costs)`
+          : 'Projected profit',
+        value: money(profit.projected, 'GBP'),
+        tone: profit.projected < 0 ? '#a03030' : '#2e6b3a',
+      },
+      {
+        label: 'Settled profit (completed orders)',
+        value: money(profit.settled, 'GBP'),
+        tone: profit.settled < 0 ? '#a03030' : '#2e6b3a',
+      },
+    ] : []),
   ]
 
   return (
@@ -87,7 +121,7 @@ export function OperationsHub() {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <Link href="/admin/operations/suppliers" className="btn btn-secondary btn-sm">Supplier progress</Link>
-          {canSeeMoney && <Link href="/admin/operations/money" className="btn btn-secondary btn-sm">Exposure &amp; profitability</Link>}
+          {canSeeMoney && <Link href="/admin/operations/money" className="btn btn-primary btn-sm">Profit &amp; exposure</Link>}
         </div>
       </div>
 

@@ -30,6 +30,13 @@ export function ProductDetailClient({ product, media }: ProductDetailClientProps
 
   const [activeImg, setActiveImg] = useState(0)
 
+  // QA fix (July 2026): when the underlying image list changes — an image
+  // removed, reordered, or structured media replacing the legacy array —
+  // reset to the primary image instead of keeping a stale index that can
+  // display the wrong (or a removed) image in the main preview.
+  const frameKey = frames.map(f => f.id).join('|')
+  useEffect(() => { setActiveImg(0) }, [frameKey])
+
   // Finish-specific switching: the configurator announces the media id
   // linked to the newly selected finish; retain the main image when the
   // selected finish has no dedicated shot (md doc §4.4).

@@ -244,6 +244,48 @@ export default function AdminProductForm({ mode, product, categories: initCats =
   const isLighting = selectedCategory?.slug === 'lighting'
   const isTables   = selectedCategory?.slug === 'tables'
 
+  // ── Category-aware Material Config (QA items 2 & 3, July 2026) ──
+  // Only category-relevant modules render by default; a toggle reveals
+  // everything (needed when data was entered under a previous category).
+  const catSlug     = selectedCategory?.slug ?? ''
+  const isSeatingLike = ['seating', 'beds'].includes(catSlug)
+  // Frame/structure applies to most furniture but not tables (own Legs
+  // module), lighting (own Body module) or textiles.
+  const hasFrameModule = !!catSlug && !['tables', 'lighting', 'textiles'].includes(catSlug)
+  const [showAllMaterialSections, setShowAllMaterialSections] = useState(false)
+
+  const SEATING_KEYS: (keyof FormData)[] = [
+    'armrestMaterial', 'armrestFinishColourOptions',
+    'seatMaterial', 'backMaterial', 'seatBackUpholsteryOptions', 'upholsteredLegsColourOptions',
+  ]
+  const FRAME_KEYS: (keyof FormData)[] = ['frameMaterial', 'frameMaterialOptions', 'frameFinishColourOptions']
+  const TABLE_KEYS: (keyof FormData)[] = [
+    'legMaterial', 'legMaterialOptions', 'legFinishColourOptions', 'basePedestalType',
+    'feetGlides', 'suitableTableTopSizes', 'topMaterial', 'topMaterialOptions',
+    'topThicknessMm', 'topFinishColourOptions', 'topShapeOptions', 'topSizeOptions', 'extensionOptions',
+  ]
+  const LIGHTING_KEYS: (keyof FormData)[] = [
+    'bodyFrameMaterial', 'baseMaterial', 'diffuserShadeMaterial', 'fringesTrimMaterial',
+    'bodyFrameColourOptions', 'baseColourOptions', 'diffuserShadeColourOptions', 'fringesColourOptions',
+    'suitableFor', 'batteryLife', 'lightSourceType', 'recommendedLightSource', 'lumens',
+    'colourTemperature', 'averageLifeLightSource', 'sparePartsAvailable', 'lightingSpecNotes',
+  ]
+  const BASE_KEYS: (keyof FormData)[] = ['glides', 'indoorOutdoorUse', 'footprintM2', 'shippingVolumeM3', 'otherAvailableOptions']
+
+  const filledCount = (keys: (keyof FormData)[]): [number, number] =>
+    [keys.filter(k => String(form[k] ?? '').trim() !== '').length, keys.length]
+
+  // Data entered in modules currently hidden for this category (e.g. the
+  // category changed after fields were filled) — surfaced so nothing is
+  // silently invisible.
+  const hiddenModuleKeys: (keyof FormData)[] = [
+    ...(!hasFrameModule ? FRAME_KEYS : []),
+    ...(!isSeatingLike ? SEATING_KEYS : []),
+    ...(!isTables ? TABLE_KEYS : []),
+    ...(!isLighting ? LIGHTING_KEYS : []),
+  ]
+  const hiddenFilled = showAllMaterialSections ? 0 : filledCount(hiddenModuleKeys)[0]
+
   const buildSpecifications = () => ({
     // base
     material:         form.material || undefined,
@@ -359,7 +401,15 @@ export default function AdminProductForm({ mode, product, categories: initCats =
       const res    = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildPayload()) })
       const data   = await res.json()
       if (!data.success) { setError(data.error ?? 'Save failed.'); return }
-      router.push('/admin/products')
+      if (mode === 'create') {
+        // QA item 8: go straight to the full editor (extras, finish
+        // groups, passport…) so a new product can be completed in one
+        // visit instead of two save round-trips via the list.
+        const newSlug = (data.data?.slug as string | undefined) ?? form.slug
+        router.push(`/admin/products/${newSlug}`)
+      } else {
+        router.push('/admin/products')
+      }
       router.refresh()
     })
   }
@@ -400,6 +450,30 @@ export default function AdminProductForm({ mode, product, categories: initCats =
     </>
   )
 
+  // Category-module header: title + "Applies to" tag + mini progress
+  // (string fields only — unticked checkboxes are not "incomplete").
+  const moduleHeader = (title: string, appliesTo: string, keys: (keyof FormData)[], relevant: boolean, first = false) => {
+    const [done, total] = filledCount(keys)
+    return (
+      <>
+        {!first && <hr style={{ margin: '28px 0', border: 'none', borderTop: '1px solid var(--light-line)' }} />}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
+          <h4 className="h4" style={{ margin: 0 }}>{title}</h4>
+          <span style={{
+            fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '2px 8px',
+            background: relevant ? 'var(--sage-light, #E8EDE6)' : '#FDF0DC',
+            color: relevant ? 'var(--forest)' : '#B45309', borderRadius: 3,
+          }}>
+            {relevant ? `Applies to: ${appliesTo}` : `Not typical for ${selectedCategory?.name ?? 'this category'}`}
+          </span>
+          <span style={{ fontSize: 11, color: done === total ? '#166534' : 'var(--stone)' }}>
+            {done}/{total} fields complete
+          </span>
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
       <div className="admin-header">
@@ -430,7 +504,9 @@ export default function AdminProductForm({ mode, product, categories: initCats =
       </div>
 
       <form id="product-form" onSubmit={handleSubmit} noValidate>
-        <div style={{ background: 'var(--warm-white)', border: '1px solid var(--light-line)', padding: 40 }}>
+        {/* minHeight steadies the panel between tab switches (QA item 9:
+            re-render height jumps produced blank-gap glitches). */}
+        <div style={{ background: 'var(--warm-white)', border: '1px solid var(--light-line)', padding: 40, minHeight: 480 }}>
 
           {/* ══════════════════════════════════════════════════
               TAB: PRODUCT DETAILS
@@ -528,6 +604,9 @@ export default function AdminProductForm({ mode, product, categories: initCats =
                 <textarea className="form-textarea" rows={4} value={form.images} onChange={set('images')}
                   placeholder="https://images.pexels.com/photos/123456/pexels-photo-123456.jpeg?auto=compress&cs=tinysrgb&w=800" />
                 <p className="form-hint">First image is the primary display image.</p>
+                {/* QA item 6: inline thumbnails so a wrong or broken URL
+                    is caught here, not on the live product page. */}
+                <ImageUrlPreviews raw={form.images} />
               </div>
               <div style={{ display: 'flex', gap: 24 }}>
                 <label className="form-checkbox">
@@ -616,20 +695,51 @@ export default function AdminProductForm({ mode, product, categories: initCats =
           ══════════════════════════════════════════════════ */}
           {activeTab === 'materials' && (
             <div>
+              {/* ── Category-aware layout (QA items 2 & 3) ─────────
+                  Base module always shows; category modules load from
+                  the selected Category so admins only see relevant
+                  fields. "Show all" reveals everything. */}
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap',
+                gap: 10, marginBottom: 20, padding: '10px 14px',
+                background: 'var(--cream, #f7f3ec)', border: '1px solid var(--light-line)', fontSize: 12.5,
+              }}>
+                <span style={{ color: 'var(--stone)' }}>
+                  {catSlug
+                    ? <>Showing material sections for <strong style={{ color: 'var(--forest)' }}>{selectedCategory?.name}</strong>.</>
+                    : <>Select a Category on the Product Details tab to load the relevant material sections.</>}
+                  {hiddenFilled > 0 && (
+                    <span style={{ color: '#B45309' }}>
+                      {' '}{hiddenFilled} filled field{hiddenFilled === 1 ? '' : 's'} sit in hidden sections — use “Show all sections” to review.
+                    </span>
+                  )}
+                </span>
+                <label className="form-checkbox" style={{ margin: 0 }}>
+                  <input type="checkbox" checked={showAllMaterialSections} onChange={e => setShowAllMaterialSections(e.target.checked)} />
+                  <span style={{ fontSize: 12.5 }}>Show all sections</span>
+                </label>
+              </div>
 
-              {/* ── Generic (seating / accessories / any product) ── */}
-              <h4 className="h4" style={{ marginBottom: 20 }}>Frame & Structure</h4>
-              {textRow([['frameMaterial', 'Frame material'], ['frameMaterialOptions', 'Frame material options']])}
-              {textRow([['frameFinishColourOptions', 'Frame finish / colour options']])}
+              {(hasFrameModule || showAllMaterialSections) && (
+                <>
+                  {moduleHeader('Frame & Structure', 'Seating, Beds, Storage & Accessories', FRAME_KEYS, hasFrameModule, true)}
+                  {textRow([['frameMaterial', 'Frame material'], ['frameMaterialOptions', 'Frame material options']])}
+                  {textRow([['frameFinishColourOptions', 'Frame finish / colour options']])}
+                </>
+              )}
 
-              {sectionDivider('Armrests')}
-              {textRow([['armrestMaterial', 'Armrest material'], ['armrestFinishColourOptions', 'Armrest finish / colour options']])}
+              {(isSeatingLike || showAllMaterialSections) && (
+                <>
+                  {moduleHeader('Armrests', 'Seating', ['armrestMaterial', 'armrestFinishColourOptions'], isSeatingLike, !hasFrameModule && !showAllMaterialSections)}
+                  {textRow([['armrestMaterial', 'Armrest material'], ['armrestFinishColourOptions', 'Armrest finish / colour options']])}
 
-              {sectionDivider('Seat & Back Upholstery')}
-              {textRow([['seatMaterial', 'Seat material'], ['backMaterial', 'Back material']])}
-              {textRow([['seatBackUpholsteryOptions', 'Seat & back upholstery options'], ['upholsteredLegsColourOptions', 'Upholstered legs colour options']])}
+                  {moduleHeader('Seat & Back Upholstery', 'Seating & Beds', ['seatMaterial', 'backMaterial', 'seatBackUpholsteryOptions', 'upholsteredLegsColourOptions'], isSeatingLike)}
+                  {textRow([['seatMaterial', 'Seat material'], ['backMaterial', 'Back material']])}
+                  {textRow([['seatBackUpholsteryOptions', 'Seat & back upholstery options'], ['upholsteredLegsColourOptions', 'Upholstered legs colour options']])}
+                </>
+              )}
 
-              {sectionDivider('Base, Glides & Use')}
+              {moduleHeader('Base, Glides & Use', 'All categories', BASE_KEYS, true, !hasFrameModule && !isSeatingLike && !showAllMaterialSections)}
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Glides</label>
@@ -660,14 +770,14 @@ export default function AdminProductForm({ mode, product, categories: initCats =
                 'Any bespoke / POA options not covered above')}
 
               {/* ── Table-specific ── */}
-              {isTables && (
+              {(isTables || showAllMaterialSections) && (
                 <>
-                  {sectionDivider('Table — Legs & Base')}
+                  {moduleHeader('Table — Legs & Base', 'Tables', ['legMaterial', 'legMaterialOptions', 'legFinishColourOptions', 'basePedestalType', 'feetGlides', 'suitableTableTopSizes'], isTables)}
                   {textRow([['legMaterial', 'Leg material'], ['legMaterialOptions', 'Leg material options']])}
                   {textRow([['legFinishColourOptions', 'Leg finish / colour options'], ['basePedestalType', 'Base / pedestal type']])}
                   {textRow([['feetGlides', 'Feet / glides'], ['suitableTableTopSizes', 'Suitable table top sizes']])}
 
-                  {sectionDivider('Table — Top')}
+                  {moduleHeader('Table — Top', 'Tables', ['topMaterial', 'topMaterialOptions', 'topThicknessMm', 'topFinishColourOptions', 'topShapeOptions', 'topSizeOptions', 'extensionOptions'], isTables)}
                   {textRow([['topMaterial', 'Top material'], ['topMaterialOptions', 'Top material options']])}
                   <div className="form-row">
                     <div className="form-group">
@@ -686,17 +796,17 @@ export default function AdminProductForm({ mode, product, categories: initCats =
               )}
 
               {/* ── Extended lighting config ── */}
-              {isLighting && (
+              {(isLighting || showAllMaterialSections) && (
                 <>
-                  {sectionDivider('Lighting — Body & Materials')}
+                  {moduleHeader('Lighting — Body & Materials', 'Lighting', ['bodyFrameMaterial', 'baseMaterial', 'diffuserShadeMaterial', 'fringesTrimMaterial'], isLighting)}
                   {textRow([['bodyFrameMaterial', 'Body / frame material'], ['baseMaterial', 'Base material']])}
                   {textRow([['diffuserShadeMaterial', 'Diffuser / shade material'], ['fringesTrimMaterial', 'Fringes / trim material']])}
 
-                  {sectionDivider('Lighting — Colour Options')}
+                  {moduleHeader('Lighting — Colour Options', 'Lighting', ['bodyFrameColourOptions', 'baseColourOptions', 'diffuserShadeColourOptions', 'fringesColourOptions'], isLighting)}
                   {textRow([['bodyFrameColourOptions', 'Body / frame colour options'], ['baseColourOptions', 'Base colour options']])}
                   {textRow([['diffuserShadeColourOptions', 'Diffuser / shade colour options'], ['fringesColourOptions', 'Fringes colour options']])}
 
-                  {sectionDivider('Lighting — Power & Use')}
+                  {moduleHeader('Lighting — Power & Use', 'Lighting', ['suitableFor', 'batteryLife'], isLighting)}
                   <div className="form-row">
                     <div className="form-group">
                       <label className="form-label">Suitable for</label>
@@ -716,7 +826,7 @@ export default function AdminProductForm({ mode, product, categories: initCats =
                     </label>
                   </div>
 
-                  {sectionDivider('Lighting — Light Source')}
+                  {moduleHeader('Lighting — Light Source', 'Lighting', ['lightSourceType', 'recommendedLightSource', 'lumens', 'colourTemperature', 'averageLifeLightSource', 'sparePartsAvailable', 'lightingSpecNotes'], isLighting)}
                   {textRow([['lightSourceType', 'Light source type'], ['recommendedLightSource', 'Recommended light source']])}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 8 }}>
                     {([
@@ -816,6 +926,65 @@ export default function AdminProductForm({ mode, product, categories: initCats =
 
         </div>
       </form>
+
+      {/* QA item 8: make the post-save sections visible during creation
+          so admins know what unlocks after the first save. */}
+      {mode === 'create' && (
+        <div style={{
+          marginTop: 20, padding: '16px 20px', border: '1px dashed var(--light-line)',
+          background: 'var(--warm-white)', opacity: 0.8,
+        }}>
+          <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--stone)', marginBottom: 6 }}>
+            Available after first save
+          </div>
+          <p style={{ fontSize: 13, color: 'var(--stone)', margin: 0 }}>
+            Documents · Hard finishes · Upholstery · Sizes · Fulfilment — plus Finish Groups, Images &amp; Media
+            and Technical Passport on the Configuration page. Saving takes you straight to the full editor,
+            so the product can be completed in one visit.
+          </p>
+        </div>
+      )}
     </>
+  )
+}
+
+// ── Inline image previews for the URL textarea (QA item 6) ───
+
+function ImageUrlPreviews({ raw }: { raw: string }) {
+  const urls = raw.split('\n').map(s => s.trim()).filter(Boolean)
+  if (urls.length === 0) return null
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
+      {urls.map((url, i) => <UrlThumb key={`${i}-${url}`} url={url} index={i} />)}
+    </div>
+  )
+}
+
+function UrlThumb({ url, index }: { url: string; index: number }) {
+  const [broken, setBroken] = useState(false)
+  const valid = /^https:\/\//i.test(url)
+  return (
+    <figure style={{ margin: 0, width: 92 }}>
+      <div style={{
+        width: 92, height: 92, border: broken || !valid ? '1px solid #E0B4B4' : '1px solid var(--light-line)',
+        background: '#F0EDE7', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+      }}>
+        {valid && !broken ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={url} alt={`Image ${index + 1} preview`} width={92} height={92}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            onError={() => setBroken(true)}
+          />
+        ) : (
+          <span style={{ fontSize: 10, color: '#B91C1C', textAlign: 'center', padding: 4 }}>
+            {valid ? 'Could not load' : 'Not an https:// URL'}
+          </span>
+        )}
+      </div>
+      <figcaption style={{ fontSize: 10, color: index === 0 ? 'var(--forest)' : 'var(--stone)', marginTop: 3, textAlign: 'center', fontWeight: index === 0 ? 600 : 400 }}>
+        {index === 0 ? 'Primary' : `#${index + 1}`}
+      </figcaption>
+    </figure>
   )
 }

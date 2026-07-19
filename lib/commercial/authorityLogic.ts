@@ -139,7 +139,8 @@ export function validateDeleteConfirmation(params: {
 export const DELETABLE_ENTITIES = [
   'proforma', 'commercial_order', 'sales_invoice', 'payment',
   'credit_note', 'refund', 'delivery', 'purchase_order',
-  'retail_order', 'quote_request',
+  'retail_order', 'quote_request', 'custom_match',
+  'trade_application', 'service_enquiry',
 ] as const
 
 export type DeletableEntity = (typeof DELETABLE_ENTITIES)[number]
@@ -160,6 +161,49 @@ export function validatePurgeRequest(params: {
   }
   if ((params.confirmPhrase ?? '').trim() !== PURGE_CONFIRM_PHRASE) {
     return refuse('CONFIRM_MISMATCH', `Type "${PURGE_CONFIRM_PHRASE}" exactly to confirm`)
+  }
+  return { allowed: true }
+}
+
+// ── Sectioned data resets (Sprint 19) ────────────────────────
+
+/**
+ * Business sections purgeable via purge_platform_section().
+ * Order matters for the UI: upstream sections that other data
+ * depends on come later, mirroring the SQL BLOCKED pre-checks.
+ */
+export const PURGE_SECTIONS = [
+  { key: 'communications',    label: 'Communications & documents', hint: 'Prepared comms packs, send events and generated document files.' },
+  { key: 'accounting',        label: 'Accounting periods & exports', hint: 'Period locks and export runs. Removes period locks that block other resets.' },
+  { key: 'finance',           label: 'Invoices, payments & credit notes', hint: 'All invoices, payments, receipts, allocations, credit notes and refunds.' },
+  { key: 'deliveries',        label: 'Deliveries & installations', hint: 'Delivery notes, PODs, packages, exceptions, installations and site locations.' },
+  { key: 'procurement',       label: 'Purchase orders', hint: 'Supplier POs and their snapshots; allocations return to “ready for PO”.' },
+  { key: 'commercial_orders', label: 'Commercial orders (full chain)', hint: 'Every order plus its deliveries, POs, invoices, payments and comms.' },
+  { key: 'quotes',            label: 'Quotes / proformas', hint: 'All quotes and issued documents. Purge Commercial orders first.' },
+  { key: 'custom_match',      label: 'Custom Match requests', hint: 'All Custom Match requests and their attachments.' },
+  { key: 'quote_requests',    label: 'Incoming quote requests', hint: 'The client-submitted request inbox (and request items).' },
+  { key: 'retail_orders',     label: 'Retail orders', hint: 'All retail orders and their items.' },
+  { key: 'service_enquiries', label: 'Service enquiries', hint: 'Website service/enquiry form submissions.' },
+  { key: 'projects_carts',    label: 'Client projects & carts', hint: 'Client project boards and shopping carts. Purge Quote requests first.' },
+  { key: 'trade_contacts',    label: 'Trade applications & contacts', hint: 'All trade account applications, contacts and contact notes.' },
+  { key: 'customer_accounts', label: 'Customer accounts', hint: 'Non-staff user accounts. Purge Quote requests and Retail orders first.' },
+] as const
+
+export type PurgeSection = (typeof PURGE_SECTIONS)[number]['key']
+
+export function isPurgeSection(value: unknown): value is PurgeSection {
+  return typeof value === 'string' && PURGE_SECTIONS.some(s => s.key === value)
+}
+
+export function validateSectionPurgeRequest(params: {
+  section: unknown
+  reason: string | null | undefined
+}): AuthorityDecision {
+  if (!params.reason || params.reason.trim().length === 0) {
+    return refuse('REASON_REQUIRED', 'A reason must be provided')
+  }
+  if (!isPurgeSection(params.section)) {
+    return refuse('INVALID_TARGET', 'This is not a purgeable section')
   }
   return { allowed: true }
 }

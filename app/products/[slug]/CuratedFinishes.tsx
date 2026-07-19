@@ -15,6 +15,7 @@ import {
   type ProductConfiguration, type FinishGroupDef, type CompatibilityRule,
 } from '@/lib/customMatch/logic'
 import CustomMatchModal, { type CustomMatchProductSummary } from './CustomMatchModal'
+import { PRICE_ADJUSTMENT_EVENT } from './LivePrice'
 
 export interface PublicOption {
   id: string
@@ -74,6 +75,14 @@ export default function CuratedFinishes({ productId, groups, rules, media, isLog
 
   const completeness = configurationCompleteness(groupDefs, config)
   const adjustments = configurationAdjustments(config)
+
+  // Announce the running price adjustment so the headline price
+  // (LivePrice, left column header) reflects the configured cost live.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent(PRICE_ADJUSTMENT_EVENT, {
+      detail: { total: adjustments.priceAdjustmentTotal },
+    }))
+  }, [adjustments.priceAdjustmentTotal])
 
   // Announce finish-linked media for the gallery
   useEffect(() => {

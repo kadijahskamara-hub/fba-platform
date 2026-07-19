@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useTransition } from 'react'
 import type { TradeApplication, ApplicationStatus } from '@/lib/types'
+import { UltraDeleteRecordButton } from '@/components/UltraDeleteRecordButton'
 
 const STATUS_LABELS: Record<ApplicationStatus, string> = {
   pending:      'Pending',
@@ -331,6 +332,16 @@ export default function TradeApplicationsPage() {
                   onClick={() => doAction(selected.id, 'add_note', { note: noteText })}>
                   Save Note
                 </button>
+              </div>
+
+              {/* Ultra-only permanent deletion (test data cleanup) */}
+              <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--light-line)' }}>
+                <UltraDeleteRecordButton
+                  entity="trade_application"
+                  recordId={selected.id}
+                  label={`Trade application · ${selected.companyName}`}
+                  onDeleted={() => { setSelected(null); loadAll() }}
+                />
               </div>
 
             </div>

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { appConfirm } from '@/lib/appConfirm'
-import { PURGE_CONFIRM_PHRASE } from '@/lib/commercial/authorityLogic'
+import { PURGE_CONFIRM_PHRASE, PURGE_SECTIONS } from '@/lib/commercial/authorityLogic'
 
 // ============================================================
 // Platform authority manager (Sprint 7 Part B) — Ultra only.
@@ -187,7 +187,111 @@ export function PlatformAuthorityManager({
         is written to the audit log with actor, target and before/after state.
       </p>
 
+      <SectionResetPanel onToast={showToast} />
+
       <PurgeDangerZone onToast={showToast} />
+    </div>
+  )
+}
+
+// ── Danger zone: per-section resets (Sprint 19) ───────────────
+
+function SectionResetPanel({ onToast }: { onToast: (msg: string, type?: 'success' | 'error') => void }) {
+  const [reason, setReason] = useState('')
+  const [busyKey, setBusyKey] = useState<string | null>(null)
+  const [results, setResults] = useState<Record<string, string>>({})
+
+  async function handleSectionPurge(section: string, label: string) {
+    if (reason.trim().length === 0 || busyKey) return
+    if (!await appConfirm(
+      `Delete ALL data in “${label}”?\n\n` +
+      'Every record in this section is permanently removed and its document ' +
+      'numbering restarts at 0001. Other sections are untouched.\n\n' +
+      'There is no undo. Continue?'
+    )) return
+    setBusyKey(section)
+    try {
+      const res = await fetch('/api/admin/authority/purge-section', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ section, reason: reason.trim() }),
+      })
+      const json = await res.json()
+      if (!json.success) {
+        onToast(json.error ?? 'Section reset failed', 'error')
+        return
+      }
+      const n = json.data?.rows_deleted ?? 0
+      setResults(prev => ({ ...prev, [section]: `${n} row${n === 1 ? '' : 's'} deleted` }))
+      onToast(`${label}: ${n} rows deleted`)
+    } catch {
+      onToast('Network error — please try again.', 'error')
+    } finally {
+      setBusyKey(null)
+    }
+  }
+
+  const armed = reason.trim().length > 0
+
+  return (
+    <div style={{
+      marginTop: 40, border: '1.5px solid var(--danger)',
+      background: 'rgba(176,58,46,0.03)', padding: '24px 28px',
+    }}>
+      <div style={{
+        fontSize: 11, fontWeight: 700, letterSpacing: '0.2em',
+        textTransform: 'uppercase', color: 'var(--danger)', marginBottom: 12,
+      }}>
+        Danger zone — reset one section
+      </div>
+      <p style={{ fontSize: 13, color: 'var(--forest)', lineHeight: 1.7, marginBottom: 16 }}>
+        Delete <strong>all</strong> records in a single business section, leaving everything
+        else intact — built for targeted test-data resets. Sections that other data depends
+        on refuse to run and tell you which section to clear first. Every reset is audited
+        with actor, reason and per-table counts. <strong>No undo.</strong>
+      </p>
+
+      <div style={{ maxWidth: 520, marginBottom: 18 }}>
+        <label className="form-label">Reason (applies to each reset below) *</label>
+        <input
+          className="form-input"
+          value={reason}
+          maxLength={500}
+          onChange={e => setReason(e.target.value)}
+          placeholder="e.g. clearing test data for a fresh QA round"
+        />
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {PURGE_SECTIONS.map(s => (
+          <div key={s.key} style={{
+            display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
+            padding: '10px 14px', border: '1px solid var(--light-line)', background: 'var(--warm-white)',
+          }}>
+            <div style={{ flex: '1 1 280px', minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--forest)' }}>{s.label}</div>
+              <div style={{ fontSize: 11.5, color: 'var(--stone)' }}>{s.hint}</div>
+            </div>
+            {results[s.key] && (
+              <span style={{ fontSize: 11.5, color: '#155724', fontWeight: 600 }}>{results[s.key]}</span>
+            )}
+            <button
+              className="btn btn-sm"
+              disabled={!armed || busyKey !== null}
+              title={armed ? `Delete all ${s.label}` : 'Enter a reason first'}
+              onClick={() => handleSectionPurge(s.key, s.label)}
+              style={{
+                color: '#fff', border: 'none', padding: '7px 16px',
+                fontSize: 11.5, fontWeight: 700,
+                background: armed ? 'var(--danger)' : 'rgba(176,58,46,0.35)',
+                cursor: armed && !busyKey ? 'pointer' : 'not-allowed',
+              }}
+            >
+              {busyKey === s.key ? 'Deleting…' : 'Delete all'}
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

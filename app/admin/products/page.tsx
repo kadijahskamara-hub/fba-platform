@@ -100,15 +100,35 @@ export default async function AdminProductsPage(props: { searchParams: Promise<P
     created_at: p.created_at as string,
   }))
 
-  // Attach completeness scores from the product_health view
+  // Attach completeness scores + per-check breakdown from the
+  // product_health view (QA item 1: the % is no longer a black box).
   const ids = products.map(p => p.id)
   if (ids.length > 0) {
     const { data: health } = await supabaseAdmin
       .from('product_health')
-      .select('id, completeness')
+      .select('id, completeness, has_hero_image, has_three_images, has_category, has_artisan, has_origin, has_short_description, has_technical_description, has_lead_time, has_seo, has_spec_doc, has_finishes')
       .in('id', ids)
-    const scoreById = new Map((health ?? []).map((h: { id: string; completeness: number }) => [h.id, h.completeness]))
-    products = products.map(p => ({ ...p, completeness: scoreById.get(p.id) ?? null }))
+    const byId = new Map((health ?? []).map((h: Record<string, unknown>) => [h.id as string, h]))
+    products = products.map(p => {
+      const h = byId.get(p.id)
+      return {
+        ...p,
+        completeness: (h?.completeness as number | undefined) ?? null,
+        health: h ? {
+          has_hero_image:            h.has_hero_image === true,
+          has_three_images:          h.has_three_images === true,
+          has_category:              h.has_category === true,
+          has_artisan:               h.has_artisan === true,
+          has_origin:                h.has_origin === true,
+          has_short_description:     h.has_short_description === true,
+          has_technical_description: h.has_technical_description === true,
+          has_lead_time:             h.has_lead_time === true,
+          has_seo:                   h.has_seo === true,
+          has_spec_doc:              h.has_spec_doc === true,
+          has_finishes:              h.has_finishes === true,
+        } : null,
+      }
+    })
   }
 
   // Image/completeness filters are applied post-query (not directly

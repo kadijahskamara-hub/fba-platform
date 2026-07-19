@@ -21,6 +21,9 @@ const ENTITY_LABELS: Record<DeletableEntity, string> = {
   purchase_order: 'purchase order',
   retail_order: 'retail order',
   quote_request: 'quote request',
+  custom_match: 'Custom Match request',
+  trade_application: 'trade application',
+  service_enquiry: 'service enquiry',
 }
 
 export function UltraDeleteRecordButton({
