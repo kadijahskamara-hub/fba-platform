@@ -22,7 +22,7 @@ import MediaList from './MediaList'
 import MediaContextPanel from './MediaContextPanel'
 import MediaEditorModal from '@/components/admin/MediaEditorModal'
 import {
-  MEDIA_SORTS, MEDIA_TYPE_FILTERS,
+  MEDIA_SORTS, MEDIA_TYPE_FILTERS, cacheBustedUrl,
   type MediaLibraryFile, type MediaSortKey, type MediaTypeFilter, type MediaUsedFilter,
 } from '@/lib/mediaShared'
 
@@ -339,7 +339,7 @@ export default function MediaLibrary({
         <MediaEditorModal
           bucket={editing.bucket}
           path={editing.path}
-          url={editing.url}
+          url={cacheBustedUrl(editing.url, editing.updatedAt)}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); flash('Edited copy saved.'); refreshWithStats() }}
         />

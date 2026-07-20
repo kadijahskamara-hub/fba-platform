@@ -13,6 +13,7 @@ import {
   MAX_FOLDER_DEPTH, joinPath, parentFolder, fileName, isEditedCopy,
   sortMediaFiles, matchesTypeFilter, matchesUsedFilter,
   storageBarLevel, formatBytes, DEFAULT_STORAGE_CAP_MB,
+  cacheBustedUrl,
 } from '../lib/mediaShared'
 
 const SUPA = 'https://qnuqvdzguesetnevhsoc.supabase.co'
@@ -283,6 +284,20 @@ test('storage bar levels at 80% and 95%', () => {
   // Bad cap falls back to the default rather than dividing by zero
   assert.equal(storageBarLevel(10 * mb, 0), 'ok')
   assert.equal(DEFAULT_STORAGE_CAP_MB, 1024)
+})
+
+test('cacheBustedUrl appends a version only when it has a timestamp', () => {
+  assert.equal(
+    cacheBustedUrl('https://x.co/a.jpg', '2026-07-20T10:00:00Z'),
+    `https://x.co/a.jpg?v=${Date.parse('2026-07-20T10:00:00Z')}`
+  )
+  assert.equal(
+    cacheBustedUrl('https://x.co/a.jpg?w=1', '2026-07-20T10:00:00Z'),
+    `https://x.co/a.jpg?w=1&v=${Date.parse('2026-07-20T10:00:00Z')}`
+  )
+  assert.equal(cacheBustedUrl('https://x.co/a.jpg', null), 'https://x.co/a.jpg')
+  assert.equal(cacheBustedUrl('https://x.co/a.jpg', 'not-a-date'), 'https://x.co/a.jpg')
+  assert.equal(cacheBustedUrl('', '2026-07-20T10:00:00Z'), '')
 })
 
 test('formatBytes is human-readable', () => {

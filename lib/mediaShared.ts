@@ -289,6 +289,15 @@ export function storageBarLevel(usedBytes: number, capMb: number): 'ok' | 'warn'
   return 'ok'
 }
 
+// Cache-busted display URL: replacing an original keeps its path, so
+// thumbnails would otherwise show the stale cached version.
+export function cacheBustedUrl(url: string, updatedAt: string | null | undefined): string {
+  if (!url || !updatedAt) return url
+  const t = Date.parse(updatedAt)
+  if (!Number.isFinite(t)) return url
+  return `${url}${url.includes('?') ? '&' : '?'}v=${t}`
+}
+
 export function formatBytes(n: number | null | undefined): string {
   if (n === null || n === undefined) return '—'
   if (n < 1024) return `${n} B`

@@ -9,14 +9,18 @@ import {
 } from '@/lib/mediaShared'
 
 // ============================================================
-// POST /api/admin/media/edit (Sprint 23)
+// POST /api/admin/media/edit (Sprint 23, dual save Sprint 24)
 //
 // Server-side image edit: rotate → crop (extract) → resize,
-// processed with sharp. The result is ALWAYS saved as a new copy
-// next to the original (`…-edit-xxxxxx.ext`) — originals are
-// never overwritten. Crop rect is expressed in the ROTATED
-// image's pixel space (the client previews the same bounding
-// box, so coordinates line up exactly).
+// processed with sharp. Two save modes:
+//   • default          — new copy next to the original
+//                        (`…-edit-xxxxxx.ext`)
+//   • overwrite: true  — replaces the original IN PLACE (same
+//                        path, so every product/hero reference
+//                        keeps working; saves storage space)
+// Crop rect is expressed in the ROTATED image's pixel space
+// (the client previews the same bounding box, so coordinates
+// line up exactly).
 // ============================================================
 
 export const maxDuration = 60
@@ -28,7 +32,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
   }
 
-  let body: MediaEditParams
+  let body: MediaEditParams & { overwrite?: boolean }
   try { body = await req.json() } catch {
     return NextResponse.json({ success: false, error: 'Invalid JSON body.' }, { status: 400 })
   }
@@ -70,14 +74,15 @@ export async function POST(req: NextRequest) {
 
     const output = await pipe.toFormat(format, format === 'jpeg' ? { quality: 90 } : undefined).toBuffer()
 
-    // Save as a NEW copy — never overwrite the original.
-    const newPath = editedCopyPath(body.path, randomBytes(3).toString('hex'))
+    // Save mode: new copy (default) or in-place replacement.
+    const overwrite = body.overwrite === true
+    const newPath = overwrite ? body.path : editedCopyPath(body.path, randomBytes(3).toString('hex'))
     const { error: upErr } = await supabaseAdmin.storage.from(bucket)
-      .upload(newPath, output, { contentType: `image/${format}`, upsert: false })
+      .upload(newPath, output, { contentType: `image/${format}`, upsert: overwrite })
     if (upErr) return NextResponse.json({ success: false, error: upErr.message }, { status: 500 })
 
     const url = supabaseAdmin.storage.from(bucket).getPublicUrl(newPath).data.publicUrl
-    return NextResponse.json({ success: true, data: { bucket, path: newPath, url, bytes: output.length } })
+    return NextResponse.json({ success: true, data: { bucket, path: newPath, url, bytes: output.length, replaced: overwrite } })
   } catch {
     return NextResponse.json({ success: false, error: 'Image processing failed.' }, { status: 500 })
   }

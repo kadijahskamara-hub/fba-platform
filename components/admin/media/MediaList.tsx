@@ -3,7 +3,7 @@
 // List layout: the same content as the gallery, as a data table
 // (thumb, name, folder, size, updated, used-in count).
 
-import { formatBytes, parentFolder, type MediaLibraryFile } from '@/lib/mediaShared'
+import { formatBytes, parentFolder, cacheBustedUrl, type MediaLibraryFile } from '@/lib/mediaShared'
 
 const IMAGE_RE = /\.(jpe?g|png|webp|gif|avif)$/i
 
@@ -48,7 +48,7 @@ export default function MediaList({ files, folders, activePath, picked, onFolder
                 <div style={{ width: 34, height: 34, background: 'var(--cream)', borderRadius: 4, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', border: isPicked ? '2px solid var(--forest)' : undefined }}>
                   {IMAGE_RE.test(f.name) ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={f.url} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <img src={cacheBustedUrl(f.url, f.updatedAt)} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
                     <span style={{ fontSize: 9, color: 'var(--stone)' }}>{f.name.split('.').pop()?.toUpperCase()}</span>
                   )}

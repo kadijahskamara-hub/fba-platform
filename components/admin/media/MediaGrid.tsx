@@ -3,7 +3,7 @@
 // Gallery layout: folder tiles first, then image thumbnails with
 // filenames — mirrors the reference grid, in FBA colours.
 
-import { formatBytes, type MediaLibraryFile } from '@/lib/mediaShared'
+import { formatBytes, cacheBustedUrl, type MediaLibraryFile } from '@/lib/mediaShared'
 
 const IMAGE_RE = /\.(jpe?g|png|webp|gif|avif)$/i
 
@@ -62,7 +62,7 @@ export default function MediaGrid({ files, folders, activePath, picked, onFolder
             <div style={{ aspectRatio: '1', background: 'var(--cream)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
               {IMAGE_RE.test(f.name) ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={f.url} alt={f.name} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img src={cacheBustedUrl(f.url, f.updatedAt)} alt={f.name} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
                 <span style={{ fontSize: 12, color: 'var(--stone)' }}>{f.name.split('.').pop()?.toUpperCase() ?? 'FILE'}</span>
               )}

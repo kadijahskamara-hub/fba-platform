@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { appConfirm } from '@/lib/appConfirm'
-import { formatBytes, parentFolder, type MediaLibraryFile } from '@/lib/mediaShared'
+import { formatBytes, parentFolder, cacheBustedUrl, type MediaLibraryFile } from '@/lib/mediaShared'
 import type { MediaView } from './MediaLibrary'
 
 const IMAGE_RE = /\.(jpe?g|png|webp|gif|avif)$/i
@@ -157,7 +157,7 @@ export default function MediaContextPanel({
     <div style={{ padding: 18, background: 'var(--warm-white)', overflowY: 'auto' }}>
       {IMAGE_RE.test(file.name) && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={file.url} alt="" style={{ width: '100%', maxHeight: 170, objectFit: 'contain', background: 'var(--cream)', borderRadius: 4, marginBottom: 12 }} />
+        <img src={cacheBustedUrl(file.url, file.updatedAt)} alt="" style={{ width: '100%', maxHeight: 170, objectFit: 'contain', background: 'var(--cream)', borderRadius: 4, marginBottom: 12 }} />
       )}
       <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--forest)', wordBreak: 'break-all', marginBottom: 4 }}>{file.name}</div>
       <p style={{ fontSize: 12, color: 'var(--stone)', marginBottom: 12 }}>
