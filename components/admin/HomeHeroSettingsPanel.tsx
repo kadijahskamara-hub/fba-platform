@@ -18,7 +18,21 @@ interface HomeHeroSettings {
   cta_secondary:      string
   cta_secondary_href: string
   overlay_opacity:    number
+  // Typography & layout (July 2026 — full hero control)
+  text_align:         'center' | 'left'
+  headline_font:      'serif' | 'logo' | 'sans'
+  headline_scale:     number
+  headline_italic_2:  boolean
+  headline_colour:    string
+  subtitle_size:      number
+  subtitle_colour:    string
 }
+
+const FONT_OPTIONS = [
+  { value: 'serif', label: 'Serif — Cormorant Garamond (default)', css: "'Cormorant Garamond', Georgia, serif" },
+  { value: 'logo',  label: 'Logo — Brown Sugar',                   css: "'Brown Sugar', 'Cormorant Garamond', serif" },
+  { value: 'sans',  label: 'Sans — DM Sans',                       css: "'DM Sans', sans-serif" },
+] as const
 
 interface Props {
   initialValue: Partial<HomeHeroSettings>
@@ -38,6 +52,13 @@ const DEFAULTS: HomeHeroSettings = {
   cta_secondary:      'Browse the Edit',
   cta_secondary_href: '/products',
   overlay_opacity:    0.80,
+  text_align:         'center',
+  headline_font:      'serif',
+  headline_scale:     1,
+  headline_italic_2:  true,
+  headline_colour:    '',
+  subtitle_size:      16,
+  subtitle_colour:    '',
 }
 
 export function HomeHeroSettingsPanel({ initialValue }: Props) {
@@ -288,6 +309,131 @@ export function HomeHeroSettingsPanel({ initialValue }: Props) {
           <input className="form-input" value={settings.cta_secondary} onChange={e => set('cta_secondary', e.target.value)} />
           <label className="form-label" style={{ marginTop: 8 }}>Secondary button link</label>
           <input className="form-input" value={settings.cta_secondary_href} onChange={e => set('cta_secondary_href', e.target.value)} placeholder="/products" />
+        </div>
+      </div>
+
+      {/* ── Typography & layout (full hero control) ── */}
+      <div style={{ marginBottom: 28, border: '1px solid var(--light-line)', padding: '16px 20px', background: '#fff' }}>
+        <div style={{ fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--stone)', marginBottom: 14 }}>
+          Typography &amp; layout
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+          <div>
+            <label className="form-label">Text alignment</label>
+            <select className="form-select" value={settings.text_align} onChange={e => set('text_align', e.target.value as 'center' | 'left')}>
+              <option value="center">Centred (default)</option>
+              <option value="left">Left-aligned</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label">Headline font</label>
+            <select className="form-select" value={settings.headline_font} onChange={e => set('headline_font', e.target.value as HomeHeroSettings['headline_font'])}>
+              {FONT_OPTIONS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <label className="form-label">
+            Headline size — <span style={{ fontWeight: 600, color: 'var(--forest)' }}>{Math.round(settings.headline_scale * 100)}%</span>
+            <span style={{ fontWeight: 400, color: 'var(--stone)' }}> (≈{Math.round(88 * settings.headline_scale)}px on desktop)</span>
+          </label>
+          <input
+            type="range" min={0.6} max={1.4} step={0.05}
+            value={settings.headline_scale}
+            onChange={e => set('headline_scale', parseFloat(e.target.value))}
+            style={{ width: '100%', accentColor: 'var(--forest)' }}
+          />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+          <div>
+            <label className="form-label">Headline colour</label>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                type="color"
+                value={settings.headline_colour || '#F7F3EE'}
+                onChange={e => set('headline_colour', e.target.value)}
+                aria-label="Headline colour"
+                style={{ width: 44, height: 32, padding: 2, border: '1px solid var(--light-line)', background: '#fff', cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: 12, color: 'var(--stone)' }}>{settings.headline_colour || 'Theme cream (default)'}</span>
+              {settings.headline_colour && (
+                <button className="btn btn-ghost btn-sm" onClick={() => set('headline_colour', '')}>Reset</button>
+              )}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 6 }}>
+            <label style={{ fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <input type="checkbox" checked={settings.headline_italic_2} onChange={e => set('headline_italic_2', e.target.checked)} />
+              Render line 2 in italic
+            </label>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+          <div>
+            <label className="form-label">
+              Subtitle size — <span style={{ fontWeight: 600, color: 'var(--forest)' }}>{settings.subtitle_size}px</span>
+            </label>
+            <input
+              type="range" min={13} max={22} step={1}
+              value={settings.subtitle_size}
+              onChange={e => set('subtitle_size', parseInt(e.target.value, 10))}
+              style={{ width: '100%', accentColor: 'var(--forest)' }}
+            />
+          </div>
+          <div>
+            <label className="form-label">Subtitle colour</label>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                type="color"
+                value={settings.subtitle_colour || '#D9D4CB'}
+                onChange={e => set('subtitle_colour', e.target.value)}
+                aria-label="Subtitle colour"
+                style={{ width: 44, height: 32, padding: 2, border: '1px solid var(--light-line)', background: '#fff', cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: 12, color: 'var(--stone)' }}>{settings.subtitle_colour || 'Theme default'}</span>
+              {settings.subtitle_colour && (
+                <button className="btn btn-ghost btn-sm" onClick={() => set('subtitle_colour', '')}>Reset</button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Live preview — same maths as the homepage, scaled down */}
+        <div>
+          <label className="form-label">Preview</label>
+          <div style={{
+            background: 'linear-gradient(to top, rgba(26,43,24,0.92), rgba(26,43,24,0.55))',
+            padding: '28px 24px',
+            textAlign: settings.text_align,
+          }}>
+            <div style={{
+              fontFamily: FONT_OPTIONS.find(f => f.value === settings.headline_font)?.css,
+              fontSize: Math.round(48 * settings.headline_scale),
+              fontWeight: 300, lineHeight: 1.06, letterSpacing: '-0.01em',
+              color: settings.headline_colour || '#F7F3EE',
+            }}>
+              {settings.headline_1 || 'Global Craft.'}<br />
+              {settings.headline_italic_2
+                ? <em>{settings.headline_2 || 'Delivered'}</em>
+                : <span>{settings.headline_2 || 'Delivered'}</span>}<br />
+              {settings.headline_3 || 'Precisely.'}
+            </div>
+            <p style={{
+              fontSize: Math.max(11, settings.subtitle_size - 3), lineHeight: 1.7, maxWidth: 420, marginTop: 14,
+              marginLeft: settings.text_align === 'center' ? 'auto' : 0,
+              marginRight: settings.text_align === 'center' ? 'auto' : 0,
+              color: settings.subtitle_colour || 'rgba(247,243,238,0.70)',
+            }}>
+              {settings.subtitle || DEFAULTS.subtitle}
+            </p>
+          </div>
+          <p style={{ fontSize: 11, color: 'var(--stone)', marginTop: 6 }}>
+            Scaled-down preview — exact sizes respond to screen width on the live page.
+          </p>
         </div>
       </div>
 

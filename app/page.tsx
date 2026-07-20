@@ -129,6 +129,14 @@ interface HomeHeroSettings {
   cta_secondary?:     string
   cta_secondary_href?: string
   overlay_opacity?:   number
+  // Typography & layout (Studio Settings → Homepage Hero, July 2026)
+  text_align?:        'center' | 'left'
+  headline_font?:     'serif' | 'logo' | 'sans'
+  headline_scale?:    number          // 0.6–1.4, multiplies the default clamp
+  headline_italic_2?: boolean         // render line 2 in italic (default true)
+  headline_colour?:   string          // CSS colour; '' = theme cream
+  subtitle_size?:     number          // px, 13–22
+  subtitle_colour?:   string          // CSS colour; '' = theme default
 }
 
 async function getHomeHeroSettings(): Promise<HomeHeroSettings> {
@@ -192,6 +200,18 @@ export default async function HomePage() {
   const overlayOpacity = hs.overlay_opacity ?? 0.80
   const overlayMid     = Math.round(overlayOpacity * 0.31 * 100) / 100
 
+  // Hero typography — admin-controlled with safe bounds and theme defaults
+  const heroAlign    = hs.text_align === 'left' ? 'left' as const : 'center' as const
+  const heroFont     = hs.headline_font === 'logo' ? 'var(--font-logo)'
+                     : hs.headline_font === 'sans' ? 'var(--font-body)'
+                     : 'var(--font-serif)'
+  const heroScale    = Math.min(1.4, Math.max(0.6, hs.headline_scale ?? 1))
+  const heroSize     = `clamp(${Math.round(44 * heroScale)}px, ${(6.5 * heroScale).toFixed(2)}vw, ${Math.round(88 * heroScale)}px)`
+  const heroColour   = (hs.headline_colour ?? '').trim() || 'var(--cream)'
+  const heroItalic2  = hs.headline_italic_2 !== false
+  const subSize      = Math.min(22, Math.max(13, hs.subtitle_size ?? 16))
+  const subColour    = (hs.subtitle_colour ?? '').trim() || 'rgba(247,243,238,0.70)'
+
   return (
     <div className="page-body">
 
@@ -228,7 +248,9 @@ export default async function HomePage() {
         </div>
 
         <div className="container" style={{ position: 'relative', zIndex: 1, paddingBottom: 100 }}>
-          <div style={{ maxWidth: 660 }}>
+          {/* Hero text group — alignment, fonts, sizes and colours are
+              admin-controlled via Studio Settings → Homepage Hero. */}
+          <div style={{ maxWidth: 660, margin: heroAlign === 'center' ? '0 auto' : undefined, textAlign: heroAlign }}>
             <div style={{
               fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase',
               color: 'rgba(196,168,130,0.85)', marginBottom: 20,
@@ -236,18 +258,23 @@ export default async function HomePage() {
               London Design Procurement Studio
             </div>
             <h1 style={{
-              fontFamily: 'var(--font-serif)', fontSize: 'clamp(44px, 6.5vw, 88px)',
-              fontWeight: 300, lineHeight: 1.06, color: 'var(--cream)',
+              fontFamily: heroFont, fontSize: heroSize,
+              fontWeight: 300, lineHeight: 1.06, color: heroColour,
               marginBottom: 28, letterSpacing: '-0.01em',
             }}>
               {hs.headline_1 ?? 'Global Craft.'}<br />
-              <em>{hs.headline_2 ?? 'Delivered'}</em><br />
+              {heroItalic2
+                ? <em>{hs.headline_2 ?? 'Delivered'}</em>
+                : <span>{hs.headline_2 ?? 'Delivered'}</span>}<br />
               {hs.headline_3 ?? 'Precisely.'}
             </h1>
-            <p style={{ fontSize: 16, lineHeight: 1.75, color: 'rgba(247,243,238,0.70)', marginBottom: 44, maxWidth: 500 }}>
+            <p style={{
+              fontSize: subSize, lineHeight: 1.75, color: subColour,
+              margin: heroAlign === 'center' ? '0 auto 44px' : '0 0 44px', maxWidth: 500,
+            }}>
               {hs.subtitle ?? "Beautiful design, delivered without compromise. Full Bloom Artelier connects interior designers, architects, and hospitality developers with curated furniture, lighting, finishes, and bespoke pieces — hand-vetted, technically compliant, and ready for commercial projects."}
             </p>
-            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: heroAlign === 'center' ? 'center' : 'flex-start' }}>
               <Link href={hs.cta_primary_href ?? '/trade/apply'} className="btn btn-sand">
                 {hs.cta_primary ?? 'Request Trade Access'}
               </Link>
