@@ -14,6 +14,7 @@ import {
   sortMediaFiles, matchesTypeFilter, matchesUsedFilter,
   storageBarLevel, formatBytes, DEFAULT_STORAGE_CAP_MB,
   cacheBustedUrl,
+  resizeCropFrame, fitCropFrame, CROP_MIN_SIZE, type CropFrame,
 } from '../lib/mediaShared'
 
 const SUPA = 'https://qnuqvdzguesetnevhsoc.supabase.co'
@@ -305,6 +306,67 @@ test('formatBytes is human-readable', () => {
   assert.equal(formatBytes(512), '512 B')
   assert.equal(formatBytes(44 * 1024), '44 KB')
   assert.equal(formatBytes(2.5 * 1024 * 1024), '2.5 MB')
+})
+
+// ============================================================
+// Draggable crop frame (Sprint 24.2)
+// ============================================================
+
+const BOUNDS = { boundsW: 640, boundsH: 440 }
+const F: CropFrame = { x: 100, y: 100, w: 200, h: 100 }
+
+test('free resize: east edge grows right, west edge anchors the right side', () => {
+  assert.deepEqual(resizeCropFrame(F, 'e', 40, 999, { ...BOUNDS }), { x: 100, y: 100, w: 240, h: 100 })
+  // dy ignored on a pure-horizontal handle
+  assert.deepEqual(resizeCropFrame(F, 'w', -40, 0, { ...BOUNDS }), { x: 60, y: 100, w: 240, h: 100 })
+})
+
+test('free resize: north edge anchors the bottom, corner moves both axes', () => {
+  assert.deepEqual(resizeCropFrame(F, 'n', 0, -30, { ...BOUNDS }), { x: 100, y: 70, w: 200, h: 130 })
+  assert.deepEqual(resizeCropFrame(F, 'se', 20, 30, { ...BOUNDS }), { x: 100, y: 100, w: 220, h: 130 })
+  assert.deepEqual(resizeCropFrame(F, 'nw', -20, -30, { ...BOUNDS }), { x: 80, y: 70, w: 220, h: 130 })
+})
+
+test('aspect-locked corner keeps the ratio and anchors the opposite corner', () => {
+  // 2:1 frame, ne drag +40px horizontal → w 240, h 120, bottom edge fixed
+  const r = resizeCropFrame(F, 'ne', 40, 0, { ...BOUNDS, aspect: 2 })
+  assert.deepEqual(r, { x: 100, y: 80, w: 240, h: 120 })
+  assert.equal(Math.abs(r.w / r.h - 2) < 0.02, true)
+})
+
+test('aspect-locked pure edge keeps the perpendicular axis centred', () => {
+  // square aspect, drag north edge up 50 → h 150, w 150, horizontal centre 200 kept
+  const sq: CropFrame = { x: 150, y: 100, w: 100, h: 100 }
+  const r = resizeCropFrame(sq, 'n', 0, -50, { ...BOUNDS, aspect: 1 })
+  assert.deepEqual(r, { x: 125, y: 50, w: 150, h: 150 })
+})
+
+test('minimum size is enforced', () => {
+  const r = resizeCropFrame(F, 'e', -500, 0, { ...BOUNDS })
+  assert.equal(r.w, CROP_MIN_SIZE)
+  const r2 = resizeCropFrame(F, 'se', -500, -500, { ...BOUNDS, aspect: 2 })
+  assert.equal(r2.h, CROP_MIN_SIZE)
+  assert.equal(r2.w, CROP_MIN_SIZE * 2)
+})
+
+test('frame never leaves the canvas', () => {
+  // west drag far left: capped at the canvas edge, right side anchored
+  const r = resizeCropFrame(F, 'w', -500, 0, { ...BOUNDS })
+  assert.deepEqual(r, { x: 0, y: 100, w: 300, h: 100 })
+  // aspect corner capped by the vertical room (bottom anchored at 200)
+  const r2 = resizeCropFrame(F, 'ne', 5000, 0, { ...BOUNDS, aspect: 2 })
+  assert.equal(r2.y >= 0, true)
+  assert.equal(r2.x + r2.w <= BOUNDS.boundsW, true)
+  assert.equal(r2.h <= 200, true) // room above the anchored bottom edge
+})
+
+test('fitCropFrame centres the largest frame of the given ratio', () => {
+  assert.deepEqual(fitCropFrame(1, 640, 440), { x: 100, y: 0, w: 440, h: 440 })
+  assert.deepEqual(fitCropFrame(2, 640, 440), { x: 0, y: 60, w: 640, h: 320 })
+  const tall = fitCropFrame(0.5, 640, 440)
+  assert.equal(tall.h, 440)
+  assert.equal(tall.w, 220)
+  assert.equal(tall.x, 210)
 })
 
 // ============================================================

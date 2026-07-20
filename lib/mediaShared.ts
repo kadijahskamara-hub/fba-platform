@@ -64,6 +64,73 @@ export function clampOffset(offset: number, imgSizeScaled: number, viewSize: num
 
 export type ExtractRect = { left: number; top: number; width: number; height: number }
 
+// ---------- Resizable crop frame (Sprint 24.2) ----------
+// The crop window itself is draggable from its 8 handles, Wix-style.
+// Anchoring: the opposite edge/corner stays put; pure-edge drags with
+// a locked aspect keep the perpendicular axis centred.
+export type CropFrame = { x: number; y: number; w: number; h: number }
+export type CropHandle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
+export const CROP_MIN_SIZE = 60
+
+export function resizeCropFrame(
+  frame: CropFrame, handle: CropHandle, dx: number, dy: number,
+  opts: { aspect?: number | null; minSize?: number; boundsW: number; boundsH: number }
+): CropFrame {
+  const aspect = opts.aspect && opts.aspect > 0 ? opts.aspect : null
+  const min = opts.minSize ?? CROP_MIN_SIZE
+  const { boundsW, boundsH } = opts
+  const hasN = handle.includes('n'), hasS = handle.includes('s')
+  const hasE = handle.includes('e'), hasW = handle.includes('w')
+  const right = frame.x + frame.w
+  const bottom = frame.y + frame.h
+  const cx = frame.x + frame.w / 2
+  const cy = frame.y + frame.h / 2
+
+  let w = frame.w, h = frame.h
+  if (aspect) {
+    // Driver axis: horizontal when an E/W side is held, else vertical.
+    if (hasE || hasW) { w = hasE ? frame.w + dx : frame.w - dx; h = w / aspect }
+    else { h = hasS ? frame.h + dy : frame.h - dy; w = h * aspect }
+  } else {
+    if (hasE) w = frame.w + dx
+    if (hasW) w = frame.w - dx
+    if (hasS) h = frame.h + dy
+    if (hasN) h = frame.h - dy
+  }
+
+  // Room available on each axis given the anchor.
+  const roomW = (hasE || hasW) ? (hasW ? right : boundsW - frame.x) : 2 * Math.min(cx, boundsW - cx)
+  const roomH = (hasN || hasS) ? (hasN ? bottom : boundsH - frame.y) : 2 * Math.min(cy, boundsH - cy)
+
+  if (aspect) {
+    const wMin = Math.max(min, min * aspect)
+    const wCap = Math.max(wMin, Math.min(roomW, roomH * aspect))
+    w = Math.min(Math.max(w, wMin), wCap)
+    h = w / aspect
+  } else {
+    w = Math.min(Math.max(w, min), Math.max(min, roomW))
+    h = Math.min(Math.max(h, min), Math.max(min, roomH))
+  }
+
+  let x = frame.x, y = frame.y
+  if (hasW) x = right - w
+  else if (!hasE) x = cx - w / 2
+  if (hasN) y = bottom - h
+  else if (!hasS) y = cy - h / 2
+
+  x = Math.min(Math.max(0, x), Math.max(0, boundsW - w))
+  y = Math.min(Math.max(0, y), Math.max(0, boundsH - h))
+  return { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) }
+}
+
+// Fit a frame of the given aspect into the canvas, centred.
+export function fitCropFrame(aspect: number, boundsW: number, boundsH: number): CropFrame {
+  const r = aspect > 0 ? aspect : 1
+  let w = boundsW, h = w / r
+  if (h > boundsH) { h = boundsH; w = h * r }
+  return { x: Math.round((boundsW - w) / 2), y: Math.round((boundsH - h) / 2), w: Math.round(w), h: Math.round(h) }
+}
+
 // Viewport → source-pixel extract rect. offsets are the top-left of the
 // scaled image relative to the viewport (≤ 0 when panned).
 export function computeExtract(args: {

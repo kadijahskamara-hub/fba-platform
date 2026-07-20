@@ -1,15 +1,13 @@
 'use client'
 
 // ============================================================
-// Media Library — image editor (Sprint 23, reworked Sprint 24
-// from the Wix Photo Studio reference).
+// Media Library — image editor (Sprint 23, Wix rework 24.1,
+// draggable crop frame 24.2).
 //
-// Crop with visual aspect-preset tiles, drag to reposition,
-// zoom, rotate (90° steps + fine slider), output W/H steppers.
-// Processing happens server-side with sharp. TWO save modes:
-//   • Save copy        — new file beside the original
-//   • Replace original — same path, in place (saves space;
-//     every product/hero reference keeps working)
+// The crop window is a real frame: drag its 8 handles to resize
+// (free-form in Free mode; ratio-locked on presets), drag inside
+// it to reposition the image, zoom, rotate. Server-side sharp.
+// Save modes: Save copy (new file) / Replace original (in place).
 // ============================================================
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -17,6 +15,8 @@ import { appConfirm } from '@/lib/appConfirm'
 import {
   ASPECT_PRESETS, orientedRatio, rotatedDims, minCoverScale, clampOffset,
   computeExtract, MAX_OUTPUT_PX,
+  resizeCropFrame, fitCropFrame, CROP_MIN_SIZE,
+  type CropFrame, type CropHandle,
 } from '@/lib/mediaShared'
 
 type Props = {
@@ -27,8 +27,14 @@ type Props = {
   onSaved: () => void
 }
 
-const VIEW_MAX_W = 620
-const VIEW_MAX_H = 430
+const CANVAS_W = 640
+const CANVAS_H = 440
+
+const HANDLES: Array<{ id: CropHandle; cursor: string }> = [
+  { id: 'nw', cursor: 'nwse-resize' }, { id: 'n', cursor: 'ns-resize' }, { id: 'ne', cursor: 'nesw-resize' },
+  { id: 'e', cursor: 'ew-resize' }, { id: 'se', cursor: 'nwse-resize' }, { id: 's', cursor: 'ns-resize' },
+  { id: 'sw', cursor: 'nesw-resize' }, { id: 'w', cursor: 'ew-resize' },
+]
 
 export default function MediaEditorModal({ bucket, path, url, onClose, onSaved }: Props) {
   const [imgDims, setImgDims] = useState<{ w: number; h: number } | null>(null)
@@ -37,13 +43,17 @@ export default function MediaEditorModal({ bucket, path, url, onClose, onSaved }
   const [rotBase, setRotBase] = useState(0)     // 90° steps
   const [rotFine, setRotFine] = useState(0)     // -45..45
   const [zoom, setZoom] = useState(1)           // multiplier on cover scale
+  const [frame, setFrame] = useState<CropFrame>({ x: 0, y: 0, w: CANVAS_W, h: CANVAS_H })
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [outW, setOutW] = useState<string>('')
   const [outH, setOutH] = useState<string>('')
   const [outDirty, setOutDirty] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const dragRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null)
+  const panRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null)
+  const handleRef = useRef<{
+    handle: CropHandle; startX: number; startY: number; frame0: CropFrame; offset0: { x: number; y: number }
+  } | null>(null)
 
   // Load source dimensions.
   useEffect(() => {
@@ -58,42 +68,42 @@ export default function MediaEditorModal({ bucket, path, url, onClose, onSaved }
     : ((rotBase + rotFine) % 360 + 360) % 360
   const rot = imgDims ? rotatedDims(imgDims.w, imgDims.h, rotate) : { w: 1, h: 1 }
 
-  // Crop aspect from preset (+ orientation), source ratio for "original".
+  // Aspect that drives frame REFITS. In Free mode the frame is
+  // shaped by hand (or by typed W/H); presets lock the ratio.
   const aspect = useMemo(() => {
     const p = ASPECT_PRESETS.find(a => a.key === preset)
     if (!p || p.ratio === null) {
       const w = parseInt(outW), h = parseInt(outH)
-      if (w > 0 && h > 0) return w / h
+      if (outDirty && w > 0 && h > 0) return w / h
       return rot.w / Math.max(1, rot.h)
     }
     const r = p.ratio === -1 ? (imgDims ? imgDims.w / imgDims.h : 1) : p.ratio
     return orientedRatio(r, landscape)
-  }, [preset, landscape, imgDims, rot.w, rot.h, outW, outH])
+    // In free non-dirty mode the memo re-runs when outW/outH sync from
+    // the crop, but returns the same rot-ratio value — so the frame
+    // refit effect (keyed on the aspect VALUE) does not fire.
+  }, [preset, landscape, imgDims, rot.w, rot.h, outDirty, outW, outH])
 
-  // Screen viewport (the crop window) fitted into the canvas area.
-  const view = useMemo(() => {
-    let w = VIEW_MAX_W, h = VIEW_MAX_W / aspect
-    if (h > VIEW_MAX_H) { h = VIEW_MAX_H; w = VIEW_MAX_H * aspect }
-    return { w: Math.round(w), h: Math.round(h) }
-  }, [aspect])
-
-  const cover = minCoverScale(rot.w, rot.h, view.w, view.h)
+  const cover = minCoverScale(rot.w, rot.h, frame.w, frame.h)
   const scale = cover * zoom
 
-  // Recentre whenever geometry changes.
+  // Refit the frame + recentre the image when the target shape changes.
   useEffect(() => {
-    setOffset({ x: (view.w - rot.w * scale) / 2, y: (view.h - rot.h * scale) / 2 })
+    const f = fitCropFrame(aspect, CANVAS_W, CANVAS_H)
+    setFrame(f)
+    const c = minCoverScale(rot.w, rot.h, f.w, f.h) * zoom
+    setOffset({ x: (f.w - rot.w * c) / 2, y: (f.h - rot.h * c) / 2 })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view.w, view.h, rot.w, rot.h, rotate, preset, landscape, imgDims])
+  }, [aspect, imgDims, rotate])
 
   const clampedOffset = {
-    x: clampOffset(offset.x, rot.w * scale, view.w),
-    y: clampOffset(offset.y, rot.h * scale, view.h),
+    x: clampOffset(offset.x, rot.w * scale, frame.w),
+    y: clampOffset(offset.y, rot.h * scale, frame.h),
   }
 
   const extract = imgDims ? computeExtract({
     scale, offsetX: clampedOffset.x, offsetY: clampedOffset.y,
-    viewW: view.w, viewH: view.h, imgW: rot.w, imgH: rot.h,
+    viewW: frame.w, viewH: frame.h, imgW: rot.w, imgH: rot.h,
   }) : null
 
   // Default output size mirrors the crop until the user types their own.
@@ -105,16 +115,37 @@ export default function MediaEditorModal({ bucket, path, url, onClose, onSaved }
   }, [extract?.width, extract?.height, outDirty])
   useEffect(() => { setOutDirty(false) }, [preset, landscape, rotBase])
 
-  const onPointerDown = (e: React.PointerEvent) => {
+  // ---------- image pan ----------
+  const onPanDown = (e: React.PointerEvent) => {
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-    dragRef.current = { startX: e.clientX, startY: e.clientY, ox: clampedOffset.x, oy: clampedOffset.y }
+    panRef.current = { startX: e.clientX, startY: e.clientY, ox: clampedOffset.x, oy: clampedOffset.y }
   }
-  const onPointerMove = (e: React.PointerEvent) => {
-    const d = dragRef.current
+  const onPanMove = (e: React.PointerEvent) => {
+    const d = panRef.current
     if (!d) return
     setOffset({ x: d.ox + (e.clientX - d.startX), y: d.oy + (e.clientY - d.startY) })
   }
-  const onPointerUp = () => { dragRef.current = null }
+  const onPanUp = () => { panRef.current = null }
+
+  // ---------- frame-handle drag ----------
+  const onHandleDown = (handle: CropHandle) => (e: React.PointerEvent) => {
+    e.stopPropagation()
+    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+    handleRef.current = { handle, startX: e.clientX, startY: e.clientY, frame0: frame, offset0: clampedOffset }
+  }
+  const onHandleMove = (e: React.PointerEvent) => {
+    const d = handleRef.current
+    if (!d) return
+    e.stopPropagation()
+    const next = resizeCropFrame(d.frame0, d.handle, e.clientX - d.startX, e.clientY - d.startY, {
+      aspect: preset === 'free' ? null : aspect,
+      minSize: CROP_MIN_SIZE, boundsW: CANVAS_W, boundsH: CANVAS_H,
+    })
+    setFrame(next)
+    // Keep the image stationary on the canvas while the frame moves.
+    setOffset({ x: d.offset0.x + (d.frame0.x - next.x), y: d.offset0.y + (d.frame0.y - next.y) })
+  }
+  const onHandleUp = () => { handleRef.current = null }
 
   const save = useCallback(async (overwrite: boolean) => {
     if (!extract) return
@@ -150,8 +181,6 @@ export default function MediaEditorModal({ bucket, path, url, onClose, onSaved }
     width: 42, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
   })
 
-  // Wix-style preset tile: a mini rectangle drawn at the preset's ratio,
-  // with a check badge on the selected tile.
   const presetTile = (p: { key: string; label: string; ratio: number | null }) => {
     const active = preset === p.key
     let r = p.ratio === null ? 1 : p.ratio === -1 ? (imgDims ? imgDims.w / imgDims.h : 1) : orientedRatio(p.ratio, landscape)
@@ -178,20 +207,34 @@ export default function MediaEditorModal({ bucket, path, url, onClose, onSaved }
         )}
         <span style={{
           width: boxW, height: boxH, borderRadius: 3,
-          background: p.key === 'free' ? 'transparent' : active ? 'var(--caramel)' : 'var(--light-line)',
+          background: p.key === 'free' || p.key === 'original' ? 'transparent' : active ? 'var(--caramel)' : 'var(--light-line)',
           border: p.key === 'free' ? `1.5px dashed ${active ? 'var(--caramel)' : 'var(--stone)'}` : p.key === 'original' ? `1.5px solid ${active ? 'var(--caramel)' : 'var(--stone)'}` : 'none',
-          ...(p.key === 'original' ? { background: 'transparent' } : {}),
         }} />
         <span style={{ fontSize: 11, color: active ? 'var(--caramel)' : 'var(--stone)', fontWeight: active ? 600 : 400 }}>{p.label}</span>
       </button>
     )
   }
 
-  // Crop-frame handles (visual affordance, Wix-style).
-  const handleStyle = (pos: React.CSSProperties): React.CSSProperties => ({
-    position: 'absolute', width: 14, height: 14, background: 'var(--caramel)',
-    borderRadius: 2, pointerEvents: 'none', zIndex: 3, ...pos,
-  })
+  // Handle geometry: corners are squares, edges are pills.
+  const handlePos = (id: CropHandle): React.CSSProperties => {
+    const base: React.CSSProperties = {
+      position: 'absolute', background: 'var(--caramel)', borderRadius: 2, zIndex: 4,
+      touchAction: 'none',
+    }
+    const corner = { width: 14, height: 14 }
+    const hEdge = { width: 24, height: 8 }
+    const vEdge = { width: 8, height: 24 }
+    switch (id) {
+      case 'nw': return { ...base, ...corner, top: -7, left: -7 }
+      case 'ne': return { ...base, ...corner, top: -7, right: -7 }
+      case 'sw': return { ...base, ...corner, bottom: -7, left: -7 }
+      case 'se': return { ...base, ...corner, bottom: -7, right: -7 }
+      case 'n':  return { ...base, ...hEdge, top: -4, left: '50%', marginLeft: -12 }
+      case 's':  return { ...base, ...hEdge, bottom: -4, left: '50%', marginLeft: -12 }
+      case 'w':  return { ...base, ...vEdge, left: -4, top: '50%', marginTop: -12 }
+      case 'e':  return { ...base, ...vEdge, right: -4, top: '50%', marginTop: -12 }
+    }
+  }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -223,8 +266,11 @@ export default function MediaEditorModal({ bucket, path, url, onClose, onSaved }
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
                 {ASPECT_PRESETS.map(presetTile)}
               </div>
+              <p style={{ fontSize: 11, color: 'var(--stone)', marginTop: 8 }}>
+                Drag the frame handles to adjust the crop{preset === 'free' ? ' freely' : ' (ratio stays locked)'}.
+              </p>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
                 <span style={{ fontSize: 13, color: 'var(--forest)' }}>Orientation</span>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button style={orientBtn(!landscape)} title="Portrait" onClick={() => setLandscape(false)}>
@@ -277,58 +323,63 @@ export default function MediaEditorModal({ bucket, path, url, onClose, onSaved }
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               background: 'var(--cream)', borderRadius: 8, border: '1px solid var(--light-line)',
-              minHeight: VIEW_MAX_H + 64, padding: 32,
+              minHeight: CANVAS_H + 64, padding: 32,
             }}>
               {!imgDims ? (
                 <span style={{ color: 'var(--stone)', fontSize: 14 }}>Loading image…</span>
               ) : (
-                <div style={{ position: 'relative' }}>
-                  <div
-                    style={{
-                      width: view.w, height: view.h, overflow: 'hidden', position: 'relative',
-                      cursor: 'grab', outline: '2px solid var(--caramel)', touchAction: 'none',
-                      background: '#fff',
-                    }}
-                    onPointerDown={onPointerDown}
-                    onPointerMove={onPointerMove}
-                    onPointerUp={onPointerUp}
-                  >
-                    {/* Rotated-image bounding box, scaled + panned */}
-                    <div style={{
-                      position: 'absolute', left: clampedOffset.x, top: clampedOffset.y,
-                      width: rot.w * scale, height: rot.h * scale, pointerEvents: 'none',
-                    }}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={url} alt=""
-                        draggable={false}
-                        style={{
-                          position: 'absolute',
-                          width: imgDims.w * scale, height: imgDims.h * scale,
-                          left: (rot.w - imgDims.w) * scale / 2,
-                          top: (rot.h - imgDims.h) * scale / 2,
-                          transform: `rotate(${rotate}deg)`,
-                          maxWidth: 'none',
-                        }}
-                      />
+                <div style={{ position: 'relative', width: CANVAS_W, height: CANVAS_H }}>
+                  {/* Crop frame */}
+                  <div style={{ position: 'absolute', left: frame.x, top: frame.y, width: frame.w, height: frame.h }}>
+                    <div
+                      style={{
+                        position: 'absolute', inset: 0, overflow: 'hidden',
+                        cursor: 'grab', outline: '2px solid var(--caramel)', touchAction: 'none',
+                        background: '#fff',
+                      }}
+                      onPointerDown={onPanDown}
+                      onPointerMove={onPanMove}
+                      onPointerUp={onPanUp}
+                    >
+                      {/* Rotated-image bounding box, scaled + panned */}
+                      <div style={{
+                        position: 'absolute', left: clampedOffset.x, top: clampedOffset.y,
+                        width: rot.w * scale, height: rot.h * scale, pointerEvents: 'none',
+                      }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={url} alt=""
+                          draggable={false}
+                          style={{
+                            position: 'absolute',
+                            width: imgDims.w * scale, height: imgDims.h * scale,
+                            left: (rot.w - imgDims.w) * scale / 2,
+                            top: (rot.h - imgDims.h) * scale / 2,
+                            transform: `rotate(${rotate}deg)`,
+                            maxWidth: 'none',
+                          }}
+                        />
+                      </div>
+                      {/* Rule-of-thirds grid */}
+                      {[1, 2].map(i => (
+                        <div key={`v${i}`} style={{ position: 'absolute', left: `${(i * 100) / 3}%`, top: 0, bottom: 0, width: 1, background: 'rgba(255,255,255,0.55)', pointerEvents: 'none' }} />
+                      ))}
+                      {[1, 2].map(i => (
+                        <div key={`h${i}`} style={{ position: 'absolute', top: `${(i * 100) / 3}%`, left: 0, right: 0, height: 1, background: 'rgba(255,255,255,0.55)', pointerEvents: 'none' }} />
+                      ))}
                     </div>
-                    {/* Rule-of-thirds grid */}
-                    {[1, 2].map(i => (
-                      <div key={`v${i}`} style={{ position: 'absolute', left: `${(i * 100) / 3}%`, top: 0, bottom: 0, width: 1, background: 'rgba(255,255,255,0.55)', pointerEvents: 'none' }} />
-                    ))}
-                    {[1, 2].map(i => (
-                      <div key={`h${i}`} style={{ position: 'absolute', top: `${(i * 100) / 3}%`, left: 0, right: 0, height: 1, background: 'rgba(255,255,255,0.55)', pointerEvents: 'none' }} />
+
+                    {/* Draggable handles */}
+                    {HANDLES.map(({ id, cursor }) => (
+                      <span
+                        key={id}
+                        style={{ ...handlePos(id), cursor }}
+                        onPointerDown={onHandleDown(id)}
+                        onPointerMove={onHandleMove}
+                        onPointerUp={onHandleUp}
+                      />
                     ))}
                   </div>
-                  {/* Corner + edge handles (Wix-style affordance) */}
-                  <span style={handleStyle({ top: -7, left: -7 })} />
-                  <span style={handleStyle({ top: -7, right: -7 })} />
-                  <span style={handleStyle({ bottom: -7, left: -7 })} />
-                  <span style={handleStyle({ bottom: -7, right: -7 })} />
-                  <span style={handleStyle({ top: -7, left: '50%', marginLeft: -7, width: 22, height: 8 })} />
-                  <span style={handleStyle({ bottom: -7, left: '50%', marginLeft: -7, width: 22, height: 8 })} />
-                  <span style={handleStyle({ top: '50%', left: -7, marginTop: -7, width: 8, height: 22 })} />
-                  <span style={handleStyle({ top: '50%', right: -7, marginTop: -7, width: 8, height: 22 })} />
                 </div>
               )}
             </div>
