@@ -20,6 +20,7 @@ export const CONTACT_SOURCES = [
   { value: 'trade_application', label: 'Trade Application' },
   { value: 'registration',      label: 'Account Registration' },
   { value: 'newsletter',        label: 'Newsletter' },
+  { value: 'signup_popup',      label: 'Signup Popup' },
   // Marketing channels
   { value: 'google_ads',        label: 'Google Ads' },
   { value: 'instagram',         label: 'Instagram' },

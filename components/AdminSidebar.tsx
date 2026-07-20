@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import type { SessionUser, StaffPermission } from '@/lib/types'
 
 interface AdminSidebarProps {
@@ -77,6 +78,12 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    section: 'Marketing',
+    items: [
+      { href: '/admin/marketing/popup', label: 'Signup Popup', icon: StarIcon, adminOnly: true },
+    ],
+  },
+  {
     section: 'Settings',
     sectionPermission: 'settings',
     items: [
@@ -87,9 +94,28 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ]
 
+const COLLAPSE_STORE = 'fba-sidebar-collapsed'
+
 export function AdminSidebar({ session, userPermissions }: AdminSidebarProps) {
   const pathname  = usePathname()
   const isAdmin   = session.role === 'admin'
+
+  // Collapsible sections (Sprint 25): remembered per browser; the
+  // section holding the current page can never be collapsed away.
+  const [collapsed, setCollapsed] = useState<string[]>([])
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(COLLAPSE_STORE) ?? '[]')
+      if (Array.isArray(saved)) setCollapsed(saved.filter(s => typeof s === 'string'))
+    } catch { /* ignore */ }
+  }, [])
+  const toggleSection = (section: string) => {
+    setCollapsed(prev => {
+      const next = prev.includes(section) ? prev.filter(s => s !== section) : [...prev, section]
+      try { window.localStorage.setItem(COLLAPSE_STORE, JSON.stringify(next)) } catch { /* ignore */ }
+      return next
+    })
+  }
 
   /** Returns true if this nav item should be visible to the current user */
   function canSee(item: NavItem): boolean {
@@ -118,10 +144,39 @@ export function AdminSidebar({ session, userPermissions }: AdminSidebarProps) {
         const visibleItems = group.items.filter(canSee)
         if (visibleItems.length === 0) return null
 
+        const containsActive = visibleItems.some(
+          item => pathname === item.href || pathname.startsWith(item.href + '/')
+        )
+        // The active section always stays open — you can never lose
+        // sight of where you are.
+        const isCollapsed = collapsed.includes(group.section) && !containsActive
+
         return (
           <div key={group.section}>
-            <div className="admin-sidebar-section">{group.section}</div>
-            {visibleItems.map(item => {
+            <button
+              onClick={() => toggleSection(group.section)}
+              className="admin-sidebar-section"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+              }}
+              title={isCollapsed ? `Expand ${group.section}` : `Collapse ${group.section}`}
+            >
+              <svg
+                width="10" height="10" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                style={{ transition: 'transform 0.15s ease', transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)', flexShrink: 0 }}
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+              <span>{group.section}</span>
+              {isCollapsed && (
+                <span style={{ marginLeft: 'auto', fontSize: 10, opacity: 0.6, letterSpacing: 0 }}>
+                  {visibleItems.length}
+                </span>
+              )}
+            </button>
+            {!isCollapsed && visibleItems.map(item => {
               const Icon = item.icon
               const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
               return (

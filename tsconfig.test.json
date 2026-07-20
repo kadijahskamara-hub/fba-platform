@@ -25,6 +25,9 @@
     "lib/commercial/finishSelections.ts",
     "lib/contactAudience.ts",
     "lib/mediaShared.ts",
+    "lib/permissionGroups.ts",
+    "lib/types.ts",
+    "lib/signupPopup.ts",
     "tests/**/*.ts"
   ]
 }

@@ -3,23 +3,13 @@
 import Link from 'next/link'
 import { appConfirm } from '@/lib/appConfirm'
 import { useState } from 'react'
-import type { StaffPermission, StaffRow } from '@/lib/types'
+import type { StaffRow } from '@/lib/types'
+import type { StaffPermission } from '@/lib/types'
+import { PERMISSION_LABELS } from '@/lib/permissionGroups'
 
 // ── Constants ─────────────────────────────────────────────────
-
-const PERMISSION_LABELS: Partial<Record<StaffPermission, string>> = {
-  dashboard:           'Dashboard',
-  trade_applications:  'Trade Applications',
-  products:            'Products',
-  artisans:            'Artisans',
-  retail_orders:       'Retail Orders',
-  commercial_orders:   'Commercial Orders',
-  quote_pipeline:      'Quote Pipeline',
-  journals:            'Journals',
-  settings:            'Settings',
-  users:               'Users',
-  contacts:            'Contacts',
-}
+// PERMISSION_LABELS now comes from lib/permissionGroups.ts (Sprint 25)
+// so archived staff show the full, current permission vocabulary.
 
 // ── Component ─────────────────────────────────────────────────
 

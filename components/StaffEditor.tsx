@@ -6,65 +6,15 @@ import { useState } from 'react'
 import type { StaffPermission, StaffRow } from '@/lib/types'
 import { DeleteAccountDialog } from '@/components/DeleteAccountDialog'
 import { ResetPasswordMenu } from '@/components/ResetPasswordMenu'
+import {
+  PERMISSION_LABELS, ALL_PERMISSIONS, PERMISSION_GROUPS, PERMISSION_PRESETS,
+  groupState, toggleGroup,
+} from '@/lib/permissionGroups'
 
 // ── Constants ─────────────────────────────────────────────────
-
-const PERMISSION_LABELS: Record<StaffPermission, string> = {
-  dashboard:           'Dashboard',
-  trade_applications:  'Trade Applications',
-  products:            'Products',
-  artisans:            'Artisans',
-  retail_orders:       'Retail Orders',
-  commercial_orders:   'Commercial Orders',
-  quote_pipeline:      'Quote Pipeline (legacy: view/create/edit)',
-  journals:            'Journals',
-  settings:            'Settings',
-  users:               'Users',
-  contacts:            'Contacts',
-  // Granular commercial permissions (Sprint 1)
-  quote_pipeline_view:     'Quotes — view pipeline',
-  quote_create:            'Quotes — create',
-  quote_edit:              'Quotes — edit lines & details',
-  quote_price_edit:        'Quotes — edit costs & pricing',
-  quote_discount_override: 'Quotes — apply discounts',
-  quote_approve:           'Quotes — approve (Commercial Admin)',
-  commercial_settings_view: 'Commercial settings — view',
-  invoice_view:            'Invoices — view',
-  invoice_create:          'Invoices — create',
-  invoice_approve:         'Invoices — approve (segregated)',
-  invoice_issue:           'Invoices — issue',
-  payment_view:            'Payments — view',
-  payment_record:          'Payments — record',
-  payment_confirm:         'Payments — confirm (segregated)',
-  payment_allocate:        'Payments — allocate to invoices',
-  payment_reverse:         'Payments — reverse (segregated)',
-  // Sprint 18 (QA P0) — credit notes were approvable server-side but the
-  // permissions never appeared in this list, so no one could be granted them.
-  credit_note_create:      'Credit notes — create drafts & void',
-  credit_note_approve:     'Credit notes — approve & issue (segregated)',
-  purchase_order_prepare:  'Purchase orders — prepare (future)',
-  purchase_order_approve:  'Purchase orders — approve (future)',
-  // Delivery & logistics (Sprint 4)
-  delivery_view:           'Deliveries — view',
-  delivery_create:         'Deliveries — create & edit',
-  delivery_dispatch:       'Deliveries — dispatch (issues delivery note)',
-  delivery_confirm:        'Deliveries — confirmation links & exceptions',
-  pod_record:              'Deliveries — record proof of delivery',
-  installation_manage:     'Installations — manage & sign off',
-  // Documents & prepared communications (Sprint 5)
-  document_generate:       'Documents — generate & regenerate PDFs',
-  document_verify:         'Documents — verify stored file checksums',
-  communication_prepare:   'Communications — prepare & edit packs',
-  communication_mark_sent: 'Communications — mark packs as sent',
-  // Accounting controls (Sprint 6)
-  accounting_view:         'Accounting — view periods, exports & reports',
-  accounting_export:       'Accounting — run financial exports',
-  reconciliation_manage:   'Accounting — mark reconciled / excluded',
-  refund_record:           'Refunds — record (approval is Ultra-only)',
-  invoice_void:            'Invoices — void (blocked by locked periods)',
-}
-
-const ALL_PERMISSIONS = Object.keys(PERMISSION_LABELS) as StaffPermission[]
+// Permission labels/groups/presets live in lib/permissionGroups.ts
+// (Sprint 25) — one source of truth shared with the archived viewer
+// and unit-tested for exhaustiveness.
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -500,33 +450,56 @@ export function StaffEditor({ initialStaff, currentUserId, archivedCount = 0, is
                     </div>
 
                     {isAdmin ? (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                        {Object.values(PERMISSION_LABELS).map(label => (
-                          <span key={label} className="badge badge-sage">{label}</span>
+                      // Grouped chip wall (Sprint 25): sectioned, readable at a glance.
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        {PERMISSION_GROUPS.map(g => (
+                          <div key={g.key}>
+                            <div style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--caramel)', marginBottom: 6 }}>
+                              {g.label}
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                              {g.permissions.map(p => (
+                                <span key={p} className="badge badge-sage">{PERMISSION_LABELS[p]}</span>
+                              ))}
+                            </div>
+                          </div>
                         ))}
                       </div>
                     ) : (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
-                        {ALL_PERMISSIONS.map(key => {
-                          const granted = savedPerms.includes(key)
+                      // Grouped read-only summary (Sprint 25).
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        {PERMISSION_GROUPS.map(g => {
+                          const grantedCount = g.permissions.filter(p => savedPerms.includes(p)).length
                           return (
-                            <div key={key} style={{
-                              display: 'flex', alignItems: 'center', gap: 8,
-                              fontSize: 13, color: granted ? 'var(--forest)' : 'var(--stone)',
-                            }}>
-                              <span style={{
-                                width: 16, height: 16, borderRadius: 2,
-                                background: granted ? 'var(--forest)' : 'var(--sage-light)',
-                                border: `1px solid ${granted ? 'var(--forest)' : 'var(--light-line)'}`,
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                              }}>
-                                {granted && (
-                                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                                    <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                                  </svg>
-                                )}
-                              </span>
-                              {PERMISSION_LABELS[key]}
+                            <div key={g.key}>
+                              <div style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: grantedCount ? 'var(--caramel)' : 'var(--stone)', marginBottom: 6 }}>
+                                {g.label} <span style={{ letterSpacing: 0 }}>· {grantedCount} of {g.permissions.length}</span>
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
+                                {g.permissions.map(key => {
+                                  const granted = savedPerms.includes(key)
+                                  return (
+                                    <div key={key} style={{
+                                      display: 'flex', alignItems: 'center', gap: 8,
+                                      fontSize: 13, color: granted ? 'var(--forest)' : 'var(--stone)',
+                                    }}>
+                                      <span style={{
+                                        width: 16, height: 16, borderRadius: 2,
+                                        background: granted ? 'var(--forest)' : 'var(--sage-light)',
+                                        border: `1px solid ${granted ? 'var(--forest)' : 'var(--light-line)'}`,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                                      }}>
+                                        {granted && (
+                                          <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                                            <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                          </svg>
+                                        )}
+                                      </span>
+                                      {PERMISSION_LABELS[key]}
+                                    </div>
+                                  )
+                                })}
+                              </div>
                             </div>
                           )
                         })}
@@ -552,39 +525,96 @@ export function StaffEditor({ initialStaff, currentUserId, archivedCount = 0, is
                       )}
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
-                      {ALL_PERMISSIONS.map(perm => {
-                        const granted = editorPerms.includes(perm)
+                    {/* Role presets (Sprint 25): one-click starting bundles.
+                        Segregated approvals are never in a preset. */}
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
+                      <span style={{ fontSize: 12, color: 'var(--stone)' }}>Start from a preset:</span>
+                      {PERMISSION_PRESETS.map(preset => (
+                        <button
+                          key={preset.key}
+                          className="btn btn-secondary btn-sm"
+                          disabled={isSaving}
+                          title={preset.description}
+                          onClick={() => setPendingPerms(prev => ({ ...prev, [member.id]: [...preset.permissions] }))}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Grouped permissions with tri-state group toggles (Sprint 25) */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                      {PERMISSION_GROUPS.map(g => {
+                        const state = groupState(g, editorPerms)
+                        const grantedCount = g.permissions.filter(p => editorPerms.includes(p)).length
                         return (
-                          <button
-                            key={perm}
-                            disabled={isSaving}
-                            onClick={() => togglePermission(member, perm)}
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: 10,
-                              padding: '10px 14px', cursor: 'pointer',
-                              border: `1.5px solid ${granted ? 'var(--forest)' : 'var(--light-line)'}`,
-                              background: granted ? 'rgba(26,43,24,0.06)' : 'transparent',
-                              color: granted ? 'var(--forest)' : 'var(--stone)',
-                              fontSize: 12, fontWeight: granted ? 500 : 400,
-                              letterSpacing: '0.04em', textAlign: 'left',
-                              transition: 'all 0.15s ease',
-                            }}
-                          >
-                            <span style={{
-                              width: 18, height: 18, borderRadius: 3, flexShrink: 0,
-                              background: granted ? 'var(--forest)' : 'transparent',
-                              border: `1.5px solid ${granted ? 'var(--forest)' : 'var(--sage)'}`,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            }}>
-                              {granted && (
-                                <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                                  <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                                </svg>
-                              )}
-                            </span>
-                            {PERMISSION_LABELS[perm]}
-                          </button>
+                          <div key={g.key}>
+                            <button
+                              disabled={isSaving}
+                              onClick={() => setPendingPerms(prev => ({ ...prev, [member.id]: toggleGroup(g, editorPerms) }))}
+                              title={state === 'all' ? `Remove everything under ${g.label}` : `Grant everything under ${g.label}`}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                                background: 'none', border: 'none', padding: '4px 0', marginBottom: 8,
+                              }}
+                            >
+                              <span style={{
+                                width: 18, height: 18, borderRadius: 3, flexShrink: 0,
+                                background: state === 'all' ? 'var(--forest)' : 'transparent',
+                                border: `1.5px solid ${state === 'none' ? 'var(--sage)' : 'var(--forest)'}`,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              }}>
+                                {state === 'all' && (
+                                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                                    <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                                  </svg>
+                                )}
+                                {state === 'some' && (
+                                  <span style={{ width: 10, height: 2.5, background: 'var(--forest)', borderRadius: 1, display: 'block' }} />
+                                )}
+                              </span>
+                              <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--forest)' }}>
+                                {g.label}
+                              </span>
+                              <span style={{ fontSize: 12, color: 'var(--stone)' }}>{grantedCount} of {g.permissions.length}</span>
+                            </button>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+                              {g.permissions.map(perm => {
+                                const granted = editorPerms.includes(perm)
+                                return (
+                                  <button
+                                    key={perm}
+                                    disabled={isSaving}
+                                    onClick={() => togglePermission(member, perm)}
+                                    style={{
+                                      display: 'flex', alignItems: 'center', gap: 10,
+                                      padding: '10px 14px', cursor: 'pointer',
+                                      border: `1.5px solid ${granted ? 'var(--forest)' : 'var(--light-line)'}`,
+                                      background: granted ? 'rgba(26,43,24,0.06)' : 'transparent',
+                                      color: granted ? 'var(--forest)' : 'var(--stone)',
+                                      fontSize: 12, fontWeight: granted ? 500 : 400,
+                                      letterSpacing: '0.04em', textAlign: 'left',
+                                      transition: 'all 0.15s ease',
+                                    }}
+                                  >
+                                    <span style={{
+                                      width: 18, height: 18, borderRadius: 3, flexShrink: 0,
+                                      background: granted ? 'var(--forest)' : 'transparent',
+                                      border: `1.5px solid ${granted ? 'var(--forest)' : 'var(--sage)'}`,
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    }}>
+                                      {granted && (
+                                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                                          <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                                        </svg>
+                                      )}
+                                    </span>
+                                    {PERMISSION_LABELS[perm]}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
                         )
                       })}
                     </div>

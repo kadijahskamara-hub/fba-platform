@@ -3,6 +3,7 @@ import './globals.css'
 import { Nav } from '@/components/Nav'
 import { Footer } from '@/components/Footer'
 import { MobileOverlay } from '@/components/MobileOverlay'
+import SignupPopup from '@/components/SignupPopup'
 import { getSession } from '@/lib/auth'
 import { getFlags } from '@/lib/flags'
 
@@ -72,6 +73,9 @@ export default async function RootLayout({
           {children}
           <Footer />
         </main>
+        {/* Lead-capture popup (Sprint 25) — self-configuring, never on
+            admin/auth routes, never for staff sessions. */}
+        <SignupPopup />
       </body>
     </html>
   )
