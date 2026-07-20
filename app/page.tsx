@@ -216,9 +216,12 @@ export default async function HomePage() {
     <div className="page-body">
 
       {/* HERO */}
+      {/* Hero text vertically centred between the nav and the bottom edge —
+          was flex-end, which let a tall headline overflow up under the
+          fixed nav and clip the first line (QA, July 2026). */}
       <section style={{
-        position: 'relative', height: '82vh', minHeight: 560,
-        display: 'flex', alignItems: 'flex-end', overflow: 'hidden',
+        position: 'relative', height: '88vh', minHeight: 620,
+        display: 'flex', alignItems: 'center', overflow: 'hidden',
       }}>
         <Image
           src={heroSrc}
@@ -247,7 +250,7 @@ export default async function HomePage() {
           ))}
         </div>
 
-        <div className="container" style={{ position: 'relative', zIndex: 1, paddingBottom: 100 }}>
+        <div className="container" style={{ position: 'relative', zIndex: 1, paddingTop: 'calc(var(--nav-h) + 24px)', paddingBottom: 48 }}>
           {/* Hero text group — alignment, fonts, sizes and colours are
               admin-controlled via Studio Settings → Homepage Hero. */}
           <div style={{ maxWidth: 660, margin: heroAlign === 'center' ? '0 auto' : undefined, textAlign: heroAlign }}>
