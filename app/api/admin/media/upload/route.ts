@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { supabaseAdmin } from '@/lib/supabase'
 import { isStaff } from '@/lib/auth'
-import { isMediaBucket, UPLOAD_MIME_EXT, MAX_UPLOAD_BYTES, type MediaBucket } from '@/lib/mediaShared'
+import { isMediaBucket, UPLOAD_MIME_EXT, MAX_UPLOAD_BYTES, validateFolderPath, type MediaBucket } from '@/lib/mediaShared'
 
 // ============================================================
 // POST /api/admin/media/upload (Sprint 23.1)
@@ -30,8 +30,13 @@ export async function POST(req: NextRequest) {
   const bucketRaw = form?.get('bucket') as string | null
   const bucket: MediaBucket = isMediaBucket(bucketRaw) ? bucketRaw : 'site-assets'
 
+  // Optional destination folder (Phase 2): upload straight into the
+  // folder being browsed; falls back to uploads/ when absent/invalid.
+  const folderRaw = ((form?.get('folder') as string | null) ?? '').trim()
+  const folder = folderRaw && !validateFolderPath(folderRaw) ? folderRaw : 'uploads'
+
   const stamp = new Date().toISOString().slice(0, 10)
-  const path = `uploads/${stamp}-${randomBytes(6).toString('hex')}.${ext}`
+  const path = `${folder}/${stamp}-${randomBytes(6).toString('hex')}.${ext}`
   const buffer = Buffer.from(await file.arrayBuffer())
 
   const { error: upErr } = await supabaseAdmin.storage.from(bucket)

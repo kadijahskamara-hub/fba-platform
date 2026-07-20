@@ -8,6 +8,11 @@ import {
   HERO_SLOTS, isHeroSlotKey, validateAssignParams,
   UPLOAD_MIME_EXT, MAX_UPLOAD_BYTES,
   MAX_OUTPUT_PX, type MediaEditParams,
+  // Phase 2 (picker rebuild)
+  isKeepFile, KEEP_FILE, validateFolderName, validateFolderPath,
+  MAX_FOLDER_DEPTH, joinPath, parentFolder, fileName, isEditedCopy,
+  sortMediaFiles, matchesTypeFilter, matchesUsedFilter,
+  storageBarLevel, formatBytes, DEFAULT_STORAGE_CAP_MB,
 } from '../lib/mediaShared'
 
 const SUPA = 'https://qnuqvdzguesetnevhsoc.supabase.co'
@@ -169,11 +174,12 @@ test('upload accepts only image MIME types, capped at 15MB', () => {
   assert.equal(MAX_UPLOAD_BYTES, 15 * 1024 * 1024)
 })
 
-test('hero slots cover every page hero and are unique', () => {
+test('hero slots cover every HeroImageUploader key and are unique', () => {
   const keys = HERO_SLOTS.map(s => s.key)
   assert.deepEqual(keys, [
     'home_hero_image', 'the_edit_hero_image', 'collection_hero_image',
     'artisans_hero_image', 'journal_hero_image', 'about_hero_image',
+    'home_pillars_image', 'about_maker_image',
   ])
   assert.equal(new Set(keys).size, keys.length)
   for (const s of HERO_SLOTS) assert.ok(s.label.length > 0)
@@ -200,6 +206,90 @@ test('validateAssignParams rejects bad buckets, paths and targets', () => {
   assert.ok(validateAssignParams({ bucket: 'site-assets', path: 'a.jpg' }))
   assert.ok(validateAssignParams({ bucket: 'site-assets', path: 'a.jpg', target: { type: 'product', productId: '' } }))
   assert.ok(validateAssignParams({ bucket: 'site-assets', path: 'a.jpg', target: { type: 'site_setting', key: 'nope' } }))
+})
+
+// ============================================================
+// Phase 2: folders, sorting/filtering, storage bar
+// ============================================================
+
+test('folder names: lowercase/digits/hyphens only, reserved names blocked', () => {
+  assert.equal(validateFolderName('lounge-chairs'), null)
+  assert.equal(validateFolderName('a1'), null)
+  assert.ok(validateFolderName(''))
+  assert.ok(validateFolderName('Has Spaces'))
+  assert.ok(validateFolderName('UPPER'))
+  assert.ok(validateFolderName('trash'))          // reserved
+  assert.ok(validateFolderName('a'.repeat(41)))   // too long
+})
+
+test('folder paths: depth capped, traversal and trash blocked', () => {
+  assert.equal(validateFolderPath(''), null)
+  assert.equal(validateFolderPath('products'), null)
+  assert.equal(validateFolderPath('products/abc-123/gallery'), null)
+  assert.ok(validateFolderPath('a/b/c/d'))          // > MAX_FOLDER_DEPTH
+  assert.equal(MAX_FOLDER_DEPTH, 3)
+  assert.ok(validateFolderPath('../x'))
+  assert.ok(validateFolderPath('a//b'))
+  assert.ok(validateFolderPath('trash'))
+  assert.ok(validateFolderPath('trash/products'))
+})
+
+test('path utilities and .keep placeholder', () => {
+  assert.equal(joinPath('', 'a.jpg'), 'a.jpg')
+  assert.equal(joinPath('uploads', 'a.jpg'), 'uploads/a.jpg')
+  assert.equal(parentFolder('uploads/a.jpg'), 'uploads')
+  assert.equal(parentFolder('a.jpg'), '')
+  assert.equal(fileName('products/x/a.jpg'), 'a.jpg')
+  assert.equal(isKeepFile(KEEP_FILE), true)
+  assert.equal(isKeepFile('keep.jpg'), false)
+})
+
+test('isEditedCopy recognises editor output only', () => {
+  assert.equal(isEditedCopy('photo-edit-a1b2c3.jpg'), true)
+  assert.equal(isEditedCopy('photo.jpg'), false)
+  assert.equal(isEditedCopy('photo-edit-XYZ.jpg'), false)
+})
+
+test('sortMediaFiles: all four orders', () => {
+  const files = [
+    { name: 'b.jpg', size: 10, updatedAt: '2026-07-02T00:00:00Z' },
+    { name: 'a.jpg', size: 30, updatedAt: '2026-07-03T00:00:00Z' },
+    { name: 'c.jpg', size: 20, updatedAt: '2026-07-01T00:00:00Z' },
+  ]
+  assert.deepEqual(sortMediaFiles(files, 'newest').map(f => f.name), ['a.jpg', 'b.jpg', 'c.jpg'])
+  assert.deepEqual(sortMediaFiles(files, 'oldest').map(f => f.name), ['c.jpg', 'b.jpg', 'a.jpg'])
+  assert.deepEqual(sortMediaFiles(files, 'name').map(f => f.name), ['a.jpg', 'b.jpg', 'c.jpg'])
+  assert.deepEqual(sortMediaFiles(files, 'largest').map(f => f.name), ['a.jpg', 'c.jpg', 'b.jpg'])
+  // input is not mutated
+  assert.equal(files[0].name, 'b.jpg')
+})
+
+test('type filter treats jpg and jpeg as one; used filter splits on count', () => {
+  assert.equal(matchesTypeFilter('a.JPG', 'jpg'), true)
+  assert.equal(matchesTypeFilter('a.jpeg', 'jpg'), true)
+  assert.equal(matchesTypeFilter('a.png', 'jpg'), false)
+  assert.equal(matchesTypeFilter('a.png', ''), true)
+  assert.equal(matchesUsedFilter(2, 'used'), true)
+  assert.equal(matchesUsedFilter(0, 'used'), false)
+  assert.equal(matchesUsedFilter(0, 'unused'), true)
+  assert.equal(matchesUsedFilter(3, ''), true)
+})
+
+test('storage bar levels at 80% and 95%', () => {
+  const mb = 1024 * 1024
+  assert.equal(storageBarLevel(100 * mb, 1024), 'ok')
+  assert.equal(storageBarLevel(820 * mb, 1024), 'warn')      // ≥ 80%
+  assert.equal(storageBarLevel(975 * mb, 1024), 'critical')  // ≥ 95%
+  // Bad cap falls back to the default rather than dividing by zero
+  assert.equal(storageBarLevel(10 * mb, 0), 'ok')
+  assert.equal(DEFAULT_STORAGE_CAP_MB, 1024)
+})
+
+test('formatBytes is human-readable', () => {
+  assert.equal(formatBytes(null), '—')
+  assert.equal(formatBytes(512), '512 B')
+  assert.equal(formatBytes(44 * 1024), '44 KB')
+  assert.equal(formatBytes(2.5 * 1024 * 1024), '2.5 MB')
 })
 
 // ============================================================

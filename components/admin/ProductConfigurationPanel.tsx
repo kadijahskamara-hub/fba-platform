@@ -6,6 +6,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { appConfirm } from '@/lib/appConfirm'
+import MediaPickerDialog from '@/components/admin/media/MediaPickerDialog'
+import type { MediaLibraryFile } from '@/lib/mediaShared'
 
 type Tab = 'finishes' | 'media' | 'passport' | 'specs'
 const inp: React.CSSProperties = { padding: '7px 10px', fontSize: 13, border: '1px solid var(--light-line)', background: '#fff' }
@@ -353,6 +355,24 @@ function MediaTab({ productId, setErr }: { productId: string; setErr: (s: string
   const [media, setMedia] = useState<Media[]>([])
   const [groups, setGroups] = useState<Group[]>([])
   const [busy, setBusy] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
+
+  // Media Library picker (Phase 2): selected files are attached via
+  // the assign API — copied into products/<id>/ + product_media rows.
+  const attachFromLibrary = async (files: MediaLibraryFile[]) => {
+    setBusy(true)
+    let failed = 0
+    for (const f of files) {
+      const res = await api('/api/admin/media/assign', 'POST', {
+        bucket: f.bucket, path: f.path, target: { type: 'product', productId },
+      })
+      if (!res.success) { failed++; setErr(res.error ?? 'Could not attach an image') }
+    }
+    setBusy(false)
+    setPickerOpen(false)
+    if (failed === 0) setErr('')
+    load()
+  }
 
   const load = useCallback(async () => {
     const [m, g] = await Promise.all([
@@ -374,22 +394,36 @@ function MediaTab({ productId, setErr }: { productId: string; setErr: (s: string
   return (
     <div>
       <div className="admin-card" style={{ padding: 16, marginBottom: 16 }}>
-        <label style={{ fontSize: 13 }}>
-          Upload image (JPG/PNG/WEBP, max 15 MB) —
-          <input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} style={{ marginLeft: 8, fontSize: 12 }}
-            onChange={async e => {
-              const file = e.target.files?.[0]; if (!file) return
-              setBusy(true)
-              const fd = new FormData(); fd.append('file', file)
-              await run(api(`/api/admin/products/${productId}/media`, 'POST', fd))
-              setBusy(false); e.target.value = ''
-            }} />
-        </label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => setPickerOpen(true)}>
+            Choose from Media Library
+          </button>
+          <label style={{ fontSize: 13 }}>
+            or upload directly (JPG/PNG/WEBP, max 15 MB) —
+            <input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} style={{ marginLeft: 8, fontSize: 12 }}
+              onChange={async e => {
+                const file = e.target.files?.[0]; if (!file) return
+                setBusy(true)
+                const fd = new FormData(); fd.append('file', file)
+                await run(api(`/api/admin/products/${productId}/media`, 'POST', fd))
+                setBusy(false); e.target.value = ''
+              }} />
+          </label>
+        </div>
         <p style={{ fontSize: 12, color: 'var(--stone)', margin: '8px 0 0' }}>
           The first upload becomes the primary image. Link an image to a finish option and the
           product page will switch to it when that finish is selected.
         </p>
       </div>
+
+      {pickerOpen && (
+        <MediaPickerDialog
+          multiple
+          startBucket="product-media"
+          onClose={() => setPickerOpen(false)}
+          onSelect={attachFromLibrary}
+        />
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 14 }}>
         {media.map(m => (

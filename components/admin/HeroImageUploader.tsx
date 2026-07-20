@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import MediaPickerDialog from '@/components/admin/media/MediaPickerDialog'
+import type { MediaLibraryFile } from '@/lib/mediaShared'
 
 interface HeroSetting {
   url: string
@@ -18,7 +20,31 @@ export function HeroImageUploader({ pageKey, label, initialValue }: Props) {
   const [uploading, setUploading] = useState(false)
   const [error,     setError]     = useState<string | null>(null)
   const [saved,     setSaved]     = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Media Library picker (Phase 2): choose an existing image instead
+  // of uploading a new one. The assign API validates the slot key.
+  async function chooseFromLibrary(files: MediaLibraryFile[]) {
+    const file = files[0]
+    if (!file) return
+    setUploading(true); setError(null); setSaved(false)
+    try {
+      const res = await fetch('/api/admin/media/assign', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ bucket: file.bucket, path: file.path, target: { type: 'site_setting', key: pageKey } }),
+      }).then(r => r.json())
+      if (!res.success) throw new Error(res.error ?? 'Could not assign the image')
+      setCurrent(prev => ({ ...prev, url: file.url }))
+      setSaved(true)
+      setPickerOpen(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Something went wrong')
+    } finally {
+      setUploading(false)
+    }
+  }
 
   async function handleFile(file: File) {
     if (!file.type.startsWith('image/')) {
@@ -130,11 +156,19 @@ export function HeroImageUploader({ pageKey, label, initialValue }: Props) {
       {/* Controls */}
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
         <button
-          onClick={() => inputRef.current?.click()}
+          onClick={() => setPickerOpen(true)}
           disabled={uploading}
           className="btn btn-primary btn-sm"
         >
-          {uploading ? 'Uploading…' : current.url ? 'Replace image' : 'Upload image'}
+          Choose from library
+        </button>
+
+        <button
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+          className="btn btn-secondary btn-sm"
+        >
+          {uploading ? 'Uploading…' : current.url ? 'Replace by upload' : 'Upload image'}
         </button>
 
         {current.url && (
@@ -163,6 +197,14 @@ export function HeroImageUploader({ pageKey, label, initialValue }: Props) {
         style={{ display: 'none' }}
         onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
       />
+
+      {pickerOpen && (
+        <MediaPickerDialog
+          startBucket="site-assets"
+          onClose={() => setPickerOpen(false)}
+          onSelect={chooseFromLibrary}
+        />
+      )}
 
       {/* Alt text */}
       <div>

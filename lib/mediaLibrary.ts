@@ -1,6 +1,9 @@
 import 'server-only'
 import { supabaseAdmin } from './supabase'
-import { storagePathFromPublicUrl, collectImageUrls, type MediaBucket } from './mediaShared'
+import {
+  storagePathFromPublicUrl, collectImageUrls, isKeepFile, KEEP_FILE,
+  type MediaBucket,
+} from './mediaShared'
 
 // ============================================================
 // Media Library — server-side listing + usage map (Sprint 23).
@@ -44,6 +47,7 @@ export async function listBucketObjects(bucket: MediaBucket, opts?: { prefix?: s
           continue
         }
         if (!opts?.includeTrash && full.startsWith('trash/')) continue
+        if (isKeepFile(entry.name)) continue
         const meta = (entry.metadata ?? {}) as Record<string, unknown>
         out.push({
           path: full,
@@ -60,6 +64,55 @@ export async function listBucketObjects(bucket: MediaBucket, opts?: { prefix?: s
     }
   }
   return out
+}
+
+// Single-level folder listing for the browser UI: immediate sub-folders
+// + files of one folder only (much cheaper than the deep walk).
+export async function listFolder(bucket: MediaBucket, folder: string): Promise<{ folders: string[]; files: MediaObject[] }> {
+  const folders: string[] = []
+  const files: MediaObject[] = []
+  let offset = 0
+  for (;;) {
+    const { data, error } = await supabaseAdmin.storage.from(bucket)
+      .list(folder, { limit: LIST_PAGE, offset, sortBy: { column: 'name', order: 'asc' } })
+    if (error || !data) break
+    for (const entry of data) {
+      const isFolder = !entry.id && !entry.metadata
+      if (isFolder) {
+        if (!(folder === '' && entry.name === 'trash')) folders.push(entry.name)
+        continue
+      }
+      if (isKeepFile(entry.name)) continue
+      const full = folder ? `${folder}/${entry.name}` : entry.name
+      const meta = (entry.metadata ?? {}) as Record<string, unknown>
+      files.push({
+        path: full,
+        name: entry.name,
+        size: typeof meta.size === 'number' ? meta.size : null,
+        updatedAt: (entry.updated_at as string | null) ?? null,
+        mimetype: typeof meta.mimetype === 'string' ? meta.mimetype : null,
+        url: supabaseAdmin.storage.from(bucket).getPublicUrl(full).data.publicUrl,
+      })
+    }
+    if (data.length < LIST_PAGE) break
+    offset += LIST_PAGE
+  }
+  return { folders, files }
+}
+
+// Total bytes stored in a bucket (trash included — it still occupies space).
+export async function bucketUsageBytes(bucket: MediaBucket): Promise<number> {
+  const objects = await listBucketObjects(bucket, { includeTrash: true })
+  return objects.reduce((sum, o) => sum + (o.size ?? 0), 0)
+}
+
+// Create an (implicit) folder by writing its .keep placeholder.
+export async function createFolderPlaceholder(bucket: MediaBucket, folderPath: string): Promise<string | null> {
+  const { error } = await supabaseAdmin.storage.from(bucket)
+    .upload(`${folderPath}/${KEEP_FILE}`, Buffer.alloc(0), { contentType: 'application/octet-stream', upsert: false })
+  if (!error) return null
+  if (/already exists|Duplicate/i.test(error.message)) return 'That folder already exists.'
+  return error.message
 }
 
 // Where is each image used? Keyed by `${bucket}/${path}` for storage

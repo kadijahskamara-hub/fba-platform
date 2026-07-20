@@ -163,6 +163,139 @@ export function collectImageUrls(value: unknown, depth = 0): string[] {
   return []
 }
 
+// ---------- Shared types (Phase 2 picker rebuild) ----------
+export type MediaUsageRef = { kind: string; label: string; href: string }
+export type MediaLibraryFile = {
+  bucket: string
+  path: string
+  name: string
+  size: number | null
+  updatedAt: string | null
+  mimetype: string | null
+  url: string
+  usedIn: MediaUsageRef[]
+}
+
+// ---------- Folders ----------
+// Storage folders are implicit prefixes; an empty folder exists as a
+// 0-byte `.keep` placeholder which listings always hide.
+export const KEEP_FILE = '.keep'
+export const MAX_FOLDER_DEPTH = 3
+export const RESERVED_FOLDERS = ['trash'] // never creatable/browsable as normal folders
+
+export function isKeepFile(name: string): boolean {
+  return name === KEEP_FILE
+}
+
+// Folder segment: lowercase letters, digits, hyphens; 1–40 chars.
+export function validateFolderName(name: string): string | null {
+  if (!name || !/^[a-z0-9-]{1,40}$/.test(name)) {
+    return 'Folder names can use lowercase letters, numbers and hyphens (max 40 characters).'
+  }
+  if (RESERVED_FOLDERS.includes(name)) return `"${name}" is a reserved name.`
+  return null
+}
+
+// A browseable folder path is 0–MAX_FOLDER_DEPTH valid segments.
+export function validateFolderPath(folder: string): string | null {
+  if (folder === '') return null
+  const segments = folder.split('/')
+  if (segments.length > MAX_FOLDER_DEPTH) return `Folders can be at most ${MAX_FOLDER_DEPTH} levels deep.`
+  for (const s of segments) {
+    // Existing structural folders (e.g. products/<uuid>) may contain
+    // characters outside the creatable set; allow safe path chars but
+    // never traversal or empties.
+    if (!s || s === '.' || s === '..' || !/^[a-zA-Z0-9._-]+$/.test(s)) return 'Invalid folder path.'
+  }
+  if (segments[0] === 'trash') return 'The trash is not a browseable folder.'
+  return null
+}
+
+export function joinPath(folder: string, name: string): string {
+  return folder ? `${folder}/${name}` : name
+}
+
+export function parentFolder(path: string): string {
+  const i = path.lastIndexOf('/')
+  return i < 0 ? '' : path.slice(0, i)
+}
+
+export function fileName(path: string): string {
+  const i = path.lastIndexOf('/')
+  return i < 0 ? path : path.slice(i + 1)
+}
+
+export function isEditedCopy(name: string): boolean {
+  return /-edit-[0-9a-f]{6}\.[a-zA-Z0-9]+$/.test(name)
+}
+
+// ---------- Sorting & filtering ----------
+export type MediaSortKey = 'newest' | 'oldest' | 'name' | 'largest'
+export const MEDIA_SORTS: Array<{ key: MediaSortKey; label: string }> = [
+  { key: 'newest',  label: 'Newest first' },
+  { key: 'oldest',  label: 'Oldest first' },
+  { key: 'name',    label: 'Name A–Z' },
+  { key: 'largest', label: 'Largest first' },
+]
+
+export function sortMediaFiles<T extends { name: string; size: number | null; updatedAt: string | null }>(
+  files: T[], sort: MediaSortKey
+): T[] {
+  const ts = (f: T) => (f.updatedAt ? new Date(f.updatedAt).getTime() : 0)
+  const out = [...files]
+  switch (sort) {
+    case 'oldest':  out.sort((a, b) => ts(a) - ts(b)); break
+    case 'name':    out.sort((a, b) => a.name.localeCompare(b.name)); break
+    case 'largest': out.sort((a, b) => (b.size ?? 0) - (a.size ?? 0)); break
+    case 'newest':
+    default:        out.sort((a, b) => ts(b) - ts(a)); break
+  }
+  return out
+}
+
+export type MediaTypeFilter = '' | 'jpg' | 'png' | 'webp' | 'avif' | 'gif'
+export const MEDIA_TYPE_FILTERS: Array<{ key: MediaTypeFilter; label: string }> = [
+  { key: '',     label: 'All types' },
+  { key: 'jpg',  label: 'JPG' },
+  { key: 'png',  label: 'PNG' },
+  { key: 'webp', label: 'WEBP' },
+  { key: 'avif', label: 'AVIF' },
+  { key: 'gif',  label: 'GIF' },
+]
+
+export function matchesTypeFilter(name: string, filter: MediaTypeFilter): boolean {
+  if (!filter) return true
+  const ext = name.split('.').pop()?.toLowerCase() ?? ''
+  if (filter === 'jpg') return ext === 'jpg' || ext === 'jpeg'
+  return ext === filter
+}
+
+export type MediaUsedFilter = '' | 'used' | 'unused'
+
+export function matchesUsedFilter(usedCount: number, filter: MediaUsedFilter): boolean {
+  if (filter === 'used') return usedCount > 0
+  if (filter === 'unused') return usedCount === 0
+  return true
+}
+
+// ---------- Storage bar ----------
+export const DEFAULT_STORAGE_CAP_MB = 1024
+
+export function storageBarLevel(usedBytes: number, capMb: number): 'ok' | 'warn' | 'critical' {
+  const cap = capMb > 0 ? capMb * 1024 * 1024 : DEFAULT_STORAGE_CAP_MB * 1024 * 1024
+  const ratio = usedBytes / cap
+  if (ratio >= 0.95) return 'critical'
+  if (ratio >= 0.8) return 'warn'
+  return 'ok'
+}
+
+export function formatBytes(n: number | null | undefined): string {
+  if (n === null || n === undefined) return '—'
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`
+}
+
 // ---------- Uploads ----------
 export const UPLOAD_MIME_EXT: Record<string, string> = {
   'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/avif': 'avif', 'image/gif': 'gif',
@@ -171,7 +304,7 @@ export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 
 // ---------- Assignment targets ----------
 // Site slots an image can be assigned to. Values are { url, alt }
-// in site_settings — mirrors HeroImageUploader.
+// in site_settings — every key rendered through HeroImageUploader.
 export const HERO_SLOTS: Array<{ key: string; label: string }> = [
   { key: 'home_hero_image',       label: 'Homepage hero' },
   { key: 'the_edit_hero_image',   label: 'The Edit hero' },
@@ -179,6 +312,8 @@ export const HERO_SLOTS: Array<{ key: string; label: string }> = [
   { key: 'artisans_hero_image',   label: 'Artisans hero' },
   { key: 'journal_hero_image',    label: 'Journal hero' },
   { key: 'about_hero_image',      label: 'About hero' },
+  { key: 'home_pillars_image',    label: 'Homepage — “What We Do” band' },
+  { key: 'about_maker_image',     label: 'About — maker studio image' },
 ]
 
 export function isHeroSlotKey(key: string | null | undefined): boolean {
