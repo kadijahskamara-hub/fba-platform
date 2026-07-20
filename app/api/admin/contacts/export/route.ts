@@ -4,6 +4,7 @@ import { isStaff } from '@/lib/auth'
 import { buildAccountInfoMap } from '@/lib/contactAccounts'
 import { accountRoleLabel } from '@/lib/contactRoleLabel'
 import { contactSourceLabel } from '@/lib/contactSources'
+import { INTERNAL_ROLES, postgrestEmailList } from '@/lib/contactAudience'
 
 // ============================================================
 // Contacts CSV export (Phase 4.2).
@@ -36,6 +37,15 @@ export async function GET(req: NextRequest) {
     .from('contacts')
     .select('first_name, last_name, email, phone, company_name, contact_type, source, consent_marketing, notes, created_at')
     .order('created_at', { ascending: false })
+
+  // Match the CRM panel: internal (admin/staff) accounts are excluded
+  // from the CSV — they're managed in Staff & Permissions (Sprint 23).
+  const { data: internalUsers } = await supabaseAdmin
+    .from('users')
+    .select('email')
+    .in('role', [...INTERNAL_ROLES])
+  const excludeList = postgrestEmailList((internalUsers ?? []).map(u => String(u.email ?? '')))
+  if (excludeList) query = query.not('email', 'in', excludeList)
 
   if (type)   query = query.eq('contact_type', type)
   if (source) query = query.eq('source', source)

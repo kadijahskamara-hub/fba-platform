@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { isStaff } from '@/lib/auth'
 import { buildAccountInfoMap } from '@/lib/contactAccounts'
 import { isContactSource } from '@/lib/contactSources'
+import { parseAudience, INTERNAL_ROLES, postgrestEmailList } from '@/lib/contactAudience'
 
 export async function GET(req: NextRequest) {
   if (!(await isStaff())) {
@@ -10,6 +11,30 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url)
+
+  // Internal Accounts panel (Sprint 23): read-only list of staff/admin
+  // user accounts, straight from the users table (so staff without a
+  // CRM contact record still appear). Managed in Staff & Permissions.
+  if (parseAudience(searchParams.get('audience')) === 'internal') {
+    const search = (searchParams.get('search') ?? '').trim()
+    let q = supabaseAdmin
+      .from('users')
+      .select('id, first_name, last_name, email, role, status, created_at')
+      .in('role', [...INTERNAL_ROLES])
+      .order('created_at', { ascending: true })
+    if (search) {
+      q = q.or(`email.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%`)
+    }
+    const { data, error } = await q
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+    const accountMap = await buildAccountInfoMap()
+    const enriched = (data ?? []).map((u: Record<string, unknown>) => ({
+      ...u,
+      account_role: u.role,
+      account_is_owner: accountMap.get(String(u.email ?? '').toLowerCase())?.isOwner ?? false,
+    }))
+    return NextResponse.json({ success: true, data: enriched, total: enriched.length })
+  }
   const page   = Math.max(1, parseInt(searchParams.get('page') ?? '1'))
   const limit  = Math.min(100, parseInt(searchParams.get('limit') ?? '20'))
   const search = searchParams.get('search') ?? ''
@@ -22,6 +47,15 @@ export async function GET(req: NextRequest) {
     .select('*', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)
+
+  // CRM panel: exclude contacts whose email belongs to an internal
+  // (admin/staff) account — those live in the Internal Accounts panel.
+  const { data: internalUsers } = await supabaseAdmin
+    .from('users')
+    .select('email')
+    .in('role', [...INTERNAL_ROLES])
+  const excludeList = postgrestEmailList((internalUsers ?? []).map(u => String(u.email ?? '')))
+  if (excludeList) query = query.not('email', 'in', excludeList)
 
   if (type)   query = query.eq('contact_type', type)
   if (source) query = query.eq('source', source)

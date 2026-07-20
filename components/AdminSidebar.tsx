@@ -72,7 +72,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     section: 'Content',
     items: [
-      { href: '/admin/journals', label: 'Journals', icon: PenIcon, permission: 'journals' },
+      { href: '/admin/journals', label: 'Journals',      icon: PenIcon,        permission: 'journals' },
+      { href: '/admin/media',    label: 'Media Library', icon: CollectionIcon, permission: 'products' },
     ],
   },
   {

@@ -23,6 +23,8 @@
     "lib/customMatch/logic.ts",
     "lib/productCompleteness.ts",
     "lib/commercial/finishSelections.ts",
+    "lib/contactAudience.ts",
+    "lib/mediaShared.ts",
     "tests/**/*.ts"
   ]
 }

@@ -34,10 +34,24 @@ const CONTACT_TYPES = ['general', 'retail', 'trade', 'press', 'artisan']
 
 const emptyForm = { firstName: '', lastName: '', email: '', phone: '', companyName: '', contactType: 'general', source: 'manual', consentMarketing: false, notes: '' }
 
+type InternalAccount = {
+  id: string
+  first_name: string | null
+  last_name: string | null
+  email: string
+  role: string
+  status: string | null
+  created_at: string
+  account_is_owner: boolean
+}
+
 function money(n: number, cur: string) { const s = cur === 'EUR' ? '€' : cur === 'USD' ? '$' : '£'; return `${s}${n.toLocaleString('en-GB')}` }
 const entryTotal = (e: PipeEntry) => (e.items ?? []).reduce((s, it) => s + (Number(it.unit_price) || 0) * (Number(it.quantity) || 0), 0)
 
 export default function AdminContactsPage() {
+  const [panel, setPanel] = useState<'crm' | 'internal'>('crm')
+  const [internalAccounts, setInternalAccounts] = useState<InternalAccount[]>([])
+  const [internalLoading, setInternalLoading] = useState(false)
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -68,6 +82,16 @@ export default function AdminContactsPage() {
   }, [page, search, typeFilter, sourceFilter])
 
   useEffect(() => { fetchContacts() }, [fetchContacts])
+
+  // Internal Accounts panel — read-only, fetched once when opened.
+  useEffect(() => {
+    if (panel !== 'internal' || internalAccounts.length) return
+    setInternalLoading(true)
+    fetch('/api/admin/contacts?audience=internal')
+      .then(r => r.json())
+      .then(json => { if (json.success) setInternalAccounts(json.data) })
+      .finally(() => setInternalLoading(false))
+  }, [panel, internalAccounts.length])
 
   const exportCsv = useCallback(() => {
     const params = new URLSearchParams()
@@ -138,14 +162,74 @@ export default function AdminContactsPage() {
       <div className="admin-header">
         <div>
           <h1 className="admin-title">Contacts</h1>
-          <p className="admin-subtitle">{total} contact{total !== 1 ? 's' : ''} in database</p>
+          <p className="admin-subtitle">
+            {panel === 'crm'
+              ? `${total} contact${total !== 1 ? 's' : ''} in CRM`
+              : `${internalAccounts.length} internal account${internalAccounts.length !== 1 ? 's' : ''} — managed in Staff & Permissions`}
+          </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-primary btn-sm" onClick={() => { setCreateForm(emptyForm); setShowCreate(true) }}>+ New Contact</button>
-          <button className="btn btn-secondary btn-sm" onClick={exportCsv} disabled={loading || total === 0}>Export CSV</button>
-        </div>
+        {panel === 'crm' && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-primary btn-sm" onClick={() => { setCreateForm(emptyForm); setShowCreate(true) }}>+ New Contact</button>
+            <button className="btn btn-secondary btn-sm" onClick={exportCsv} disabled={loading || total === 0}>Export CSV</button>
+          </div>
+        )}
       </div>
 
+      {/* Panel switcher: CRM relationships vs internal (staff/admin) accounts */}
+      <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--light-line)' }}>
+        {([['crm', 'CRM'], ['internal', 'Internal Accounts']] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setPanel(key)}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              padding: '10px 18px', fontSize: 13, fontWeight: panel === key ? 600 : 400,
+              color: panel === key ? 'var(--ink, #1a1a1a)' : 'var(--stone)',
+              borderBottom: panel === key ? '2px solid var(--caramel)' : '2px solid transparent',
+              marginBottom: -1,
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {panel === 'internal' ? (
+        <div style={{ background: 'var(--warm-white)', border: '1px solid var(--light-line)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--light-line)' }}>
+            <span style={{ fontSize: 13, color: 'var(--stone)' }}>
+              Read-only. Roles, permissions and account status are managed in Staff &amp; Permissions.
+            </span>
+            <Link href="/admin/settings/staff" className="btn btn-secondary btn-sm">Staff &amp; Permissions →</Link>
+          </div>
+          {internalLoading ? (
+            <div style={{ padding: 48, textAlign: 'center', color: 'var(--stone)', fontSize: 14 }}>Loading internal accounts…</div>
+          ) : !internalAccounts.length ? (
+            <div style={{ padding: 48, textAlign: 'center', color: 'var(--stone)', fontSize: 14 }}>No internal accounts found.</div>
+          ) : (
+            <table className="data-table">
+              <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Since</th></tr></thead>
+              <tbody>
+                {internalAccounts.map(u => (
+                  <tr key={u.id}>
+                    <td style={{ fontWeight: 500, fontSize: 13 }}>{[u.first_name, u.last_name].filter(Boolean).join(' ') || '—'}</td>
+                    <td style={{ fontSize: 13 }}><a href={`mailto:${u.email}`} style={{ color: 'var(--caramel)' }}>{u.email}</a></td>
+                    <td>
+                      <span className="status-pill" style={{ background: 'var(--forest, #2d3a2e)', color: '#fff' }}>
+                        {accountRoleLabel(u.role, u.account_is_owner)}
+                      </span>
+                    </td>
+                    <td style={{ fontSize: 12, color: u.status === 'active' ? '#155724' : 'var(--stone)' }}>{u.status ?? '—'}</td>
+                    <td style={{ fontSize: 12, color: 'var(--stone)' }}>{new Date(u.created_at).toLocaleDateString('en-GB')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      ) : (
+      <>
       <div style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
         <input type="search" placeholder="Search name, email, company…" value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} className="form-input" style={{ width: 280 }} />
         <select value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setPage(1) }} className="form-select" style={{ width: 180 }}>
@@ -200,6 +284,8 @@ export default function AdminContactsPage() {
           <span style={{ fontSize: 13, color: 'var(--stone)', padding: '6px 12px' }}>Page {page} of {totalPages}</span>
           <button className="btn btn-ghost btn-sm" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Next →</button>
         </div>
+      )}
+      </>
       )}
 
       {/* Create modal */}

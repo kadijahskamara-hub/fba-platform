@@ -11,15 +11,37 @@ const ADMIN_ROUTES = ['/admin']
 // Routes that require approved trade_user role
 const TRADE_ROUTES = ['/trade/dashboard']
 
+// JSON denial for API routes (redirects make no sense for fetch callers).
+function apiDeny(status: 401 | 403, error: string) {
+  const res = NextResponse.json({ success: false, error }, { status })
+  res.headers.set('Cache-Control', 'no-store, max-age=0, must-revalidate')
+  return res
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const token = request.cookies.get('fba_session')?.value
 
-  // Admin API responses must never be cached by the browser or CDN —
-  // stale GETs made freshly created records (delivery lines, accounting
-  // periods, …) invisible until a manual refresh (QA item 11). Auth for
-  // these routes stays inside each handler (requireCommercial etc.).
+  // Admin API: defence-in-depth role gate. Every /api/admin/* handler
+  // still runs its own guard (requireCommercial / isStaff / …) — this
+  // layer just rejects anonymous or non-staff callers before any
+  // handler code runs. Audited 2026-07-20: no /api/admin route is
+  // token-public (public delivery confirm lives at /api/delivery/…).
+  // Responses must never be cached (QA item 11).
   if (pathname.startsWith('/api/admin')) {
+    if (!token) {
+      return apiDeny(401, 'Authentication required')
+    }
+    try {
+      const secret = new TextEncoder().encode(process.env.AUTH_SECRET!)
+      const { payload } = await jwtVerify(token, secret)
+      const role = payload.role as string
+      if (role !== 'admin' && role !== 'staff') {
+        return apiDeny(403, 'Forbidden')
+      }
+    } catch {
+      return apiDeny(401, 'Invalid or expired session')
+    }
     const response = NextResponse.next()
     response.headers.set('Cache-Control', 'no-store, max-age=0, must-revalidate')
     return response
