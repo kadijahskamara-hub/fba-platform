@@ -163,17 +163,46 @@ export function collectImageUrls(value: unknown, depth = 0): string[] {
   return []
 }
 
-// ---------- Import allowlist (SSRF guard) ----------
-// Only Pexels images and our own Supabase project may be imported.
-export function isAllowedImportUrl(raw: string, supabaseUrl: string): boolean {
-  try {
-    const u = new URL(raw)
-    if (u.protocol !== 'https:') return false
-    if (u.username || u.password) return false
-    if (u.hostname === 'images.pexels.com') return true
-    const su = new URL(supabaseUrl)
-    return u.hostname === su.hostname
-  } catch {
-    return false
+// ---------- Uploads ----------
+export const UPLOAD_MIME_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/avif': 'avif', 'image/gif': 'gif',
+}
+export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+
+// ---------- Assignment targets ----------
+// Site slots an image can be assigned to. Values are { url, alt }
+// in site_settings — mirrors HeroImageUploader.
+export const HERO_SLOTS: Array<{ key: string; label: string }> = [
+  { key: 'home_hero_image',       label: 'Homepage hero' },
+  { key: 'the_edit_hero_image',   label: 'The Edit hero' },
+  { key: 'collection_hero_image', label: 'FBA Collection hero' },
+  { key: 'artisans_hero_image',   label: 'Artisans hero' },
+  { key: 'journal_hero_image',    label: 'Journal hero' },
+  { key: 'about_hero_image',      label: 'About hero' },
+]
+
+export function isHeroSlotKey(key: string | null | undefined): boolean {
+  return HERO_SLOTS.some(s => s.key === key)
+}
+
+export type AssignTarget =
+  | { type: 'product'; productId: string }
+  | { type: 'site_setting'; key: string }
+
+export function validateAssignParams(p: { bucket?: string; path?: string; target?: AssignTarget }): string | null {
+  if (!isMediaBucket(p.bucket)) return 'Unknown bucket.'
+  const path = p.path ?? ''
+  if (!path || path.includes('..') || path.startsWith('/')) return 'Invalid path.'
+  if (path.startsWith('trash/')) return 'Restore the file from the trash before assigning it.'
+  const t = p.target
+  if (!t) return 'No assignment target.'
+  if (t.type === 'product') {
+    if (!t.productId || typeof t.productId !== 'string') return 'Choose a product.'
+    return null
   }
+  if (t.type === 'site_setting') {
+    if (!isHeroSlotKey(t.key)) return 'Unknown site image slot.'
+    return null
+  }
+  return 'Unknown target type.'
 }

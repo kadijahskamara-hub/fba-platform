@@ -4,7 +4,9 @@ import {
   MEDIA_BUCKETS, isMediaBucket, ASPECT_PRESETS, orientedRatio,
   rotatedDims, minCoverScale, clampOffset, computeExtract,
   validateEditParams, editedCopyPath, trashPath,
-  storagePathFromPublicUrl, isAllowedImportUrl, collectImageUrls,
+  storagePathFromPublicUrl, collectImageUrls,
+  HERO_SLOTS, isHeroSlotKey, validateAssignParams,
+  UPLOAD_MIME_EXT, MAX_UPLOAD_BYTES,
   MAX_OUTPUT_PX, type MediaEditParams,
 } from '../lib/mediaShared'
 
@@ -153,15 +155,51 @@ test('storagePathFromPublicUrl rejects foreign hosts and non-storage paths', () 
   assert.equal(storagePathFromPublicUrl('', SUPA), null)
 })
 
-test('isAllowedImportUrl: pexels and our supabase only, https only', () => {
-  assert.equal(isAllowedImportUrl('https://images.pexels.com/photos/1/x.jpg', SUPA), true)
-  assert.equal(isAllowedImportUrl(`${SUPA}/storage/v1/object/public/site-assets/a.png`, SUPA), true)
-  assert.equal(isAllowedImportUrl('http://images.pexels.com/photos/1/x.jpg', SUPA), false)
-  assert.equal(isAllowedImportUrl('https://evil.com/x.jpg', SUPA), false)
-  assert.equal(isAllowedImportUrl('https://images.pexels.com.evil.com/x.jpg', SUPA), false)
-  assert.equal(isAllowedImportUrl('https://user:pass@images.pexels.com/x.jpg', SUPA), false)
-  assert.equal(isAllowedImportUrl('file:///etc/passwd', SUPA), false)
-  assert.equal(isAllowedImportUrl('', SUPA), false)
+// ============================================================
+// Uploads & assignment (Sprint 23.1 — URL import removed by
+// decision: the library is upload-only)
+// ============================================================
+
+test('upload accepts only image MIME types, capped at 15MB', () => {
+  assert.equal(UPLOAD_MIME_EXT['image/jpeg'], 'jpg')
+  assert.equal(UPLOAD_MIME_EXT['image/png'], 'png')
+  assert.equal(UPLOAD_MIME_EXT['image/webp'], 'webp')
+  assert.equal(UPLOAD_MIME_EXT['application/pdf'], undefined)
+  assert.equal(UPLOAD_MIME_EXT['image/svg+xml'], undefined) // SVG can carry scripts
+  assert.equal(MAX_UPLOAD_BYTES, 15 * 1024 * 1024)
+})
+
+test('hero slots cover every page hero and are unique', () => {
+  const keys = HERO_SLOTS.map(s => s.key)
+  assert.deepEqual(keys, [
+    'home_hero_image', 'the_edit_hero_image', 'collection_hero_image',
+    'artisans_hero_image', 'journal_hero_image', 'about_hero_image',
+  ])
+  assert.equal(new Set(keys).size, keys.length)
+  for (const s of HERO_SLOTS) assert.ok(s.label.length > 0)
+})
+
+test('isHeroSlotKey allows only the allowlisted keys', () => {
+  assert.equal(isHeroSlotKey('home_hero_image'), true)
+  assert.equal(isHeroSlotKey('commercial_settings'), false) // must never touch other settings
+  assert.equal(isHeroSlotKey(''), false)
+  assert.equal(isHeroSlotKey(null), false)
+})
+
+test('validateAssignParams: product and hero targets accepted', () => {
+  const base = { bucket: 'site-assets', path: 'uploads/a.jpg' }
+  assert.equal(validateAssignParams({ ...base, target: { type: 'product', productId: 'abc' } }), null)
+  assert.equal(validateAssignParams({ ...base, target: { type: 'site_setting', key: 'home_hero_image' } }), null)
+})
+
+test('validateAssignParams rejects bad buckets, paths and targets', () => {
+  const target = { type: 'product' as const, productId: 'abc' }
+  assert.ok(validateAssignParams({ bucket: 'documents', path: 'a.jpg', target }))
+  assert.ok(validateAssignParams({ bucket: 'site-assets', path: '../x.jpg', target }))
+  assert.ok(validateAssignParams({ bucket: 'site-assets', path: 'trash/a.jpg', target }))
+  assert.ok(validateAssignParams({ bucket: 'site-assets', path: 'a.jpg' }))
+  assert.ok(validateAssignParams({ bucket: 'site-assets', path: 'a.jpg', target: { type: 'product', productId: '' } }))
+  assert.ok(validateAssignParams({ bucket: 'site-assets', path: 'a.jpg', target: { type: 'site_setting', key: 'nope' } }))
 })
 
 // ============================================================

@@ -7,10 +7,11 @@
 // a usage map (which products / site settings use each image).
 // Edit opens the Wix-style crop editor (saves as a new copy).
 // Delete = move to trash/ (restorable) — never a hard delete.
-// External (Pexels) URLs are imported into storage first.
+// Upload is direct (multipart); images can then be assigned to
+// products or to site image slots (heroes) from the drawer.
 // ============================================================
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { appConfirm } from '@/lib/appConfirm'
 import MediaEditorModal from '@/components/admin/MediaEditorModal'
 
@@ -45,9 +46,15 @@ export default function AdminMediaPage() {
   const [editing, setEditing] = useState<MediaObj | null>(null)
   const [selected, setSelected] = useState<MediaObj | null>(null)
   const [busy, setBusy] = useState(false)
-  const [showImport, setShowImport] = useState(false)
-  const [importUrl, setImportUrl] = useState('')
   const [notice, setNotice] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [targets, setTargets] = useState<{
+    products: Array<{ id: string; name: string; sku?: string | null }>
+    heroSlots: Array<{ key: string; label: string; currentUrl: string }>
+  } | null>(null)
+  const [productSearch, setProductSearch] = useState('')
+  const [heroChoice, setHeroChoice] = useState('')
 
   const fetchObjects = useCallback(async () => {
     setLoading(true)
@@ -86,17 +93,43 @@ export default function AdminMediaPage() {
     fetchObjects()
   }
 
-  const doImport = async () => {
-    if (!importUrl.trim()) return
+  const doUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    setUploading(true)
+    let ok = 0
+    for (const file of Array.from(files)) {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('bucket', bucket)
+      const res = await fetch('/api/admin/media/upload', { method: 'POST', body: form })
+        .then(r => r.json()).catch(() => ({ success: false, error: 'Network error' }))
+      if (res.success) ok++
+      else alert(`${file.name}: ${res.error ?? 'Upload failed'}`)
+    }
+    setUploading(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    if (ok > 0) { flash(`${ok} image${ok > 1 ? 's' : ''} uploaded.`); fetchObjects() }
+  }
+
+  // Assignment targets (products + hero slots), fetched once on demand.
+  const loadTargets = useCallback(async () => {
+    if (targets) return
+    const res = await fetch('/api/admin/media/assign').then(r => r.json()).catch(() => null)
+    if (res?.success) setTargets(res.data)
+  }, [targets])
+  useEffect(() => { if (selected) loadTargets() }, [selected, loadTargets])
+
+  const assign = async (target: { type: 'product'; productId: string } | { type: 'site_setting'; key: string }) => {
+    if (!selected) return
     setBusy(true)
-    const res = await fetch('/api/admin/media/import', {
+    const res = await fetch('/api/admin/media/assign', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: importUrl.trim(), bucket }),
+      body: JSON.stringify({ bucket: selected.bucket, path: selected.path, target }),
     }).then(r => r.json()).catch(() => ({ success: false, error: 'Network error' }))
     setBusy(false)
-    if (!res.success) { alert(res.error ?? 'Import failed'); return }
-    setShowImport(false); setImportUrl('')
-    flash('Image imported to storage — you can edit it now.')
+    if (!res.success) { alert(res.error ?? 'Assignment failed'); return }
+    setSelected(null); setProductSearch(''); setHeroChoice(''); setTargets(null)
+    flash(`Image assigned to ${res.data.assigned}.`)
     fetchObjects()
   }
 
@@ -116,7 +149,13 @@ export default function AdminMediaPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowImport(true)}>Import from URL</button>
+          <input
+            ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/avif,image/gif"
+            multiple style={{ display: 'none' }} onChange={e => doUpload(e.target.files)}
+          />
+          <button className="btn btn-primary btn-sm" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+            {uploading ? 'Uploading…' : '+ Upload images'}
+          </button>
         </div>
       </div>
 
@@ -206,6 +245,56 @@ export default function AdminMediaPage() {
               )}
             </div>
 
+            {/* Assign to product / site slot */}
+            {!showTrash && IMAGE_RE.test(selected.name) && (
+              <div style={{ borderTop: '1px solid var(--light-line)', paddingTop: 12, marginBottom: 14 }}>
+                <div className="label" style={{ marginBottom: 8 }}>Assign this image</div>
+                {!targets ? (
+                  <p style={{ fontSize: 13, color: 'var(--stone)' }}>Loading products and site slots…</p>
+                ) : (
+                  <>
+                    <div className="form-label">Add to a product (as gallery image)</div>
+                    <input
+                      style={{ ...inp, width: '100%', marginBottom: 6 }}
+                      placeholder="Search products by name or SKU…"
+                      value={productSearch}
+                      onChange={e => setProductSearch(e.target.value)}
+                    />
+                    {productSearch.trim() && (
+                      <div style={{ maxHeight: 160, overflowY: 'auto', border: '1px solid var(--light-line)', borderRadius: 4, marginBottom: 10 }}>
+                        {targets.products
+                          .filter(p => `${p.name} ${p.sku ?? ''}`.toLowerCase().includes(productSearch.trim().toLowerCase()))
+                          .slice(0, 20)
+                          .map(p => (
+                            <button
+                              key={p.id}
+                              disabled={busy}
+                              onClick={() => assign({ type: 'product', productId: p.id })}
+                              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px', fontSize: 13, background: 'none', border: 'none', borderBottom: '1px solid var(--light-line)', cursor: 'pointer' }}
+                            >
+                              {p.name}{p.sku ? <span style={{ color: 'var(--stone)' }}> · {p.sku}</span> : null}
+                            </button>
+                          ))}
+                        {targets.products.filter(p => `${p.name} ${p.sku ?? ''}`.toLowerCase().includes(productSearch.trim().toLowerCase())).length === 0 && (
+                          <div style={{ padding: '7px 10px', fontSize: 13, color: 'var(--stone)' }}>No products match.</div>
+                        )}
+                      </div>
+                    )}
+                    <div className="form-label" style={{ marginTop: 4 }}>Use as a site image</div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <select style={{ ...inp, flex: 1 }} value={heroChoice} onChange={e => setHeroChoice(e.target.value)}>
+                        <option value="">Choose a slot…</option>
+                        {targets.heroSlots.map(s => (
+                          <option key={s.key} value={s.key}>{s.label}{s.currentUrl ? ' (replaces current)' : ' (empty)'}</option>
+                        ))}
+                      </select>
+                      <button className="btn btn-secondary btn-sm" disabled={busy || !heroChoice} onClick={() => assign({ type: 'site_setting', key: heroChoice })}>Apply</button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {!showTrash && IMAGE_RE.test(selected.name) && (
                 <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => { setEditing(selected); setSelected(null) }}>Edit image</button>
@@ -216,24 +305,6 @@ export default function AdminMediaPage() {
               ) : (
                 <button className="btn btn-ghost btn-sm" style={{ color: '#a03030', marginLeft: 'auto' }} disabled={busy} onClick={() => trashOrRestore(selected, false)}>Move to trash</button>
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Import modal */}
-      {showImport && (
-        <div className="modal-overlay" onClick={() => setShowImport(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
-            <h2 className="h3" style={{ marginBottom: 10 }}>Import image from URL</h2>
-            <p style={{ fontSize: 13, color: 'var(--stone)', marginBottom: 12 }}>
-              Copies an external image into the <strong>{bucket}</strong> bucket so it can be edited.
-              Only <code>images.pexels.com</code> and our own storage are allowed.
-            </p>
-            <input style={{ ...inp, width: '100%' }} placeholder="https://images.pexels.com/…" value={importUrl} onChange={e => setImportUrl(e.target.value)} />
-            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-              <button className="btn btn-primary btn-sm" disabled={busy || !importUrl.trim()} onClick={doImport}>{busy ? 'Importing…' : 'Import'}</button>
-              <button className="btn btn-ghost btn-sm" onClick={() => setShowImport(false)}>Cancel</button>
             </div>
           </div>
         </div>
