@@ -168,14 +168,26 @@ export default function ProductRowActions({ productId, slug, name, visibility, i
 
   return (
     <div style={{ position: 'relative', display: 'inline-block' }}>
+      {/* QA fix (Sprint 20): the old ghost-button ⋯ was 11px pale stone
+          on cream — effectively invisible. Wix-style circular trigger. */}
       <button
         ref={btnRef}
-        className="btn btn-ghost btn-sm"
         onClick={() => (open ? setOpen(false) : openMenu())}
         disabled={busy}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Actions for ${name}`}
+        title={`Actions for ${name}`}
+        style={{
+          width: 30, height: 30, borderRadius: '50%',
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          background: 'var(--warm-white, #fff)',
+          border: open ? '1px solid var(--caramel, #a05a2c)' : '1px solid var(--light-line, #d9d2c7)',
+          color: 'var(--forest, #2f3b33)', fontSize: 16, fontWeight: 700,
+          lineHeight: 1, padding: 0, cursor: 'pointer',
+          boxShadow: open ? '0 2px 8px rgba(24,32,26,0.12)' : 'none',
+          opacity: busy ? 0.5 : 1,
+        }}
       >
         {busy ? '…' : '⋯'}
       </button>

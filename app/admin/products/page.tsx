@@ -95,6 +95,7 @@ export default async function AdminProductsPage(props: { searchParams: Promise<P
     archived_at: p.archived_at as string | null,
     lead_time: p.lead_time as string | null,
     image_count: Array.isArray(p.images) ? (p.images as string[]).length : 0,
+    thumb: Array.isArray(p.images) ? ((p.images as string[])[0] ?? null) : null,
     category_name: (p.category as { name?: string } | null)?.name ?? null,
     artisan_name: (p.artisan as { name?: string } | null)?.name ?? null,
     created_at: p.created_at as string,
