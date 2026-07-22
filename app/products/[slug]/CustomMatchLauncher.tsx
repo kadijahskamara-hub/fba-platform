@@ -15,11 +15,9 @@ export default function CustomMatchLauncher({ product, materialTypes, defaultEma
   const [open, setOpen] = useState(false)
   return (
     <div style={{ margin: '14px 0 24px' }}>
-      <button className="btn btn-secondary btn-full" onClick={() => setOpen(true)} style={{ minHeight: 48 }}>
-        <span style={{ display: 'block' }}>Custom Match</span>
-        <span style={{ display: 'block', fontSize: 10.5, letterSpacing: '0.06em', textTransform: 'none', opacity: 0.75 }}>
-          Bring your own marble, timber or fabric — we&apos;ll match it
-        </span>
+      <button type="button" className="btn-custom-match" onClick={() => setOpen(true)}>
+        <span className="cm-title">Custom Match</span>
+        <span className="cm-sub">Bring your own marble, timber or fabric — we&apos;ll match it</span>
       </button>
       {open && (
         <CustomMatchModal

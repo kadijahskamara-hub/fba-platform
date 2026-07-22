@@ -941,3 +941,53 @@ footer.site-footer {
   .pdp-sticky-name { display: none; }
   .pdp-sticky-inner { justify-content: space-between; }
 }
+
+/* ── Custom Match actions (QA follow-up, July 2026) ─────────────
+   Two-line outlined action styled to the reference comps: tan
+   outline with stacked title + subtitle, hover fills tan with
+   white text. The modal submit uses the tan base with the rust
+   hover from the same comps. */
+
+.pdp-action-pair {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+}
+@media (max-width: 480px) {
+  .pdp-action-pair { grid-template-columns: 1fr; }
+}
+
+.btn-custom-match {
+  display: block; width: 100%; min-height: 56px; padding: 10px 16px;
+  background: transparent; border: 1px solid #C09A6B; color: #B08A5A;
+  cursor: pointer; text-align: center; text-decoration: none;
+  transition: background var(--ease), color var(--ease), border-color var(--ease);
+}
+.btn-custom-match .cm-title {
+  display: block; font-size: 12.5px; font-weight: 500;
+  letter-spacing: 0.16em; text-transform: uppercase;
+}
+.btn-custom-match .cm-sub {
+  display: block; font-size: 11px; margin-top: 4px;
+  letter-spacing: 0.02em; opacity: 0.85;
+}
+.btn-custom-match:hover,
+.btn-custom-match:focus-visible {
+  background: #C09A6B; border-color: #C09A6B; color: #FFFFFF;
+}
+.btn-custom-match:hover .cm-sub,
+.btn-custom-match:focus-visible .cm-sub { opacity: 0.95; }
+
+.btn-cm-submit {
+  display: block; width: 100%; min-height: 48px; padding: 14px 32px;
+  background: #A87C52; color: #FFFFFF; border: none; cursor: pointer;
+  font-size: 12px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
+  transition: background var(--ease);
+}
+.btn-cm-submit:hover:not(:disabled),
+.btn-cm-submit:focus-visible:not(:disabled) { background: #C05B2E; }
+.btn-cm-submit:disabled { opacity: 0.6; cursor: default; }
+
+/* Product browsing focuses on products (owner request, July 2026):
+   pages tagged .no-site-footer suppress the global footer so the
+   catalogue, recently-viewed and similar-product content leads
+   straight into discovery instead of a heavy footer block. */
+.no-site-footer ~ footer { display: none !important; }

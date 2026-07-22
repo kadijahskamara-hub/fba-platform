@@ -209,26 +209,27 @@ export default function CuratedFinishes({ productId, groups, rules, media, isLog
         </div>
       </div>
 
-      {/* Actions */}
+      {/* Actions — Request Quote and Save to Project sit side by side
+          (reference comps); Custom Match spans full width below with
+          the tan outline / tan-fill hover treatment. */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 20 }}>
-        <button className="btn btn-primary btn-full" onClick={() => router.push(`/quote?${quoteParams.toString()}`)}>
-          Request Quote
-        </button>
-        {isLoggedIn ? (
-          <button className="btn btn-secondary btn-full" onClick={() => setSaveOpen(true)}>
-            Save to Project ♡
+        <div className="pdp-action-pair">
+          <button className="btn btn-primary" onClick={() => router.push(`/quote?${quoteParams.toString()}`)}>
+            Request Quote
           </button>
-        ) : (
-          <a href={`/login?next=/quote?${encodeURIComponent(quoteParams.toString())}`} className="btn btn-secondary btn-full">
-            Sign in to Save to Project
-          </a>
-        )}
-        {/* CUSTOM MATCH — full-width outlined action (reference §2.4) */}
-        <button className="btn btn-secondary btn-full" onClick={() => setCustomMatchOpen(true)} style={{ minHeight: 48 }}>
-          <span style={{ display: 'block' }}>Custom Match</span>
-          <span style={{ display: 'block', fontSize: 10.5, letterSpacing: '0.06em', textTransform: 'none', opacity: 0.75 }}>
-            Bring your own marble, timber or fabric — we&apos;ll match it
-          </span>
+          {isLoggedIn ? (
+            <button className="btn btn-secondary" onClick={() => setSaveOpen(true)}>
+              Save to Project ♡
+            </button>
+          ) : (
+            <a href={`/login?next=/quote?${encodeURIComponent(quoteParams.toString())}`} className="btn btn-secondary">
+              Sign in to Save
+            </a>
+          )}
+        </div>
+        <button type="button" className="btn-custom-match" onClick={() => setCustomMatchOpen(true)}>
+          <span className="cm-title">Custom Match</span>
+          <span className="cm-sub">Bring your own marble, timber or fabric — we&apos;ll match it</span>
         </button>
       </div>
 

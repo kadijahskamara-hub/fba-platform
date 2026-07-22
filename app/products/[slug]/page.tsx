@@ -174,7 +174,7 @@ export default async function ProductDetailPage(props: Props) {
     .filter(r => !relatedIds.has(r.id as string))
 
   return (
-    <div className="page-body">
+    <div className="page-body no-site-footer">
       {/* Breadcrumb */}
       <div className="container" style={{ paddingTop: 32 }}>
         <nav className="breadcrumb">

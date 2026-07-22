@@ -54,7 +54,7 @@ export default async function ProductsPage(props: {
   const categories = categoriesResult.data ?? []
 
   return (
-    <div className="page-body" style={{ paddingTop: 0 }}>
+    <div className="page-body no-site-footer" style={{ paddingTop: 0 }}>
       <Suspense fallback={<div style={{ padding: 80, textAlign: 'center', color: 'var(--stone)' }}>Loading…</div>}>
         <ProductsClient
           session={session}

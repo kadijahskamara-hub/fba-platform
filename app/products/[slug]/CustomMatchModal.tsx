@@ -315,11 +315,11 @@ export default function CustomMatchModal({ product, materialTypes, selections, q
                 </div>
               </div>
 
-              <button className="btn btn-primary btn-full" disabled={busy} onClick={submit} style={{ minHeight: 48 }}>
+              <button type="button" className="btn-cm-submit" disabled={busy} onClick={submit}>
                 {busy ? 'Submitting…' : 'Submit Custom Match Request'}
               </button>
               <p style={{ fontSize: 11.5, color: 'var(--stone)', textAlign: 'center', margin: '10px 0 0' }}>
-                We&apos;ll confirm feasibility with the maker within 5 working days. studio@fullbloomartelier.com
+                We&apos;ll confirm feasibility with the maker within 5 working days. studio@fullbloom.uk.com
               </p>
             </div>
           )}
