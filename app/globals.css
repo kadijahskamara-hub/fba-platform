@@ -838,10 +838,19 @@ footer.site-footer {
 .admin-table-wrap {
   background: var(--warm-white);
   border: 1px solid var(--light-line);
+  width: 100%;
   max-width: 100%;
-  overflow-x: visible;
+  min-width: 0;
+  box-sizing: border-box;
+  /* Overflow is always contained INSIDE the wrapper — the table can
+     never push its right edge (or the header underline that doubles
+     as the "brown divider") past the toolbar and page container.
+     Horizontal scroll appears here only when the table genuinely
+     cannot fit; the page itself never gains a horizontal scrollbar. */
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
-.admin-fit-table { table-layout: auto; width: 100%; }
+.admin-fit-table { table-layout: auto; width: 100%; box-sizing: border-box; }
 .admin-fit-table th {
   position: sticky; top: var(--nav-h, 0px); z-index: 5;
   background: var(--warm-white);
@@ -849,6 +858,10 @@ footer.site-footer {
   padding: 10px 10px;
 }
 .admin-fit-table td { padding: 10px 10px; font-size: 13px; }
+/* The actions column (three-dot menu / row buttons) stays inside the
+   table grid — never absolutely positioned against the page. */
+.admin-fit-table td:last-child,
+.admin-fit-table th:last-child { text-align: right; white-space: nowrap; }
 
 .cell-truncate {
   display: inline-block; max-width: 220px;
@@ -869,8 +882,8 @@ footer.site-footer {
   .cell-truncate { max-width: 130px; }
 }
 @media (max-width: 1023px) {
-  /* Last resort: internal scroll instead of page overflow. */
-  .admin-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  /* Narrow screens: the sticky header offers little and can misalign
+     while the wrapper scrolls horizontally — pin it to the row flow. */
   .admin-fit-table th { position: static; }
 }
 

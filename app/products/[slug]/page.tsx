@@ -312,27 +312,12 @@ export default async function ProductDetailPage(props: Props) {
                 </>
               )}
 
-              {/* Technical Passport™ — verified, public, unexpired claims only */}
-              {configuration.passport.length > 0 && (
-                <div style={{
-                  background: 'var(--sage-light, #E8EDE6)', padding: '16px 20px',
-                  marginBottom: 24, display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px 20px',
-                }}>
-                  {configuration.passport.map(pa => (
-                    <div key={pa.label} style={{ fontSize: 12.5, color: 'var(--forest)' }}>
-                      <span aria-hidden>✓ </span>{pa.label}{pa.value ? ` — ${pa.value}` : ''}
-                    </div>
-                  ))}
-                </div>
-              )}
-
               {/* Retail purchase (fixed-price retail pieces only).
                   Client components receive a SLIM product object — the full
                   row contains internal figures (supplier_cost, trade_price)
                   that must never serialise into client props (md doc §17). */}
               {canBuy && (
-                <div style={{ marginBottom: 24 }}>
+                <div style={{ marginBottom: 8 }}>
                   <AddToBagButton
                     product={{
                       id: product.id, slug: product.slug, name: product.name,
@@ -344,30 +329,6 @@ export default async function ProductDetailPage(props: Props) {
                   />
                 </div>
               )}
-            </div>
-
-            {/* Downloads — only documents that actually exist */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {(documents ?? [])
-                .filter((d: Record<string, unknown>) => typeof d.url === 'string' && (d.url as string).startsWith('http'))
-                .map((d: Record<string, unknown>) => (
-                  <a
-                    key={d.id as string}
-                    href={d.url as string}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn btn-ghost btn-full"
-                  >
-                    ↓ {DOC_LABELS[d.document_type as string] ?? (d.label ? `Download ${d.label}` : 'Download Document')}
-                  </a>
-                ))}
-              <a
-                href={`/api/products/${product.slug}/tear-sheet`}
-                className="btn btn-ghost btn-full"
-                download={`FBA-${product.reference_code ?? product.slug}.pdf`}
-              >
-                ↓ Download Tear Sheet
-              </a>
             </div>
           </div>
 
@@ -410,8 +371,48 @@ export default async function ProductDetailPage(props: Props) {
               </>
             )}
 
-            {/* Delivery & notes */}
-            <div style={{ marginTop: specs ? 24 : 0 }}>
+            {/* Technical Passport™ claims — verified, public, unexpired only */}
+            {configuration.passport.length > 0 && (
+              <div style={{
+                background: 'var(--sage-light, #E8EDE6)', padding: '14px 16px',
+                marginTop: specs ? 12 : 0, display: 'grid', gap: 8,
+              }}>
+                {configuration.passport.map(pa => (
+                  <div key={pa.label} style={{ fontSize: 12.5, color: 'var(--forest)' }}>
+                    <span aria-hidden>✓ </span>{pa.label}{pa.value ? ` — ${pa.value}` : ''}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Downloads — only documents that actually exist */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 20 }}>
+              {(documents ?? [])
+                .filter((d: Record<string, unknown>) => typeof d.url === 'string' && (d.url as string).startsWith('http'))
+                .map((d: Record<string, unknown>) => (
+                  <a
+                    key={d.id as string}
+                    href={d.url as string}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-ghost btn-full"
+                    style={{ justifyContent: 'flex-start', paddingLeft: 0 }}
+                  >
+                    ↓ {DOC_LABELS[d.document_type as string] ?? (d.label ? `Download ${d.label}` : 'Download Document')}
+                  </a>
+                ))}
+              <a
+                href={`/api/products/${product.slug}/tear-sheet`}
+                className="btn btn-ghost btn-full"
+                style={{ justifyContent: 'flex-start', paddingLeft: 0 }}
+                download={`FBA-${product.reference_code ?? product.slug}.pdf`}
+              >
+                ↓ Download Tear Sheet
+              </a>
+            </div>
+
+            {/* Delivery & notes — after passport + downloads */}
+            <div style={{ marginTop: 20 }}>
               <div className="label label-sage" style={{ marginBottom: 12 }}>Delivery &amp; notes</div>
               <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--stone)' }}>
                 {product.shipping_notes || DEFAULT_SHIPPING_NOTE}
