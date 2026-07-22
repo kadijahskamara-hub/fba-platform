@@ -253,10 +253,10 @@ export default function ArtisansIndex({ artisans, isAdmin }: { artisans: Artisan
                 <th>{headerSort('name', 'Name')}</th>
                 <th className="col-p2">Location</th>
                 <th className="col-p3">Craft</th>
-                <th>{headerSort('products', 'Products')}</th>
-                <th>{headerSort('status', 'Status')}</th>
-                <th className="col-p3">{headerSort('created', 'Created')}</th>
-                <th></th>
+                <th className="col-fit">{headerSort('products', 'Products')}</th>
+                <th className="col-fit">{headerSort('status', 'Status')}</th>
+                <th className="col-p3 col-fit">{headerSort('created', 'Created')}</th>
+                <th className="col-fit"></th>
               </tr>
             </thead>
             <tbody>

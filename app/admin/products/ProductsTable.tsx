@@ -582,15 +582,15 @@ export default function ProductsTable({ products, isAdmin }: { products: Product
                 <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Select all products" />
               </th>
               <Th label="Name" />
-              {show('category') && <Th label="Category" hint={TOGGLEABLE_COLUMNS[0].hint} />}
-              {show('artisan')  && <Th label="Artisan"  hint={TOGGLEABLE_COLUMNS[1].hint} />}
-              {show('retail')   && <Th label="Retail"   hint={TOGGLEABLE_COLUMNS[2].hint} className="col-p2" />}
-              {show('trade')    && <Th label="Trade"    hint={TOGGLEABLE_COLUMNS[3].hint} />}
-              {show('lead')     && <Th label="Lead time" hint={TOGGLEABLE_COLUMNS[4].hint} className="col-p3" />}
-              {show('imgs')     && <Th label="Imgs"     hint={TOGGLEABLE_COLUMNS[5].hint} className="col-p3" />}
-              {show('complete') && <Th label="Complete" hint={TOGGLEABLE_COLUMNS[6].hint} />}
-              <Th label="Status" />
-              <th></th>
+              {show('category') && <Th label="Category" hint={TOGGLEABLE_COLUMNS[0].hint} className="col-fit" />}
+              {show('artisan')  && <Th label="Artisan"  hint={TOGGLEABLE_COLUMNS[1].hint} className="col-fit" />}
+              {show('retail')   && <Th label="Retail"   hint={TOGGLEABLE_COLUMNS[2].hint} className="col-p2 col-fit" />}
+              {show('trade')    && <Th label="Trade"    hint={TOGGLEABLE_COLUMNS[3].hint} className="col-fit" />}
+              {show('lead')     && <Th label="Lead time" hint={TOGGLEABLE_COLUMNS[4].hint} className="col-p3 col-fit" />}
+              {show('imgs')     && <Th label="Imgs"     hint={TOGGLEABLE_COLUMNS[5].hint} className="col-p3 col-fit" />}
+              {show('complete') && <Th label="Complete" hint={TOGGLEABLE_COLUMNS[6].hint} className="col-fit" />}
+              <Th label="Status" className="col-fit" />
+              <th className="col-fit"></th>
             </tr>
           </thead>
           <tbody>

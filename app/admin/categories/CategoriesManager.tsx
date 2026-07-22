@@ -138,10 +138,10 @@ export default function CategoriesManager({ categories, isAdmin }: { categories:
               <th style={{ width: 70 }}>Order</th>
               <th>Category</th>
               <th className="col-p2">Slug</th>
-              <th>Status</th>
-              <th>Products</th>
-              <th className="col-p3">Last updated</th>
-              <th></th>
+              <th className="col-fit">Status</th>
+              <th className="col-fit">Products</th>
+              <th className="col-p3 col-fit">Last updated</th>
+              <th className="col-fit"></th>
             </tr>
           </thead>
           <tbody>
