@@ -107,9 +107,18 @@ export async function bucketUsageBytes(bucket: MediaBucket): Promise<number> {
 }
 
 // Create an (implicit) folder by writing its .keep placeholder.
+// QA fix (July 2026): the placeholder is a minimal 1×1 transparent PNG,
+// not an octet-stream — buckets with an image-only allowed_mime_types
+// restriction (site-assets) rejected the old zero-byte placeholder with
+// "mime type application/octet-stream is not supported".
+const KEEP_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+  'base64'
+)
+
 export async function createFolderPlaceholder(bucket: MediaBucket, folderPath: string): Promise<string | null> {
   const { error } = await supabaseAdmin.storage.from(bucket)
-    .upload(`${folderPath}/${KEEP_FILE}`, Buffer.alloc(0), { contentType: 'application/octet-stream', upsert: false })
+    .upload(`${folderPath}/${KEEP_FILE}`, KEEP_PNG, { contentType: 'image/png', upsert: false })
   if (!error) return null
   if (/already exists|Duplicate/i.test(error.message)) return 'That folder already exists.'
   return error.message
