@@ -842,16 +842,17 @@ footer.site-footer {
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  /* No wrapper scroll context: an overflow container turned the header
-     (position:sticky) into a floating layer that left a blank gap and
-     overlapped the first row. The table is sized to fit the container
-     via table-layout:fixed + truncation instead. */
-  overflow: hidden;
+  /* At desktop the wrapper is NOT a scroll/positioned context — that is
+     what turned the sticky header into a floating layer (blank gap +
+     row overlap). It stays `visible` so the completeness popover and the
+     three-dot row menu are never clipped; content-hugging columns below
+     keep the table within these bounds. A real horizontal scrollbar is
+     only enabled at <=1023px, and only if the table still cannot fit. */
+  overflow: visible;
 }
-/* Fixed layout ties header and body to ONE column model and stops any
-   long value (name, artisan) from widening the table past its parent. */
-.admin-fit-table { table-layout: fixed; width: 100%; box-sizing: border-box; }
-/* Header stays in normal document flow — directly above row 1. */
+.admin-fit-table { table-layout: auto; width: 100%; box-sizing: border-box; }
+/* Header stays in normal document flow — directly above the first row,
+   no sticky/absolute layer, no top offset, no blank spacer. */
 .admin-fit-table th {
   position: static;
   background: var(--warm-white);
@@ -859,31 +860,36 @@ footer.site-footer {
   padding: 10px 10px;
 }
 .admin-fit-table td { padding: 10px 10px; font-size: 13px; }
-/* Every cell can shrink; long text truncates rather than expanding. */
-.admin-fit-table th, .admin-fit-table td { min-width: 0; overflow: hidden; }
-/* Actions column stays inside the grid — no absolute positioning. */
+/* Actions column stays inside the table grid — never absolutely
+   positioned against the page/viewport. */
 .admin-fit-table td:last-child,
-.admin-fit-table th:last-child {
-  width: 56px; text-align: right; white-space: nowrap; overflow: visible;
-}
+.admin-fit-table th:last-child { text-align: right; white-space: nowrap; }
 
+/* Long names / slugs / artisan values truncate instead of widening the
+   table. Explicit px caps (not %) so table-layout:auto honours them. */
 .cell-truncate {
-  display: block; max-width: 100%;
+  display: inline-block; max-width: 220px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  vertical-align: bottom;
 }
 
+@media (max-width: 1440px) {
+  .cell-truncate { max-width: 170px; }
+}
 @media (max-width: 1366px) {
   .admin-fit-table .col-p3 { display: none; }   /* lead time, images, created */
+  .cell-truncate { max-width: 150px; }
 }
 @media (max-width: 1140px) {
   .admin-fit-table .col-p2 { display: none; }   /* retail, location */
   .admin-fit-table th, .admin-fit-table td { padding: 8px 8px; }
+  .cell-truncate { max-width: 130px; }
 }
 @media (max-width: 1023px) {
-  /* Last resort only: allow the table body to scroll inside the wrapper
-     when even the reduced column set cannot fit. */
+  /* Last resort only: below this width the reduced column set may still
+     not fit, so the table body may scroll horizontally inside the
+     wrapper (never the page). Header remains in flow. */
   .admin-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .admin-fit-table { min-width: 720px; }
 }
 
 /* ── Product detail page (final amendments §6) ──────────────────
