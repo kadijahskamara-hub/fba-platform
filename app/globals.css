@@ -949,10 +949,17 @@ footer.site-footer {
    hover from the same comps. */
 
 .pdp-action-pair {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  /* minmax(0, 1fr): a nowrap button label must never widen its column —
+     both halves stay exactly equal and the pair's right edge lines up
+     with every other full-width action on the page. */
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;
+}
+.pdp-action-pair .btn {
+  min-width: 0; width: 100%;
+  padding-left: 12px; padding-right: 12px;
 }
 @media (max-width: 480px) {
-  .pdp-action-pair { grid-template-columns: 1fr; }
+  .pdp-action-pair { grid-template-columns: minmax(0, 1fr); }
 }
 
 .btn-custom-match {
@@ -991,3 +998,8 @@ footer.site-footer {
    catalogue, recently-viewed and similar-product content leads
    straight into discovery instead of a heavy footer block. */
 .no-site-footer ~ footer { display: none !important; }
+
+/* Shrink-to-content admin columns (QA follow-up): every column tagged
+   .col-fit hugs its content; the Name column absorbs all remaining
+   width (and truncates). No stretched gaps, no clipped action column. */
+.admin-fit-table .col-fit { width: 1%; white-space: nowrap; }
