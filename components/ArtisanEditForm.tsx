@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { appConfirm } from '@/lib/appConfirm'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { ArtisanMediaManager } from '@/components/admin/ArtisanMediaManager'
 
 type Artisan = {
   id: string
@@ -31,6 +32,9 @@ export function ArtisanEditForm({ artisan }: { artisan: Artisan }) {
   const [isPending, startTransition] = useTransition()
   const [isDeleting, startDelete] = useTransition()
   const [error, setError] = useState('')
+  // URLs whose references were removed in this session — storage
+  // objects are cleaned up only after a successful save.
+  const removedUrls = useRef<string[]>([])
   const [form, setForm] = useState({
     name: artisan.name ?? '',
     slug: artisan.slug ?? '',
@@ -39,7 +43,7 @@ export function ArtisanEditForm({ artisan }: { artisan: Artisan }) {
     bio: artisan.bio ?? '',
     craftCategory: artisan.craft_category ?? '',
     profileImage: artisan.profile_image ?? '',
-    galleryImages: (artisan.gallery_images ?? []).join('\n'),
+    galleryImages: (artisan.gallery_images ?? []) as string[],
     website: artisan.website ?? '',
     instagramHandle: artisan.instagram_handle ?? '',
     isActive: artisan.is_active ?? true,
@@ -76,7 +80,7 @@ export function ArtisanEditForm({ artisan }: { artisan: Artisan }) {
           bio:             form.bio || null,
           craft_category:  form.craftCategory || null,
           profile_image:   form.profileImage || null,
-          gallery_images:  form.galleryImages.split('\n').map(s => s.trim()).filter(Boolean),
+          gallery_images:  form.galleryImages,
           website:         form.website || null,
           instagram_handle:form.instagramHandle || null,
           primary_contact_name: form.primaryContactName || null,
@@ -90,6 +94,18 @@ export function ArtisanEditForm({ artisan }: { artisan: Artisan }) {
       })
       const data = await res.json()
       if (!data.success) { setError(data.error ?? 'Failed to save.'); return }
+      // References are saved — now clean up storage objects for images
+      // removed during this session (server skips shared/external files).
+      const kept = new Set([form.profileImage, ...form.galleryImages])
+      await Promise.allSettled(
+        removedUrls.current.filter(u => !kept.has(u)).map(u =>
+          fetch(`/api/admin/artisans/${artisan.id}/media`, {
+            method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: u }),
+          })
+        )
+      )
+      removedUrls.current = []
       router.push('/admin/artisans')
       router.refresh()
     })
@@ -161,16 +177,15 @@ export function ArtisanEditForm({ artisan }: { artisan: Artisan }) {
             <label className="form-label">Full biography</label>
             <textarea className="form-textarea" rows={6} value={form.bio} onChange={update('bio')} />
           </div>
+          {/* Final amendments §2: direct uploads replace pasted URLs. */}
           <div className="form-group">
-            <label className="form-label">Profile image URL (Pexels)</label>
-            <input type="url" className="form-input" value={form.profileImage}
-              onChange={update('profileImage')}
-              placeholder="https://images.pexels.com/photos/123456/pexels-photo-123456.jpeg?auto=compress&cs=tinysrgb&w=800" />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Gallery images (one URL per line)</label>
-            <textarea className="form-textarea" rows={4} value={form.galleryImages}
-              onChange={update('galleryImages')} />
+            <ArtisanMediaManager
+              artisanId={artisan.id}
+              profileImage={form.profileImage}
+              galleryImages={form.galleryImages}
+              onChange={next => setForm(f => ({ ...f, profileImage: next.profileImage, galleryImages: next.galleryImages }))}
+              onRemoved={url => { removedUrls.current.push(url) }}
+            />
           </div>
           <div className="form-row">
             <div className="form-group">

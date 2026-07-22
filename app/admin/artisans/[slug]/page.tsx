@@ -9,7 +9,7 @@ export default async function EditArtisanPage(ctx: { params: Promise<{ slug: str
   const params = await ctx.params
   const { data: artisan } = await supabaseAdmin
     .from('artisans')
-    .select('id, name, slug, location, short_bio, bio, craft_category, profile_image, gallery_images, website, instagram_handle, is_active')
+    .select('id, name, slug, location, short_bio, bio, craft_category, profile_image, gallery_images, website, instagram_handle, is_active, primary_contact_name, order_email, finance_email, telephone, address, country')
     .eq('slug', params.slug)
     .single()
 

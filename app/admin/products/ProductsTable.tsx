@@ -99,9 +99,9 @@ const hintStyle: React.CSSProperties = {
   verticalAlign: 'super', marginLeft: 3, fontWeight: 400,
 }
 
-function Th({ label, hint }: { label: string; hint?: string }) {
+function Th({ label, hint, className }: { label: string; hint?: string; className?: string }) {
   return (
-    <th>
+    <th className={className}>
       {label}
       {hint && <span style={hintStyle} title={hint} aria-label={hint}>ⓘ</span>}
     </th>
@@ -570,8 +570,12 @@ export default function ProductsTable({ products, isAdmin }: { products: Product
         </div>
       )}
 
-      <div style={{ background: 'var(--warm-white)', border: '1px solid var(--light-line)', overflowX: 'auto' }}>
-        <table className="data-table">
+      {/* Final amendments §4: column-priority responsive table — no
+          page-level horizontal overflow at 1440 / 1280 / 1024 widths.
+          Retail collapses first (col-p2), then lead time and image
+          count (col-p3); long values truncate with a tooltip. */}
+      <div className="admin-table-wrap">
+        <table className="data-table admin-fit-table">
           <thead>
             <tr>
               <th style={{ width: 30 }}>
@@ -580,10 +584,10 @@ export default function ProductsTable({ products, isAdmin }: { products: Product
               <Th label="Name" />
               {show('category') && <Th label="Category" hint={TOGGLEABLE_COLUMNS[0].hint} />}
               {show('artisan')  && <Th label="Artisan"  hint={TOGGLEABLE_COLUMNS[1].hint} />}
-              {show('retail')   && <Th label="Retail"   hint={TOGGLEABLE_COLUMNS[2].hint} />}
+              {show('retail')   && <Th label="Retail"   hint={TOGGLEABLE_COLUMNS[2].hint} className="col-p2" />}
               {show('trade')    && <Th label="Trade"    hint={TOGGLEABLE_COLUMNS[3].hint} />}
-              {show('lead')     && <Th label="Lead time" hint={TOGGLEABLE_COLUMNS[4].hint} />}
-              {show('imgs')     && <Th label="Imgs"     hint={TOGGLEABLE_COLUMNS[5].hint} />}
+              {show('lead')     && <Th label="Lead time" hint={TOGGLEABLE_COLUMNS[4].hint} className="col-p3" />}
+              {show('imgs')     && <Th label="Imgs"     hint={TOGGLEABLE_COLUMNS[5].hint} className="col-p3" />}
               {show('complete') && <Th label="Complete" hint={TOGGLEABLE_COLUMNS[6].hint} />}
               <Th label="Status" />
               <th></th>
@@ -627,16 +631,16 @@ export default function ProductsTable({ products, isAdmin }: { products: Product
                           no image
                         </span>
                       )}
-                      <span>
-                        <span style={{ display: 'block', fontWeight: 500 }}>{p.name}</span>
-                        <span style={{ display: 'block', fontSize: 11, color: 'var(--stone)' }}>{p.slug}</span>
+                      <span style={{ minWidth: 0 }}>
+                        <span className="cell-truncate" title={p.name} style={{ display: 'block', fontWeight: 500 }}>{p.name}</span>
+                        <span className="cell-truncate" title={p.slug} style={{ display: 'block', fontSize: 11, color: 'var(--stone)' }}>{p.slug}</span>
                       </span>
                     </Link>
                   </td>
-                  {show('category') && <td style={{ fontSize: 13, color: 'var(--stone)' }}>{p.category_name ?? '—'}</td>}
-                  {show('artisan')  && <td style={{ fontSize: 13, color: 'var(--stone)' }}>{p.artisan_name ?? '—'}</td>}
+                  {show('category') && <td style={{ fontSize: 13, color: 'var(--stone)' }}><span className="cell-truncate" title={p.category_name ?? ''}>{p.category_name ?? '—'}</span></td>}
+                  {show('artisan')  && <td style={{ fontSize: 13, color: 'var(--stone)' }}><span className="cell-truncate" title={p.artisan_name ?? ''}>{p.artisan_name ?? '—'}</span></td>}
                   {show('retail') && (
-                    <td>
+                    <td className="col-p2">
                       {por ? (
                         <span style={{ fontStyle: 'italic', color: 'var(--stone)', fontSize: 12 }} title="Price on request — edit on the product page">POR</span>
                       ) : isAdmin ? (
@@ -673,7 +677,7 @@ export default function ProductsTable({ products, isAdmin }: { products: Product
                     </td>
                   )}
                   {show('lead') && (
-                    <td style={{ fontSize: 12 }}>
+                    <td className="col-p3" style={{ fontSize: 12 }}>
                       {isAdmin ? (
                         <InlineCell
                           key={`l-${p.lead_time ?? ''}`}
@@ -689,7 +693,7 @@ export default function ProductsTable({ products, isAdmin }: { products: Product
                     </td>
                   )}
                   {show('imgs') && (
-                    <td style={{ fontSize: 12, color: p.image_count === 0 ? '#B45309' : 'inherit' }}>
+                    <td className="col-p3" style={{ fontSize: 12, color: p.image_count === 0 ? '#B45309' : 'inherit' }}>
                       {p.image_count}
                     </td>
                   )}

@@ -11,6 +11,15 @@ import { TAX_CATEGORIES } from '@/lib/commercial/types'
 const PRICE_FIELDS = ['supplierCostUnit', 'supplierCostOverrideReason', 'pricingMethod', 'pricingPercent', 'sellingPriceUnit'] as const
 const DISCOUNT_FIELDS = ['discountType', 'discountValue'] as const
 
+// Final amendments §1: product-specification fields must never be
+// written onto service (or other non-product) lines. The type-aware
+// UI no longer sends them, but the server is the enforcement layer.
+const PRODUCT_ONLY_FIELDS = [
+  'selectedFinish', 'selectedFabric', 'selectedSize',
+  'manufacturerId', 'manufacturerName', 'supplierSku',
+  'imageUrl', 'specDetails',
+] as const
+
 async function guard(params: { id: string; itemId: string }) {
   const { data: pf } = await supabaseAdmin
     .from('proformas').select('id, locked_at').eq('id', params.id).single()
@@ -46,6 +55,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const { data: before } = await supabaseAdmin
     .from('proforma_line_items').select('*').eq('id', params.itemId).eq('proforma_id', params.id).single()
   if (!before) return NextResponse.json({ success: false, error: 'Line not found' }, { status: 404 })
+
+  if (before.line_type !== 'product') {
+    const rejected = PRODUCT_ONLY_FIELDS.filter(f => body[f] !== undefined)
+    if (rejected.length > 0) {
+      return NextResponse.json({
+        success: false,
+        error: `Product-specification fields cannot be set on a ${before.line_type} line: ${rejected.join(', ')}.`,
+      }, { status: 400 })
+    }
+  }
 
   const updates: Record<string, unknown> = {}
   let commercialChange = false

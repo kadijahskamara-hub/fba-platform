@@ -46,6 +46,7 @@ const NAV_GROUPS: NavGroup[] = [
     section: 'Catalogue',
     items: [
       { href: '/admin/products',     label: 'Products',           icon: TagIcon,        permission: 'products' },
+      { href: '/admin/categories',   label: 'Categories',         icon: TagIcon,        permission: 'products' },
       { href: '/admin/finishes',     label: 'Finish Library',     icon: TagIcon,        permission: 'products' },
       { href: '/admin/artisans',     label: 'Artisans',           icon: StarIcon,       permission: 'artisans' },
       { href: '/admin/collection',   label: 'FBA Collection',     icon: CollectionIcon, permission: 'products' },

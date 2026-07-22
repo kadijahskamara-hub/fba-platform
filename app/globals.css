@@ -827,3 +827,117 @@ footer.site-footer {
 .img-zoom-wrap { overflow: hidden; }
 .img-zoom-wrap img { transition: transform 0.6s ease; }
 .img-zoom-wrap:hover img { transform: scale(1.04); }
+
+/* ── Admin fit tables (final amendments §4) ─────────────────────
+   Column-priority responsive admin tables: the page never scrolls
+   horizontally at common desktop widths. Lower-priority columns
+   collapse first (.col-p3 → .col-p2); long values truncate with a
+   tooltip; the header stays visible on long lists. An internal
+   scrollbar only appears below 1024px as a last resort. */
+
+.admin-table-wrap {
+  background: var(--warm-white);
+  border: 1px solid var(--light-line);
+  max-width: 100%;
+  overflow-x: visible;
+}
+.admin-fit-table { table-layout: auto; width: 100%; }
+.admin-fit-table th {
+  position: sticky; top: var(--nav-h, 0px); z-index: 5;
+  background: var(--warm-white);
+  box-shadow: 0 1px 0 var(--light-line);
+  padding: 10px 10px;
+}
+.admin-fit-table td { padding: 10px 10px; font-size: 13px; }
+
+.cell-truncate {
+  display: inline-block; max-width: 220px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  vertical-align: bottom;
+}
+
+@media (max-width: 1440px) {
+  .cell-truncate { max-width: 170px; }
+}
+@media (max-width: 1366px) {
+  .admin-fit-table .col-p3 { display: none; }   /* lead time, images, created */
+  .cell-truncate { max-width: 150px; }
+}
+@media (max-width: 1140px) {
+  .admin-fit-table .col-p2 { display: none; }   /* retail, location */
+  .admin-fit-table th, .admin-fit-table td { padding: 8px 8px; }
+  .cell-truncate { max-width: 130px; }
+}
+@media (max-width: 1023px) {
+  /* Last resort: internal scroll instead of page overflow. */
+  .admin-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .admin-fit-table th { position: static; }
+}
+
+/* ── Product detail page (final amendments §6) ──────────────────
+   Three-column desktop composition: media | identity + config |
+   compact technical specification. The technical description sits
+   under the media so there is no dead space beneath the image.
+   Tablet: two columns, spec moves below. Mobile: single column in
+   the order media → identity/config → spec → description. */
+
+.pdp-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 4.4fr) minmax(0, 3.4fr);
+  gap: 40px 48px;
+  align-items: start;
+}
+.pdp-media  { grid-column: 1; }
+.pdp-desc   { grid-column: 1; }
+.pdp-centre { grid-column: 2; grid-row: 1 / span 2; }
+.pdp-spec   { grid-column: 3; grid-row: 1 / span 2; }
+
+@media (max-width: 1180px) {
+  .pdp-grid   { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .pdp-centre { grid-column: 2; grid-row: auto; }
+  .pdp-spec   { grid-column: 1 / -1; grid-row: auto; }
+}
+@media (max-width: 767px) {
+  .pdp-grid   { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+  .pdp-media  { grid-column: 1; order: 1; }
+  .pdp-centre { grid-column: 1; grid-row: auto; order: 2; }
+  .pdp-spec   { grid-column: 1; grid-row: auto; order: 3; }
+  .pdp-desc   { grid-column: 1; order: 4; }
+}
+
+/* Compact key/value specification — label and value scan as a pair
+   (no oversized empty gutter). */
+.pdp-spec-table { width: 100%; border-collapse: collapse; }
+.pdp-spec-table td {
+  padding: 7px 0; border-bottom: 1px solid var(--light-line);
+  font-size: 13px; color: var(--forest); vertical-align: top;
+}
+.pdp-spec-table td.pdp-spec-label {
+  width: 38%; padding-right: 16px;
+  font-size: 11px; font-weight: 500; color: var(--stone);
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+
+/* Restrained sticky action bar on long pages. */
+.pdp-sticky-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 90;
+  background: var(--warm-white);
+  border-top: 1px solid var(--light-line);
+  box-shadow: 0 -4px 16px rgba(24, 32, 26, 0.08);
+  padding: 10px 0;
+  transform: translateY(110%);
+  transition: transform 0.25s ease;
+}
+.pdp-sticky-bar.visible { transform: translateY(0); }
+.pdp-sticky-inner {
+  display: flex; align-items: center; gap: 16px;
+}
+.pdp-sticky-name {
+  font-weight: 500; font-size: 14px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0; flex: 1;
+}
+@media (max-width: 600px) {
+  .pdp-sticky-name { display: none; }
+  .pdp-sticky-inner { justify-content: space-between; }
+}

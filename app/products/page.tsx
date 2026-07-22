@@ -44,7 +44,10 @@ export default async function ProductsPage(props: {
   const searchParams = await props.searchParams
   const [session, categoriesResult, heroImage] = await Promise.all([
     getSession(),
-    supabase.from('categories').select('*, subcategories(*)').order('sort_order'),
+    // Final amendments §5: only visible, non-archived categories appear
+    // in the public catalogue navigation and filters.
+    supabase.from('categories').select('*, subcategories(*)')
+      .eq('is_visible', true).is('archived_at', null).order('sort_order'),
     getHeroImage(),
   ])
 

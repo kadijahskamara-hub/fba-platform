@@ -47,10 +47,29 @@ export async function GET(req: NextRequest) {
     query = query.eq('visibility', 'published').is('archived_at', null).is('deleted_at', null) as typeof query
   }
 
-  // Resolve category/subcategory slugs to IDs for reliable filtering
+  // Resolve category/subcategory slugs to IDs for reliable filtering.
+  // Final amendments §5: hidden/archived categories are not browsable
+  // publicly — a direct ?category= link to one returns no results
+  // (admins still see everything).
   if (category) {
-    const { data: cat } = await client.from('categories').select('id').eq('slug', category).single()
-    if (cat) query = query.eq('category_id', cat.id) as typeof query
+    const { data: cat } = await client.from('categories')
+      .select('id, is_visible, archived_at').eq('slug', category).single()
+    const catHidden = cat && (cat.is_visible === false || cat.archived_at != null)
+    if (cat && (session?.role === 'admin' || !catHidden)) {
+      query = query.eq('category_id', cat.id) as typeof query
+    } else {
+      return NextResponse.json({ success: true, data: [], meta: { total: 0, page, limit, pages: 0 } })
+    }
+  } else if (session?.role !== 'admin') {
+    // General listing: exclude products whose only category is hidden
+    // or archived (documented rule — such products stay reachable via
+    // their direct URL, but leave all public catalogue listings).
+    const { data: hiddenCats } = await client
+      .from('categories').select('id').or('is_visible.eq.false,archived_at.not.is.null')
+    const hiddenIds = (hiddenCats ?? []).map(c => c.id as string)
+    if (hiddenIds.length > 0) {
+      query = query.or(`category_id.is.null,category_id.not.in.(${hiddenIds.join(',')})`) as typeof query
+    }
   }
   if (subcategory) {
     const { data: sub } = await client.from('subcategories').select('id').eq('slug', subcategory).single()

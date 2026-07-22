@@ -45,8 +45,8 @@ export default function NewArtisanPage() {
           short_bio:       form.shortBio || null,
           bio:             form.bio || null,
           craft_category:  form.craftCategory || null,
-          profile_image:   form.profileImage || null,
-          gallery_images:  form.galleryImages.split('\n').map(s => s.trim()).filter(Boolean),
+          profile_image:   null,
+          gallery_images:  [],
           website:         form.website || null,
           instagram_handle:form.instagramHandle || null,
           primary_contact_name: form.primaryContactName || null,
@@ -60,7 +60,8 @@ export default function NewArtisanPage() {
       })
       const data = await res.json()
       if (!data.success) { setError(data.error ?? 'Failed to save.'); return }
-      router.push('/admin/artisans')
+      // Land on the edit page so images can be uploaded straight away.
+      router.push(data.data?.slug ? `/admin/artisans/${data.data.slug}` : '/admin/artisans')
     })
   }
 
@@ -119,16 +120,13 @@ export default function NewArtisanPage() {
             <label className="form-label">Full biography</label>
             <textarea className="form-textarea" rows={6} value={form.bio} onChange={update('bio')} />
           </div>
+          {/* Final amendments §2: images are uploaded directly (no URLs).
+              Uploads need a saved record, so they happen on the edit page. */}
           <div className="form-group">
-            <label className="form-label">Profile image URL (Pexels)</label>
-            <input type="url" className="form-input" value={form.profileImage}
-              onChange={update('profileImage')}
-              placeholder="https://images.pexels.com/photos/123456/pexels-photo-123456.jpeg?auto=compress&cs=tinysrgb&w=800" />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Gallery images (one URL per line)</label>
-            <textarea className="form-textarea" rows={4} value={form.galleryImages}
-              onChange={update('galleryImages')} />
+            <label className="form-label">Images</label>
+            <div style={{ padding: '12px 14px', background: 'var(--cream, #f7f3ec)', border: '1px dashed var(--light-line)', fontSize: 13, color: 'var(--stone)' }}>
+              Save the artisan first — the profile and gallery images can then be uploaded directly on the edit page.
+            </div>
           </div>
           <div className="form-row">
             <div className="form-group">

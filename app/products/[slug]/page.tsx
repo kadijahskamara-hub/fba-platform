@@ -11,6 +11,8 @@ import ProductConfigurator, { type FinishOption, type SizeOption } from './Produ
 import CuratedFinishes, { type PublicGroup, type PublicMedia } from './CuratedFinishes'
 import LivePrice from './LivePrice'
 import CustomMatchLauncher from './CustomMatchLauncher'
+import { StickyActionBar } from './StickyActionBar'
+import { RecentlyViewed } from './RecentlyViewed'
 import { getPublicProductConfiguration } from '@/lib/publicProduct'
 
 interface Props {
@@ -55,6 +57,15 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
   }
 }
 
+// Final amendments §6: spec rows render only meaningful values —
+// blanks and literal "N/A"s never occupy a row.
+function sv(value: unknown): string | null {
+  if (value == null) return null
+  const s = String(value).trim()
+  if (!s || /^n\/?\.?a\.?$/i.test(s)) return null
+  return s
+}
+
 export default async function ProductDetailPage(props: Props) {
   const params = await props.params
   const session = await getSession()
@@ -74,8 +85,10 @@ export default async function ProductDetailPage(props: Props) {
 
   if (!product) notFound()
 
-  // Documents, finishes, variants + related — RLS limits these to published products
-  const [{ data: documents }, { data: finishes }, { data: variants }, { data: related }] = await Promise.all([
+  // Documents, finishes, variants + discovery content — RLS limits
+  // these to published products.
+  const showBrandForRelated = product.public_brand_visible === true && product.artisan_id
+  const [{ data: documents }, { data: finishes }, { data: variants }, { data: related }, { data: fromArtisan }] = await Promise.all([
     supabase.from('product_documents').select('*').eq('product_id', product.id).order('sort_order'),
     supabase.from('product_finishes').select('*').eq('product_id', product.id).order('sort_order'),
     supabase.from('product_variants').select('*').eq('product_id', product.id).order('sort_order'),
@@ -86,6 +99,18 @@ export default async function ProductDetailPage(props: Props) {
       .eq('category_id', product.category_id)
       .neq('id', product.id)
       .limit(4),
+    // "From the same maker" — only when the maker is publicly credited
+    // on this product (final amendments §6).
+    showBrandForRelated
+      ? supabase
+          .from('products')
+          .select('id, name, slug, images, price_type, category:categories(name)')
+          .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
+          .eq('artisan_id', product.artisan_id)
+          .eq('public_brand_visible', true)
+          .neq('id', product.id)
+          .limit(4)
+      : Promise.resolve({ data: [] as Record<string, unknown>[] }),
   ])
 
   // Sprint 12: curated finish groups, structured media, passport and
@@ -135,6 +160,19 @@ export default async function ProductDetailPage(props: Props) {
 
   const showBrand = product.public_brand_visible === true && product.artisan
 
+  // Sticky bar essentials — resolved with the viewer's permissions.
+  const priceLine = price.type === 'fixed'
+    ? `£${Number(price.amount).toLocaleString('en-GB')}`
+    : 'Price on request'
+  const canBuy = price.type === 'fixed' && product.audience !== 'trade'
+  const stickyLabel = canBuy ? 'Configure & order' : 'Configure & enquire'
+
+  // Discovery grids: never show the same piece twice across sections.
+  const relatedRows = (related ?? []) as Record<string, unknown>[]
+  const relatedIds = new Set(relatedRows.map(r => r.id as string))
+  const artisanRows = ((fromArtisan ?? []) as Record<string, unknown>[])
+    .filter(r => !relatedIds.has(r.id as string))
+
   return (
     <div className="page-body">
       {/* Breadcrumb */}
@@ -154,22 +192,26 @@ export default async function ProductDetailPage(props: Props) {
         </nav>
       </div>
 
-      {/* Product layout */}
+      {/* ── Product layout (final amendments §6): media | identity +
+          configuration | compact specification. The technical
+          description fills the space beneath the media. ── */}
       <div className="container" style={{ paddingBottom: 80 }}>
-        <div className="fba-grid-2" style={{ gap: 80 }}>
+        <div className="pdp-grid">
 
-          {/* Left: Image gallery (structured media w/ finish switching) */}
-          <ProductDetailClient product={{ images: product.images ?? [], name: product.name }} media={configuration.media as PublicMedia[]} />
+          {/* Column 1 — media */}
+          <div className="pdp-media">
+            <ProductDetailClient product={{ images: product.images ?? [], name: product.name }} media={configuration.media as PublicMedia[]} />
+          </div>
 
-          {/* Right: Product info */}
-          <div style={{ paddingTop: 8 }}>
+          {/* Column 2 — identity, commercial info, configuration, actions */}
+          <div className="pdp-centre">
             {product.category && (
               <div className="label label-sand" style={{ marginBottom: 10 }}>
                 {product.category.name}
               </div>
             )}
 
-            <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 'clamp(24px, 3vw, 32px)', fontWeight: 300, lineHeight: 1.25, marginBottom: 6 }}>
+            <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 'clamp(24px, 2.4vw, 30px)', fontWeight: 300, lineHeight: 1.25, marginBottom: 6 }}>
               {product.name}
             </h1>
 
@@ -186,7 +228,7 @@ export default async function ProductDetailPage(props: Props) {
             )}
 
             {/* Price + fulfilment */}
-            <div style={{ marginBottom: 28, padding: '16px 0', borderTop: '1px solid var(--light-line)', borderBottom: '1px solid var(--light-line)' }}>
+            <div style={{ marginBottom: 22, padding: '14px 0', borderTop: '1px solid var(--light-line)', borderBottom: '1px solid var(--light-line)' }}>
               {price.type === 'fixed' ? (
                 <div>
                   {/* QA item 7: headline updates live when a finish option
@@ -214,92 +256,95 @@ export default async function ProductDetailPage(props: Props) {
 
             {/* Short description */}
             {product.short_description && (
-              <p style={{ fontSize: 14, lineHeight: 1.7, marginBottom: 24, color: 'var(--stone)' }}>
+              <p style={{ fontSize: 14, lineHeight: 1.7, marginBottom: 20, color: 'var(--stone)' }}>
                 {product.short_description}
               </p>
             )}
 
-            {/* Key spec highlights */}
+            {/* Key attribute highlights */}
             {specs && (
-              <div style={{ marginBottom: 26 }}>
-                {specs.dimensions_summary && (
-                  <div className="qv-spec-row"><span className="qv-spec-label">Dimensions</span><span>{specs.dimensions_summary}</span></div>
+              <div style={{ marginBottom: 22 }}>
+                {sv(specs.dimensions_summary) && (
+                  <div className="qv-spec-row"><span className="qv-spec-label">Dimensions</span><span>{sv(specs.dimensions_summary)}</span></div>
                 )}
-                {specs.material && (
-                  <div className="qv-spec-row"><span className="qv-spec-label">Material</span><span>{specs.material}</span></div>
+                {sv(specs.material) && (
+                  <div className="qv-spec-row"><span className="qv-spec-label">Material</span><span>{sv(specs.material)}</span></div>
                 )}
-                {specs.fabric && (
-                  <div className="qv-spec-row"><span className="qv-spec-label">Fabric</span><span>{specs.fabric}{specs.com_available ? ' — COM available' : ''}</span></div>
+                {sv(specs.fabric) && (
+                  <div className="qv-spec-row"><span className="qv-spec-label">Fabric</span><span>{sv(specs.fabric)}{specs.com_available ? ' — COM available' : ''}</span></div>
                 )}
-                {product.shipping_origin && (
-                  <div className="qv-spec-row"><span className="qv-spec-label">Origin</span><span>{product.shipping_origin}</span></div>
+                {sv(product.shipping_origin) && (
+                  <div className="qv-spec-row"><span className="qv-spec-label">Origin</span><span>{sv(product.shipping_origin)}</span></div>
                 )}
               </div>
             )}
 
-            {/* Curated finishes (Sprint 12) with legacy fallback */}
-            {hasCuratedFinishes ? (
-              <CuratedFinishes
-                productId={product.id}
-                groups={configuration.groups as unknown as PublicGroup[]}
-                rules={configuration.rules}
-                media={configuration.media as PublicMedia[]}
-                isLoggedIn={Boolean(session)}
-                currencySymbol={'£'}
-                productSummary={customMatchSummary}
-                materialTypes={configuration.materialTypes}
-                defaultEmail={session?.email ?? null}
-              />
-            ) : (
-              <>
-                <ProductConfigurator
+            {/* Configuration + primary actions (sticky-bar anchor) */}
+            <div id="pdp-actions">
+              {/* Curated finishes (Sprint 12) with legacy fallback */}
+              {hasCuratedFinishes ? (
+                <CuratedFinishes
                   productId={product.id}
-                  slug={product.slug}
-                  hardFinishes={hardFinishes}
-                  upholstery={upholstery}
-                  sizes={sizes}
+                  groups={configuration.groups as unknown as PublicGroup[]}
+                  rules={configuration.rules}
+                  media={configuration.media as PublicMedia[]}
                   isLoggedIn={Boolean(session)}
-                />
-                <CustomMatchLauncher
-                  product={customMatchSummary}
+                  currencySymbol={'£'}
+                  productSummary={customMatchSummary}
                   materialTypes={configuration.materialTypes}
                   defaultEmail={session?.email ?? null}
                 />
-              </>
-            )}
+              ) : (
+                <>
+                  <ProductConfigurator
+                    productId={product.id}
+                    slug={product.slug}
+                    hardFinishes={hardFinishes}
+                    upholstery={upholstery}
+                    sizes={sizes}
+                    isLoggedIn={Boolean(session)}
+                  />
+                  <CustomMatchLauncher
+                    product={customMatchSummary}
+                    materialTypes={configuration.materialTypes}
+                    defaultEmail={session?.email ?? null}
+                  />
+                </>
+              )}
 
-            {/* Technical Passport™ — verified, public, unexpired claims only */}
-            {configuration.passport.length > 0 && (
-              <div style={{
-                background: 'var(--sage-light, #E8EDE6)', padding: '16px 20px',
-                marginBottom: 24, display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px 20px',
-              }}>
-                {configuration.passport.map(pa => (
-                  <div key={pa.label} style={{ fontSize: 12.5, color: 'var(--forest)' }}>
-                    <span aria-hidden>✓ </span>{pa.label}{pa.value ? ` — ${pa.value}` : ''}
-                  </div>
-                ))}
-              </div>
-            )}
+              {/* Technical Passport™ — verified, public, unexpired claims only */}
+              {configuration.passport.length > 0 && (
+                <div style={{
+                  background: 'var(--sage-light, #E8EDE6)', padding: '16px 20px',
+                  marginBottom: 24, display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px 20px',
+                }}>
+                  {configuration.passport.map(pa => (
+                    <div key={pa.label} style={{ fontSize: 12.5, color: 'var(--forest)' }}>
+                      <span aria-hidden>✓ </span>{pa.label}{pa.value ? ` — ${pa.value}` : ''}
+                    </div>
+                  ))}
+                </div>
+              )}
 
-            {/* Retail purchase (fixed-price retail pieces only).
-                Client components receive a SLIM product object — the full
-                row contains internal figures (supplier_cost, trade_price)
-                that must never serialise into client props (md doc §17). */}
-            {price.type === 'fixed' && product.audience !== 'trade' && (
-              <div style={{ marginBottom: 24 }}>
-                <AddToBagButton
-                  product={{
-                    id: product.id, slug: product.slug, name: product.name,
-                    images: product.images ?? [], audience: product.audience,
-                    artisan: product.artisan ? { name: product.artisan.name } : null,
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  } as any}
-                  price={price}
-                />
-              </div>
-            )}
+              {/* Retail purchase (fixed-price retail pieces only).
+                  Client components receive a SLIM product object — the full
+                  row contains internal figures (supplier_cost, trade_price)
+                  that must never serialise into client props (md doc §17). */}
+              {canBuy && (
+                <div style={{ marginBottom: 24 }}>
+                  <AddToBagButton
+                    product={{
+                      id: product.id, slug: product.slug, name: product.name,
+                      images: product.images ?? [], audience: product.audience,
+                      artisan: product.artisan ? { name: product.artisan.name } : null,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    } as any}
+                    price={price}
+                  />
+                </div>
+              )}
+            </div>
 
             {/* Downloads — only documents that actually exist */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -325,13 +370,59 @@ export default async function ProductDetailPage(props: Props) {
               </a>
             </div>
           </div>
-        </div>
 
-        {/* Technical description + full specification */}
-        <div className="divider-lg" />
-        <div className="fba-grid-2" style={{ gap: 80 }}>
-          <div>
-            <div className="label label-sage" style={{ marginBottom: 20 }}>Technical description</div>
+          {/* Column 3 — compact structured specification */}
+          <div className="pdp-spec">
+            {specs && (
+              <>
+                <div className="label label-sage" style={{ marginBottom: 16 }}>Full Specification</div>
+                <table className="pdp-spec-table">
+                  <tbody>
+                    {!!specs.width_mm   && <SpecRow label="Width"   value={`${specs.width_mm}mm`} />}
+                    {!!specs.depth_mm   && <SpecRow label="Depth"   value={`${specs.depth_mm}mm`} />}
+                    {!!specs.height_mm  && <SpecRow label="Height"  value={`${specs.height_mm}mm`} />}
+                    {!!specs.seat_height_mm && <SpecRow label="Seat height" value={`${specs.seat_height_mm}mm`} />}
+                    {!!specs.diameter_mm    && <SpecRow label="Diameter"    value={`${specs.diameter_mm}mm`} />}
+                    {!!specs.weight_kg      && <SpecRow label="Weight"      value={`${specs.weight_kg}kg`} />}
+                    {sv(specs.material)  && <SpecRow label="Material"  value={sv(specs.material)!} />}
+                    {sv(specs.finish)    && <SpecRow label="Finish"    value={sv(specs.finish)!} />}
+                    {sv(specs.fabric)    && <SpecRow label="Fabric"    value={sv(specs.fabric)!} />}
+                    {specs.com_available && <SpecRow label="COM"       value="Available" />}
+                    {sv(specs.care_instructions) && <SpecRow label="Care" value={sv(specs.care_instructions)!} />}
+                    {isLighting && sv(specs.bulb_type) && <SpecRow label="Bulb type" value={sv(specs.bulb_type)!} />}
+                    {isLighting && sv(specs.wattage)   && <SpecRow label="Wattage"   value={sv(specs.wattage)!} />}
+                    {isLighting && sv(specs.voltage)   && <SpecRow label="Voltage"   value={sv(specs.voltage)!} />}
+                    {sv(specs.ip_rating) && <SpecRow label="IP rating" value={sv(specs.ip_rating)!} />}
+                    {isLighting && typeof specs.dimmable === 'boolean' && <SpecRow label="Dimmable" value={specs.dimmable ? 'Yes' : 'No'} />}
+                    {configuration.specRows
+                      .filter(r => sv(r.value))
+                      .map(r => (
+                        <SpecRow key={r.id} label={r.label} value={`${sv(r.value)}${r.unit ? ` ${r.unit}` : ''}`} />
+                      ))}
+                  </tbody>
+                </table>
+                {specs.technical_notes && (
+                  <div style={{ marginTop: 16, padding: 16, background: 'var(--sage-light)', fontSize: 12, color: 'var(--stone)' }}>
+                    <strong style={{ color: 'var(--forest)', display: 'block', marginBottom: 6 }}>Technical Passport™</strong>
+                    {specs.technical_notes}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Delivery & notes */}
+            <div style={{ marginTop: specs ? 24 : 0 }}>
+              <div className="label label-sage" style={{ marginBottom: 12 }}>Delivery &amp; notes</div>
+              <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--stone)' }}>
+                {product.shipping_notes || DEFAULT_SHIPPING_NOTE}
+              </p>
+            </div>
+          </div>
+
+          {/* Column 1, beneath the media — technical description
+              (fills the previously dead space under the image). */}
+          <div className="pdp-desc">
+            <div className="label label-sage" style={{ marginBottom: 16 }}>Technical description</div>
             <div style={{ fontSize: 14, lineHeight: 1.8, color: 'var(--stone)', whiteSpace: 'pre-wrap' }}>
               {product.technical_description || product.description}
             </div>
@@ -339,84 +430,38 @@ export default async function ProductDetailPage(props: Props) {
               {product.customisation_note || 'This item can be customised — contact a member of the team with your requirements to find out what is possible.'}
             </p>
           </div>
-
-          {/* Full specification table */}
-          {specs && (
-            <div>
-              <div className="label label-sage" style={{ marginBottom: 20 }}>Full Specification</div>
-              <table className="data-table" style={{ fontSize: 13 }}>
-                <tbody>
-                  {!!specs.width_mm   && <SpecRow label="Width"   value={`${specs.width_mm}mm`} />}
-                  {!!specs.depth_mm   && <SpecRow label="Depth"   value={`${specs.depth_mm}mm`} />}
-                  {!!specs.height_mm  && <SpecRow label="Height"  value={`${specs.height_mm}mm`} />}
-                  {!!specs.seat_height_mm && <SpecRow label="Seat height" value={`${specs.seat_height_mm}mm`} />}
-                  {!!specs.diameter_mm    && <SpecRow label="Diameter"    value={`${specs.diameter_mm}mm`} />}
-                  {!!specs.weight_kg      && <SpecRow label="Weight"      value={`${specs.weight_kg}kg`} />}
-                  {specs.material       && <SpecRow label="Material"    value={specs.material} />}
-                  {specs.finish         && <SpecRow label="Finish"      value={specs.finish} />}
-                  {specs.fabric         && <SpecRow label="Fabric"      value={specs.fabric} />}
-                  {specs.com_available  && <SpecRow label="COM"         value="Available" />}
-                  {specs.care_instructions && <SpecRow label="Care"     value={specs.care_instructions} />}
-                  {isLighting && specs.bulb_type && <SpecRow label="Bulb type" value={specs.bulb_type} />}
-                  {isLighting && !!specs.wattage   && <SpecRow label="Wattage"   value={specs.wattage} />}
-                  {isLighting && !!specs.voltage   && <SpecRow label="Voltage"   value={specs.voltage} />}
-                  {specs.ip_rating   && <SpecRow label="IP rating"   value={specs.ip_rating} />}
-                  {isLighting && typeof specs.dimmable === 'boolean' && <SpecRow label="Dimmable" value={specs.dimmable ? 'Yes' : 'No'} />}
-                  {configuration.specRows.map(r => (
-                    <SpecRow key={r.id} label={r.label} value={`${r.value}${r.unit ? ` ${r.unit}` : ''}`} />
-                  ))}
-                </tbody>
-              </table>
-              {specs.technical_notes && (
-                <div style={{ marginTop: 16, padding: 16, background: 'var(--sage-light)', fontSize: 12, color: 'var(--stone)' }}>
-                  <strong style={{ color: 'var(--forest)', display: 'block', marginBottom: 6 }}>Technical Passport™</strong>
-                  {specs.technical_notes}
-                </div>
-              )}
-
-              {/* Delivery & notes */}
-              <div style={{ marginTop: 24 }}>
-                <div className="label label-sage" style={{ marginBottom: 12 }}>Delivery &amp; notes</div>
-                <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--stone)' }}>
-                  {product.shipping_notes || DEFAULT_SHIPPING_NOTE}
-                </p>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Related products */}
-        {related && related.length > 0 && (
+        {/* ── Discovery content (renders only when it has content) ── */}
+        {relatedRows.length > 0 && (
           <>
             <div className="divider-lg" />
-            <div>
-              <div className="label label-sage" style={{ marginBottom: 24 }}>More from this category</div>
-              <div className="grid-4">
-                {related.map((rp: Record<string, unknown>) => (
-                  <Link key={rp.id as string} href={`/products/${rp.slug}`} style={{ display: 'block' }}>
-                    <div className="product-card">
-                      <div className="product-card-image">
-                        <Image
-                          src={(rp.images as string[])?.[0] ?? `https://images.pexels.com/photos/1350789/pexels-photo-1350789.jpeg?auto=compress&cs=tinysrgb&w=600`}
-                          alt={rp.name as string} fill style={{ objectFit: 'cover' }} sizes="25vw"
-                        />
-                      </div>
-                      <div className="product-card-meta">
-                        {(rp.category as { name?: string } | null)?.name && (
-                          <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--stone)', marginBottom: 4 }}>
-                            {(rp.category as { name?: string }).name}
-                          </div>
-                        )}
-                        <div className="product-card-name">{rp.name as string}</div>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
+            <DiscoveryGrid label="More from this category" rows={relatedRows} />
           </>
         )}
+        {artisanRows.length > 0 && (
+          <>
+            <div className="divider-lg" />
+            <DiscoveryGrid label={`More from ${product.artisan?.name ?? 'this maker'}`} rows={artisanRows} />
+          </>
+        )}
+        <RecentlyViewed current={{
+          slug: product.slug,
+          name: product.name,
+          image: customMatchSummary.imageUrl,
+          category: (product.category as { name?: string } | null)?.name ?? null,
+        }} />
       </div>
+
+      {/* Sticky action bar — appears once the configuration area has
+          scrolled out of view; respects viewer pricing permissions. */}
+      <StickyActionBar
+        productName={product.name}
+        priceLine={priceLine}
+        dispatchLine={dispatchLine}
+        actionLabel={stickyLabel}
+        targetId="pdp-actions"
+      />
 
       {/* JSON-LD product schema */}
       <script
@@ -444,6 +489,36 @@ export default async function ProductDetailPage(props: Props) {
   )
 }
 
+function DiscoveryGrid({ label, rows }: { label: string; rows: Record<string, unknown>[] }) {
+  return (
+    <div>
+      <div className="label label-sage" style={{ marginBottom: 24 }}>{label}</div>
+      <div className="grid-4">
+        {rows.map(rp => (
+          <Link key={rp.id as string} href={`/products/${rp.slug}`} style={{ display: 'block' }}>
+            <div className="product-card">
+              <div className="product-card-image">
+                <Image
+                  src={(rp.images as string[])?.[0] ?? `https://images.pexels.com/photos/1350789/pexels-photo-1350789.jpeg?auto=compress&cs=tinysrgb&w=600`}
+                  alt={rp.name as string} fill style={{ objectFit: 'cover' }} sizes="25vw"
+                />
+              </div>
+              <div className="product-card-meta">
+                {(rp.category as { name?: string } | null)?.name && (
+                  <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--stone)', marginBottom: 4 }}>
+                    {(rp.category as { name?: string }).name}
+                  </div>
+                )}
+                <div className="product-card-name">{rp.name as string}</div>
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function mapFinish(f: Record<string, unknown>): FinishOption {
   return {
     id: f.id as string,
@@ -462,7 +537,7 @@ function mapFinish(f: Record<string, unknown>): FinishOption {
 function SpecRow({ label, value }: { label: string; value: string }) {
   return (
     <tr>
-      <td style={{ fontWeight: 500, width: '40%', fontSize: 12, color: 'var(--stone)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</td>
+      <td className="pdp-spec-label">{label}</td>
       <td>{value}</td>
     </tr>
   )
