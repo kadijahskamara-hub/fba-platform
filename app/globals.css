@@ -855,6 +855,50 @@ footer.site-footer {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
+/* The scroll region is focusable (WCAG 2.1.1 — keyboard users must be able
+   to reach columns that are only available by scrolling), so it needs a
+   visible focus ring that does not look like a selected row. */
+.admin-table-wrap:focus-visible {
+  outline: 2px solid var(--caramel);
+  outline-offset: 2px;
+}
+
+/* ── Mirrored top scrollbar (HScrollFrame) ───────────────────────
+   A duplicate of the table's own horizontal scrollbar, placed above it.
+   The native bar sits below the last row and under the pinned name
+   column, which makes it easy to miss on a 50-row page — this one is
+   visible the moment the table is in view. Rendered only when the table
+   actually overflows. */
+.admin-scroll-top {
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin-bottom: 6px;
+  /* Firefox collapses a track with no content height, so the inner spacer
+     is 1px and this keeps room for the bar itself. */
+  min-height: 14px;
+}
+
+/* Both bars styled to be unmistakably present rather than hairline-thin
+   on the cream panel. */
+.admin-table-wrap,
+.admin-scroll-top {
+  scrollbar-width: thin;
+  scrollbar-color: #A99B84 #EDE7DC;
+}
+.admin-table-wrap::-webkit-scrollbar,
+.admin-scroll-top::-webkit-scrollbar { height: 12px; }
+.admin-table-wrap::-webkit-scrollbar-track,
+.admin-scroll-top::-webkit-scrollbar-track {
+  background: #EDE7DC; border-radius: 6px;
+}
+.admin-table-wrap::-webkit-scrollbar-thumb,
+.admin-scroll-top::-webkit-scrollbar-thumb {
+  background: #A99B84; border-radius: 6px;
+  border: 2px solid #EDE7DC;   /* inset so the thumb reads as a handle */
+}
+.admin-table-wrap::-webkit-scrollbar-thumb:hover,
+.admin-scroll-top::-webkit-scrollbar-thumb:hover { background: var(--caramel); }
+
 .admin-fit-table {
   table-layout: auto;
   width: 100%;
@@ -960,6 +1004,20 @@ footer.site-footer {
   .admin-fit-table td.col-wrap > .cell-clamp-2,
   .admin-fit-table th.col-wrap { max-width: 118px; }
   .admin-table-stickyid .col-identity { min-width: 190px; }
+}
+
+/* ── Tables with their own column chooser keep every permitted column ──
+   Width-based collapsing is right for admin tables the user cannot
+   configure (categories, artisans). The products table HAS a "Customize
+   columns" control, so dropping a column the user ticked overrides their
+   own decision — and it looked like a bug, since zooming out brought the
+   column back. Inside .admin-table-stickyid the priority classes are
+   therefore inert: every enabled column stays present and is reached by
+   scrolling, with the mirrored top scrollbar making that discoverable.
+   Placed after the media queries above so it wins regardless of width. */
+.admin-table-stickyid .admin-fit-table .col-p2,
+.admin-table-stickyid .admin-fit-table .col-p3 {
+  display: table-cell;
 }
 @media (max-width: 767px) {
   /* The pinned group would eat most of a phone screen, so identity

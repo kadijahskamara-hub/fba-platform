@@ -6,6 +6,7 @@ import { appConfirm } from '@/lib/appConfirm'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import ProductRowActions from './ProductRowActions'
+import HScrollFrame from '@/components/admin/HScrollFrame'
 import { completenessBreakdown, type ProductHealthChecks } from '@/lib/productCompleteness'
 
 // ============================================================
@@ -604,12 +605,18 @@ export default function ProductsTable({ products, isAdmin }: { products: Product
 
       {/* Spec §4: the whole component stays inside the white admin panel and
           the PAGE never scrolls sideways — any horizontal movement happens
-          inside .admin-table-wrap only. The checkbox + thumbnail + name +
+          inside the scroll region only. The checkbox + thumbnail + name +
           slug form one protected identity group pinned to the left
           (.col-select / .col-identity) so the product being reviewed is
-          always named, whatever else is scrolled into view. Lower-priority
-          columns still collapse first (col-p2 / col-p3). */}
-      <div className="admin-table-wrap admin-table-stickyid">
+          always named, whatever else is scrolled into view.
+
+          Columns are NOT dropped by width here: every column ticked in
+          "Customize columns" stays reachable by scrolling, because
+          silently hiding a column the user explicitly enabled contradicts
+          their own choice. HScrollFrame adds a mirrored scrollbar above
+          the table so that control is findable without scrolling past
+          every row first. */}
+      <HScrollFrame className="admin-table-stickyid" label="Products table — scroll sideways for more columns">
         <table className="data-table admin-fit-table">
           <thead>
             <tr>
@@ -782,7 +789,7 @@ export default function ProductsTable({ products, isAdmin }: { products: Product
             })}
           </tbody>
         </table>
-      </div>
+      </HScrollFrame>
     </>
   )
 }
