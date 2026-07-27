@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase, supabaseAdmin } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
+import {
+  applyCategoryVisibilityFilter,
+  hiddenCategoryIdsFor,
+} from '@/lib/categoryVisibility'
 
 export async function GET(req: NextRequest) {
   const session    = await getSession()
@@ -17,6 +21,12 @@ export async function GET(req: NextRequest) {
   if (collection) {
     query = query.eq('is_fba_collection', true) as typeof query
   }
+
+  // Spec §5: filter facets are derived only from products the visitor can
+  // actually reach, so hiding a category also removes its artisans,
+  // materials, finishes and price extremes from the sidebar.
+  const hiddenCategoryIds = await hiddenCategoryIdsFor(session?.role)
+  query = applyCategoryVisibilityFilter(query, hiddenCategoryIds, session?.role)
 
   const { data: products } = await query
 

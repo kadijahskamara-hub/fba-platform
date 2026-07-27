@@ -28,10 +28,12 @@ function statusOf(c: CategoryRow): Status {
   return c.is_visible ? 'published' : 'hidden'
 }
 
+// Colour is never the only signal: each pill carries its own word label
+// ("Visible online" / "Hidden" / "Archived") plus a title hint.
 const STATUS_META: Record<Status, { label: string; bg: string; fg: string; hint: string }> = {
-  published: { label: 'Visible online', bg: '#DCFCE7', fg: '#166534', hint: 'Shown in The Edit navigation, filters and listings' },
-  hidden:    { label: 'Hidden',         bg: '#FEF3C7', fg: '#92400E', hint: 'Removed from all public catalogue surfaces; products stay reachable by direct link' },
-  archived:  { label: 'Archived',       bg: '#E5E7EB', fg: '#4B5563', hint: 'Hidden and archived — restore to work with it again' },
+  published: { label: 'Visible online', bg: '#DCFCE7', fg: '#166534', hint: 'Category and its published products appear across the public site' },
+  hidden:    { label: 'Hidden',         bg: '#FEF3C7', fg: '#92400E', hint: 'Category and its products leave the public site completely — including their direct product URLs. Records stay editable here.' },
+  archived:  { label: 'Archived',       bg: '#E5E7EB', fg: '#4B5563', hint: 'Off the public site and out of active category pickers — restore to work with it again' },
 }
 
 export default function CategoriesManager({ categories, isAdmin }: { categories: CategoryRow[]; isAdmin: boolean }) {
@@ -88,8 +90,29 @@ export default function CategoriesManager({ categories, isAdmin }: { categories:
   }
 
   async function archive(cat: CategoryRow) {
-    if (!await appConfirm(`Archive “${cat.name}”? It disappears from the public site and this list moves it to Archived. Products keep their data.`)) return
+    const productNote = cat.product_count > 0
+      ? ` Its ${cat.product_count} product(s) also leave the public site, including their direct URLs — records and data are kept.`
+      : ' Products keep their data.'
+    if (!await appConfirm(`Archive “${cat.name}”? It disappears from the public site and this list moves it to Archived.${productNote}`)) return
     await patch(cat, { archived: true }, `“${cat.name}” archived.`)
+  }
+
+  // Hiding is as consequential as archiving now that products follow the
+  // category off the public site — confirm it when products are attached.
+  async function toggleVisible(cat: CategoryRow) {
+    if (cat.is_visible && cat.product_count > 0) {
+      const ok = await appConfirm(
+        `Hide “${cat.name}” from the public site?\n\nIts ${cat.product_count} product(s) will also disappear from every public page, search, feed and their direct product URLs. Nothing is deleted — publishing the category again brings them all back.`,
+      )
+      if (!ok) return
+    }
+    await patch(
+      cat,
+      { isVisible: !cat.is_visible },
+      cat.is_visible
+        ? `“${cat.name}” hidden — its ${cat.product_count} product(s) are off the public site.`
+        : `“${cat.name}” is now visible online.`,
+    )
   }
 
   async function runDelete() {
@@ -169,8 +192,10 @@ export default function CategoriesManager({ categories, isAdmin }: { categories:
                   <td style={{ whiteSpace: 'nowrap' }}>
                     {st !== 'archived' && (
                       <button className="btn btn-ghost btn-sm" disabled={rowBusy}
-                        onClick={() => patch(c, { isVisible: !c.is_visible },
-                          c.is_visible ? `“${c.name}” hidden from the public site.` : `“${c.name}” is now visible online.`)}>
+                        title={c.is_visible
+                          ? `Hide “${c.name}” and its ${c.product_count} product(s) from the public site`
+                          : `Publish “${c.name}” and its eligible products`}
+                        onClick={() => toggleVisible(c)}>
                         {c.is_visible ? 'Hide' : 'Publish'}
                       </button>
                     )}
@@ -237,10 +262,12 @@ export default function CategoriesManager({ categories, isAdmin }: { categories:
         </div>
       )}
 
-      <p style={{ fontSize: 12, color: 'var(--stone)', marginTop: 16, maxWidth: 720 }}>
-        Rule for products in a hidden or archived category: they leave all public catalogue listings and
-        filters (their only category is unavailable) but remain reachable through their direct product URL.
-        Re-publishing the category restores everything without data loss.
+      <p style={{ fontSize: 12, color: 'var(--stone)', marginTop: 16, maxWidth: 760, lineHeight: 1.7 }}>
+        <strong style={{ color: 'var(--forest)' }}>Hiding or archiving a category also hides its products.</strong>{' '}
+        They leave navigation, category pages, The Edit, Collection, FBA Home, search, recommended and
+        recently viewed modules, the public catalogue API, product feeds and the sitemap — and their direct
+        product URLs return “not found” while the category is hidden. Every product record stays here in
+        admin, fully editable, and re-publishing the category restores public visibility without data loss.
       </p>
     </>
   )

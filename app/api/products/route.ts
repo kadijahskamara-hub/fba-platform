@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase, supabaseAdmin } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
 import { applyAudienceFilter } from '@/lib/productVisibility'
+import {
+  applyCategoryVisibilityFilter,
+  bypassesCategoryVisibility,
+  hiddenCategoryIdsFor,
+  resolvePublicCategoryBySlug,
+} from '@/lib/categoryVisibility'
 import { resolveSubcategoryId } from '@/lib/subcategories'
 
 export async function GET(req: NextRequest) {
@@ -48,28 +54,21 @@ export async function GET(req: NextRequest) {
   }
 
   // Resolve category/subcategory slugs to IDs for reliable filtering.
-  // Final amendments §5: hidden/archived categories are not browsable
-  // publicly — a direct ?category= link to one returns no results
-  // (admins still see everything).
+  // Spec §5: hidden/archived categories are not browsable publicly — a
+  // direct ?category= link to one returns no results, and products whose
+  // category is hidden leave every public listing (staff see everything).
   if (category) {
-    const { data: cat } = await client.from('categories')
-      .select('id, is_visible, archived_at').eq('slug', category).single()
-    const catHidden = cat && (cat.is_visible === false || cat.archived_at != null)
-    if (cat && (session?.role === 'admin' || !catHidden)) {
+    const cat = await resolvePublicCategoryBySlug(category)
+    if (cat.exists && cat.id && (bypassesCategoryVisibility(session?.role) || cat.isPublic)) {
       query = query.eq('category_id', cat.id) as typeof query
     } else {
       return NextResponse.json({ success: true, data: [], meta: { total: 0, page, limit, pages: 0 } })
     }
-  } else if (session?.role !== 'admin') {
-    // General listing: exclude products whose only category is hidden
-    // or archived (documented rule — such products stay reachable via
-    // their direct URL, but leave all public catalogue listings).
-    const { data: hiddenCats } = await client
-      .from('categories').select('id').or('is_visible.eq.false,archived_at.not.is.null')
-    const hiddenIds = (hiddenCats ?? []).map(c => c.id as string)
-    if (hiddenIds.length > 0) {
-      query = query.or(`category_id.is.null,category_id.not.in.(${hiddenIds.join(',')})`) as typeof query
-    }
+  } else {
+    // Ids fetched first, filter applied synchronously — awaiting a helper
+    // that returned the builder would fire the query early (it is thenable).
+    const hiddenCategoryIds = await hiddenCategoryIdsFor(session?.role)
+    query = applyCategoryVisibilityFilter(query, hiddenCategoryIds, session?.role)
   }
   if (subcategory) {
     const { data: sub } = await client.from('subcategories').select('id').eq('slug', subcategory).single()

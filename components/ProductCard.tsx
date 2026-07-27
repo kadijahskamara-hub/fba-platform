@@ -72,12 +72,11 @@ export function ProductCard({ product, session, onQuickView, onSaveToProject }: 
         <Link href={`/products/${product.slug}`}>
           <div className="product-card-name">{product.name}</div>
         </Link>
-        {/* Brand/artisan hidden on public cards unless explicitly approved (site brief §7.4) */}
-        {product.artisan && ((product as unknown as Record<string, unknown>).public_brand_visible === true || product.publicBrandVisible === true) && (
-          <Link href={`/artisans/${product.artisan.slug}`}>
-            <div className="product-card-artisan">{product.artisan.name}</div>
-          </Link>
-        )}
+        {/* Spec §2: no maker / manufacturer attribution on public product
+            cards — the line is removed rather than emptied, so no blank
+            row is left behind. The artisan relationship is untouched in
+            Supabase and still shown in admin, on the full product detail,
+            and in quotes, projects and procurement records. */}
         <div className={`product-card-price${price.type === 'request' ? ' por' : session?.role === 'trade_user' || session?.role === 'admin' ? ' trade' : ''}`}>
           {price.type === 'fixed' ? price.label : 'Price on request'}
         </div>

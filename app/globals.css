@@ -376,7 +376,10 @@ nav.site-nav.dark {
 .product-card-meta  { padding: 16px 0 8px; }
 .product-card-cat   { font-size: 11px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--caramel); margin-bottom: 6px; }
 .product-card-name  { font-family: var(--font-serif); font-size: 16px; font-weight: 300; line-height: 1.35; margin-bottom: 4px; }
-.product-card-artisan { font-size: 12px; color: var(--stone); margin-bottom: 10px; }
+/* Retired by spec §2 (no maker attribution on public product cards).
+   Kept as a no-op so any cached markup degrades gracefully; safe to
+   remove once no deployed page emits the class. */
+.product-card-artisan { display: none; }
 .product-card-price { font-size: 14px; font-weight: 500; color: var(--forest); }
 .product-card-price.trade { color: var(--caramel); }
 .product-card-price.por   { font-style: italic; color: var(--stone); }
@@ -832,8 +835,9 @@ footer.site-footer {
    Column-priority responsive admin tables: the page never scrolls
    horizontally at common desktop widths. Lower-priority columns
    collapse first (.col-p3 → .col-p2); long values truncate with a
-   tooltip; the header stays visible on long lists. An internal
-   scrollbar only appears below 1024px as a last resort. */
+   tooltip. Horizontal movement is contained in the wrapper at every
+   width (spec §4), and the product-identity group is pinned to the left
+   so the row being reviewed always shows its name. */
 
 .admin-table-wrap {
   background: var(--warm-white);
@@ -842,15 +846,25 @@ footer.site-footer {
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  /* At desktop the wrapper is NOT a scroll/positioned context — that is
-     what turned the sticky header into a floating layer (blank gap +
-     row overlap). It stays `visible` so the completeness popover and the
-     three-dot row menu are never clipped; content-hugging columns below
-     keep the table within these bounds. A real horizontal scrollbar is
-     only enabled at <=1023px, and only if the table still cannot fit. */
-  overflow: visible;
+  /* The wrapper owns any horizontal movement so the PAGE never scrolls
+     sideways and the table can never spill past the white admin panel
+     (spec §4). `auto` shows a scrollbar only when the reduced column set
+     genuinely does not fit. Everything that used to be clipped by this —
+     the completeness popover and the three-dot row menu — is rendered in
+     a portal with fixed positioning, so nothing is cut off. */
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
-.admin-fit-table { table-layout: auto; width: 100%; box-sizing: border-box; }
+.admin-fit-table {
+  table-layout: auto;
+  width: 100%;
+  box-sizing: border-box;
+  /* Below this the reduced column set stops being readable — scroll the
+     wrapper instead of crushing the cells. */
+  min-width: 720px;
+  border-collapse: separate;   /* required for sticky cell backgrounds */
+  border-spacing: 0;
+}
 /* Header stays in normal document flow — directly above the first row,
    no sticky/absolute layer, no top offset, no blank spacer. */
 .admin-fit-table th {
@@ -865,8 +879,63 @@ footer.site-footer {
 .admin-fit-table td:last-child,
 .admin-fit-table th:last-child { text-align: right; white-space: nowrap; }
 
-/* Long names / slugs / artisan values truncate instead of widening the
-   table. Explicit px caps (not %) so table-layout:auto honours them. */
+/* ── Pinned product-identity group (spec §4) ─────────────────────
+   Checkbox + thumbnail + name + slug are treated as one protected area
+   that stays put while the remaining columns scroll behind it, so the
+   product a staff member is reviewing is never anonymous. Opaque
+   background + z-index keep the scrolling columns underneath rather
+   than over the name. Only applied inside .admin-table-stickyid so
+   other admin tables are untouched. */
+.admin-table-stickyid .col-select {
+  position: sticky; left: 0; z-index: 3;
+  width: 42px; min-width: 42px;
+  background: var(--warm-white);
+}
+.admin-table-stickyid .col-identity {
+  position: sticky; left: 42px; z-index: 3;
+  background: var(--warm-white);
+  /* Fixed-edge cue that survives scrolling (border-collapse: separate
+     means a plain border would scroll with the cell). */
+  box-shadow: inset -1px 0 0 var(--light-line), 6px 0 10px -8px rgba(24, 32, 26, 0.22);
+  min-width: 220px;
+}
+.admin-table-stickyid thead .col-select,
+.admin-table-stickyid thead .col-identity { z-index: 4; }
+/* A row tint must be repainted by the pinned cells, otherwise they show
+   the panel background while the rest of the row is tinted. (Row hover
+   in .data-table resolves to the same warm-white as the panel, so it
+   needs no override here.) */
+.admin-table-stickyid tbody tr.row-archived .col-select,
+.admin-table-stickyid tbody tr.row-archived .col-identity { background: #F4F2EE; }
+
+/* Archived rows: muted via colour, not row opacity (an opacity group
+   would make the pinned cells translucent). The "archived" status pill
+   carries the state in words as well, so colour is not the only cue. */
+.admin-fit-table tr.row-archived { background: #F4F2EE; }
+.admin-fit-table tr.row-archived td { color: var(--stone); }
+
+/* Long values: clamp to a set number of lines instead of nowrap, so the
+   text wraps within a capped column rather than widening the table
+   (spec §4 — the artisan column explicitly must not use nowrap). The
+   full value stays available through the title attribute. */
+.cell-clamp-2,
+.cell-clamp-1 {
+  display: -webkit-box; -webkit-box-orient: vertical;
+  overflow: hidden; overflow-wrap: anywhere;
+}
+.cell-clamp-2 { -webkit-line-clamp: 2; line-clamp: 2; }
+.cell-clamp-1 { -webkit-line-clamp: 1; line-clamp: 1; }
+.cell-sub { font-size: 11px; color: var(--stone); }
+
+/* Capped, wrapping columns (category, artisan). max-width alone is not
+   honoured by table-layout: auto, so the cap lives on an inner block. */
+.admin-fit-table .col-wrap { white-space: normal; }
+/* td only — a th.col-wrap also contains the ⓘ hint span, which must keep
+   its own inline display. */
+.admin-fit-table td.col-wrap > .cell-clamp-2 { max-width: 170px; }
+.admin-fit-table th.col-wrap { max-width: 170px; }
+
+/* Legacy single-line truncation, still used by other admin tables. */
 .cell-truncate {
   display: inline-block; max-width: 220px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -875,21 +944,29 @@ footer.site-footer {
 
 @media (max-width: 1440px) {
   .cell-truncate { max-width: 170px; }
+  .admin-fit-table td.col-wrap > .cell-clamp-2,
+  .admin-fit-table th.col-wrap { max-width: 150px; }
 }
 @media (max-width: 1366px) {
   .admin-fit-table .col-p3 { display: none; }   /* lead time, images, created */
   .cell-truncate { max-width: 150px; }
+  .admin-fit-table td.col-wrap > .cell-clamp-2,
+  .admin-fit-table th.col-wrap { max-width: 132px; }
 }
 @media (max-width: 1140px) {
   .admin-fit-table .col-p2 { display: none; }   /* retail, location */
   .admin-fit-table th, .admin-fit-table td { padding: 8px 8px; }
   .cell-truncate { max-width: 130px; }
+  .admin-fit-table td.col-wrap > .cell-clamp-2,
+  .admin-fit-table th.col-wrap { max-width: 118px; }
+  .admin-table-stickyid .col-identity { min-width: 190px; }
 }
-@media (max-width: 1023px) {
-  /* Last resort only: below this width the reduced column set may still
-     not fit, so the table body may scroll horizontally inside the
-     wrapper (never the page). Header remains in flow. */
-  .admin-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+@media (max-width: 767px) {
+  /* The pinned group would eat most of a phone screen, so identity
+     scrolls with everything else and the row link remains the way in. */
+  .admin-table-stickyid .col-select,
+  .admin-table-stickyid .col-identity { position: static; box-shadow: none; }
+  .admin-table-stickyid .col-identity { min-width: 160px; }
 }
 
 /* ── Product detail page (final amendments §6) ──────────────────
@@ -898,6 +975,13 @@ footer.site-footer {
    under the media so there is no dead space beneath the image.
    Tablet: two columns, spec moves below. Mobile: single column in
    the order media → identity/config → spec → description. */
+
+/* Breadcrumb band (spec §3): the product page used a 32px container pad
+   PLUS the global 32px breadcrumb margin, leaving a ~64px empty strip
+   between the breadcrumb and the image. One deliberate spacing value
+   replaces both, so the three columns start straight after it. */
+.pdp-crumbs { padding-top: 20px; }
+.pdp-crumbs .breadcrumb { margin-bottom: 14px; }
 
 .pdp-grid {
   display: grid;
@@ -910,10 +994,58 @@ footer.site-footer {
 .pdp-centre { grid-column: 2; grid-row: 1 / span 2; }
 .pdp-spec   { grid-column: 3; grid-row: 1 / span 2; }
 
+/* All three columns begin on the same line: the main image, the
+   category/name block and the FULL SPECIFICATION heading share one top
+   edge (spec §3). align-items: start above does the work; these reset
+   the stray leading margins that otherwise offset each column. */
+.pdp-media > *:first-child,
+.pdp-centre > *:first-child,
+.pdp-spec > *:first-child { margin-top: 0; }
+
+/* ── Main product image (spec §3) ────────────────────────────────
+   4:5 is the natural frame, but the height is capped against the
+   viewport so the thumbnails — and the configuration controls opposite —
+   stay inside the first desktop screen instead of being pushed under the
+   fold. `contain` means a capped frame letterboxes the shot rather than
+   distorting or cropping it, so portrait and landscape products are both
+   shown whole. The cap is a maximum, not a fixed height: shorter images
+   keep their own proportions. */
+.pdp-main-image {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  max-height: min(62vh, 620px);
+  overflow: hidden;
+  background: var(--sage-light);
+}
+.pdp-main-image img { object-fit: contain; }
+
+/* Thumbnails sit immediately beneath the main image and scroll
+   horizontally when there are many, without ever widening the column or
+   the page. */
+.pdp-thumbs {
+  display: flex; gap: 10px; margin-top: 12px;
+  overflow-x: auto; padding-bottom: 4px;
+  max-width: 100%; scrollbar-width: thin;
+}
+.pdp-thumb {
+  width: 72px; height: 72px; flex: 0 0 72px;
+  position: relative; overflow: hidden; padding: 0;
+  background: none; cursor: pointer;
+  border: 2px solid transparent;
+}
+.pdp-thumb[aria-current='true'] { border-color: var(--forest); }
+
+/* The three primary actions read as one block: the equal-width pair,
+   Custom Match spanning their combined width, then Add to Bag. */
+.pdp-actions-stack { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+
 @media (max-width: 1180px) {
+  /* Two columns: media | identity + configuration. The specification
+     panel moves full-width beneath them (spec §3). */
   .pdp-grid   { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .pdp-centre { grid-column: 2; grid-row: auto; }
   .pdp-spec   { grid-column: 1 / -1; grid-row: auto; }
+  .pdp-main-image { max-height: min(58vh, 560px); }
 }
 @media (max-width: 767px) {
   .pdp-grid   { grid-template-columns: minmax(0, 1fr); gap: 32px; }
@@ -921,6 +1053,10 @@ footer.site-footer {
   .pdp-centre { grid-column: 1; grid-row: auto; order: 2; }
   .pdp-spec   { grid-column: 1; grid-row: auto; order: 3; }
   .pdp-desc   { grid-column: 1; order: 4; }
+  /* Single column, so the image may use more of the screen — still
+     capped, and still never cropped. */
+  .pdp-main-image { max-height: 64vh; }
+  .pdp-crumbs { padding-top: 14px; }
 }
 
 /* Compact key/value specification — label and value scan as a pair

@@ -63,34 +63,37 @@ export function ProductDetailClient({ product, media }: ProductDetailClientProps
         if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1) }
         if (e.key === 'ArrowRight') { e.preventDefault(); step(1) }
       }}>
-      {/* Main image */}
-      <div style={{ position: 'relative', aspectRatio: '4/5', overflow: 'hidden', background: 'var(--sage-light)' }}>
+      {/* Main image — spec §3: 4:5 frame capped against the viewport
+          height so the thumbnails below stay in the first screen, with
+          `contain` (see .pdp-main-image) so a capped frame letterboxes
+          the shot instead of distorting or cropping it. The reserved
+          aspect ratio also prevents layout shift while it loads. */}
+      <div className="pdp-main-image">
         <Image
           src={active.url}
           alt={active.alt}
           fill
-          style={{ objectFit: 'cover' }}
-          sizes="(max-width:768px) 100vw, 50vw"
+          sizes="(max-width:767px) 100vw, (max-width:1180px) 50vw, 40vw"
           priority
         />
       </div>
 
-      {/* Thumbnail strip — horizontally scrollable on small screens */}
+      {/* Thumbnail strip — immediately beneath the main image, scrolls
+          horizontally when there are many, never widens the column. */}
       {frames.length > 1 && (
-        <div style={{ display: 'flex', gap: 10, marginTop: 12, overflowX: 'auto', paddingBottom: 4 }}>
+        <div className="pdp-thumbs">
           {frames.map((f, i) => (
             <button
               key={f.id}
+              type="button"
+              className="pdp-thumb"
               onClick={() => setActiveImg(i)}
               aria-label={`Show image ${i + 1} of ${frames.length}${f.alt ? `: ${f.alt}` : ''}`}
               aria-current={i === activeImg}
-              style={{
-                width: 72, height: 72, flexShrink: 0,
-                border: i === activeImg ? '2px solid var(--forest)' : '2px solid transparent',
-                overflow: 'hidden', position: 'relative', cursor: 'pointer', padding: 0, background: 'none',
-              }}
             >
-              <Image src={f.url} alt="" fill style={{ objectFit: 'cover' }} sizes="72px" />
+              {/* Decorative: the accessible name is on the button, and the
+                  main image carries the descriptive alt text. */}
+              <Image src={f.url} alt="" fill style={{ objectFit: 'cover' }} sizes="72px" loading="lazy" />
             </button>
           ))}
         </div>

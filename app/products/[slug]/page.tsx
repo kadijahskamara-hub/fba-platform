@@ -14,6 +14,12 @@ import CustomMatchLauncher from './CustomMatchLauncher'
 import { StickyActionBar } from './StickyActionBar'
 import { RecentlyViewed } from './RecentlyViewed'
 import { getPublicProductConfiguration } from '@/lib/publicProduct'
+import {
+  applyCategoryVisibilityFilter,
+  bypassesCategoryVisibility,
+  getNonPublicCategoryIds,
+  productCategoryIsPublic,
+} from '@/lib/categoryVisibility'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -36,12 +42,14 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
   const params = await props.params
   const { data } = await supabase
     .from('products')
-    .select('name, seo_title, seo_description, images')
+    .select('name, seo_title, seo_description, images, category_id, category:categories(is_visible, archived_at)')
     .eq('slug', params.slug)
     .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
     .single()
 
-  if (!data) return { title: 'Product not found' }
+  // Spec §5: hidden-category products are 404s, so their real title and
+  // description must not surface in the not-found response either.
+  if (!data || !productCategoryIsPublic(data)) return { title: 'Product not found' }
 
   // QA item 10: the root layout template appends "— Full Bloom Artelier".
   // When a custom SEO title already contains the brand, use it verbatim
@@ -74,7 +82,7 @@ export default async function ProductDetailPage(props: Props) {
     .from('products')
     .select(`
       *,
-      category:categories(id, name, slug),
+      category:categories(id, name, slug, is_visible, archived_at),
       subcategory:subcategories(id, name, slug),
       artisan:artisans(id, name, slug, location),
       specifications:product_specifications(*)
@@ -85,9 +93,25 @@ export default async function ProductDetailPage(props: Props) {
 
   if (!product) notFound()
 
+  // Spec §5: a product whose category is hidden or archived is off the
+  // public site entirely — including this direct URL. Staff keep access so
+  // they can review a hidden piece before re-publishing the category.
+  if (!bypassesCategoryVisibility(session?.role) && !productCategoryIsPublic(product)) {
+    notFound()
+  }
+
   // Documents, finishes, variants + discovery content — RLS limits
   // these to published products.
   const showBrandForRelated = product.public_brand_visible === true && product.artisan_id
+
+  // Categories excluded from every public surface — applied to the
+  // "More from this maker" grid so a hidden piece cannot re-enter there.
+  // ("More from this category" is already scoped to this product's own
+  // category, which is known public by the gate above.) Only queried when
+  // that grid will actually render.
+  const hiddenCategoryIds = showBrandForRelated && !bypassesCategoryVisibility(session?.role)
+    ? await getNonPublicCategoryIds()
+    : []
   const [{ data: documents }, { data: finishes }, { data: variants }, { data: related }, { data: fromArtisan }] = await Promise.all([
     supabase.from('product_documents').select('*').eq('product_id', product.id).order('sort_order'),
     supabase.from('product_finishes').select('*').eq('product_id', product.id).order('sort_order'),
@@ -102,14 +126,18 @@ export default async function ProductDetailPage(props: Props) {
     // "From the same maker" — only when the maker is publicly credited
     // on this product (final amendments §6).
     showBrandForRelated
-      ? supabase
-          .from('products')
-          .select('id, name, slug, images, price_type, category:categories(name)')
-          .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
-          .eq('artisan_id', product.artisan_id)
-          .eq('public_brand_visible', true)
-          .neq('id', product.id)
-          .limit(4)
+      ? applyCategoryVisibilityFilter(
+          supabase
+            .from('products')
+            .select('id, name, slug, images, price_type, category:categories(name)')
+            .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
+            .eq('artisan_id', product.artisan_id)
+            .eq('public_brand_visible', true)
+            .neq('id', product.id)
+            .limit(4),
+          hiddenCategoryIds,
+          session?.role,
+        )
       : Promise.resolve({ data: [] as Record<string, unknown>[] }),
   ])
 
@@ -175,8 +203,10 @@ export default async function ProductDetailPage(props: Props) {
 
   return (
     <div className="page-body no-site-footer">
-      {/* Breadcrumb */}
-      <div className="container" style={{ paddingTop: 32 }}>
+      {/* Breadcrumb — spec §3: one deliberate spacing value (.pdp-crumbs)
+          instead of a 32px container pad stacked on the global 32px
+          breadcrumb margin, which left a blank band above the image. */}
+      <div className="container pdp-crumbs">
         <nav className="breadcrumb">
           <Link href="/">Home</Link>
           <span className="breadcrumb-sep">›</span>
@@ -316,8 +346,12 @@ export default async function ProductDetailPage(props: Props) {
                   Client components receive a SLIM product object — the full
                   row contains internal figures (supplier_cost, trade_price)
                   that must never serialise into client props (md doc §17). */}
+              {/* Spec §1: Add to Bag spans the full configuration column
+                  beneath Custom Match, and only for pieces that can be
+                  bought directly — price-on-request and trade-only pieces
+                  keep the Request Quote route with no dead button. */}
               {canBuy && (
-                <div style={{ marginBottom: 8 }}>
+                <div style={{ marginTop: 10 }}>
                   <AddToBagButton
                     product={{
                       id: product.id, slug: product.slug, name: product.name,

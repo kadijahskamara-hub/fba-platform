@@ -15,6 +15,7 @@ import {
   type ProductConfiguration, type FinishGroupDef, type CompatibilityRule,
 } from '@/lib/customMatch/logic'
 import CustomMatchModal, { type CustomMatchProductSummary } from './CustomMatchModal'
+import PdpActionPair from './PdpActionPair'
 import { PRICE_ADJUSTMENT_EVENT } from './LivePrice'
 
 export interface PublicOption {
@@ -212,21 +213,13 @@ export default function CuratedFinishes({ productId, groups, rules, media, isLog
       {/* Actions — Request Quote and Save to Project sit side by side
           (reference comps); Custom Match spans full width below with
           the tan outline / tan-fill hover treatment. */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 20 }}>
-        <div className="pdp-action-pair">
-          <button className="btn btn-primary" onClick={() => router.push(`/quote?${quoteParams.toString()}`)}>
-            Request Quote
-          </button>
-          {isLoggedIn ? (
-            <button className="btn btn-secondary" onClick={() => setSaveOpen(true)}>
-              Save to Project ♡
-            </button>
-          ) : (
-            <a href={`/login?next=/quote?${encodeURIComponent(quoteParams.toString())}`} className="btn btn-secondary">
-              Sign in to Save
-            </a>
-          )}
-        </div>
+      <div className="pdp-actions-stack">
+        <PdpActionPair
+          onQuote={() => router.push(`/quote?${quoteParams.toString()}`)}
+          isLoggedIn={isLoggedIn}
+          onSave={() => setSaveOpen(true)}
+          signInHref={`/login?next=/quote?${encodeURIComponent(quoteParams.toString())}`}
+        />
         <button type="button" className="btn-custom-match" onClick={() => setCustomMatchOpen(true)}>
           <span className="cm-title">Custom Match</span>
           <span className="cm-sub">Bring your own marble, timber or fabric — we&apos;ll match it</span>

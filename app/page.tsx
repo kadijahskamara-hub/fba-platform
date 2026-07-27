@@ -4,6 +4,10 @@ import { Check, ArrowRight } from 'lucide-react'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
 import { getLiveStats } from '@/lib/liveStats'
+import {
+  applyCategoryVisibilityFilter,
+  getNonPublicCategoryIds,
+} from '@/lib/categoryVisibility'
 import HomepageEnquiryForm from './HomepageEnquiryForm'
 
 export const metadata = {
@@ -69,11 +73,16 @@ const REGIONS = [
 ]
 
 async function getFeaturedProducts() {
-  const { data } = await supabaseAdmin
-    .from('products')
-    .select('id, name, slug, images, short_description, retail_price, trade_price, price_type, currency, is_fba_collection, artisan:artisans(name, slug), category:categories(name)')
-    .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
-    .limit(8)
+  // Spec §5: pieces in a hidden or archived category leave the homepage.
+  const hiddenCategoryIds = await getNonPublicCategoryIds()
+  const { data } = await applyCategoryVisibilityFilter(
+    supabaseAdmin
+      .from('products')
+      .select('id, name, slug, images, short_description, retail_price, trade_price, price_type, currency, is_fba_collection, artisan:artisans(name, slug), category:categories(name)')
+      .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
+      .limit(8),
+    hiddenCategoryIds,
+  )
   return data ?? []
 }
 
@@ -438,12 +447,11 @@ export default async function HomePage() {
                     <div className="label label-sage" style={{ marginBottom: 6 }}>
                       {(p.category as Record<string, string> | null)?.name ?? ''}
                     </div>
-                    <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 300, color: 'var(--forest)', marginBottom: 4 }}>
+                    {/* Spec §2: no maker/manufacturer attribution on public
+                        product cards (relationship retained in the data). */}
+                    <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 300, color: 'var(--forest)', marginBottom: 0 }}>
                       {p.name as string}
                     </h3>
-                    <p style={{ fontSize: 12, color: 'var(--stone)' }}>
-                      by {(p.artisan as Record<string, string> | null)?.name ?? 'Unknown maker'}
-                    </p>
                   </div>
                 </Link>
               ))}

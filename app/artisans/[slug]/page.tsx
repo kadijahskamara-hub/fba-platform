@@ -3,6 +3,10 @@ import Image from 'next/image'
 import { notFound, redirect } from 'next/navigation'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getFlags } from '@/lib/flags'
+import {
+  applyCategoryVisibilityFilter,
+  getNonPublicCategoryIds,
+} from '@/lib/categoryVisibility'
 
 export async function generateMetadata(ctx: { params: Promise<{ slug: string }> }) {
   const params = await ctx.params
@@ -33,13 +37,18 @@ export default async function ArtisanDetailPage(ctx: { params: Promise<{ slug: s
 
   if (!artisan) notFound()
 
-  // Fetch products by this artisan
-  const { data: products } = await supabaseAdmin
-    .from('products')
-    .select('id, name, slug, images, retail_price, trade_price, price_type, currency, category:categories(name)')
-    .eq('artisan_id', artisan.id)
-    .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
-    .limit(8)
+  // Fetch products by this artisan — spec §5: pieces whose category is
+  // hidden or archived leave the artisan grid as well.
+  const hiddenCategoryIds = await getNonPublicCategoryIds()
+  const { data: products } = await applyCategoryVisibilityFilter(
+    supabaseAdmin
+      .from('products')
+      .select('id, name, slug, images, retail_price, trade_price, price_type, currency, category:categories(name)')
+      .eq('artisan_id', artisan.id)
+      .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
+      .limit(8),
+    hiddenCategoryIds,
+  )
 
   const productList = products ?? []
   const gallery = (artisan.gallery_images as string[]) ?? []

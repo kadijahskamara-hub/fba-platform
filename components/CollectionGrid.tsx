@@ -405,13 +405,12 @@ export function CollectionGrid({ isTradeUser, initialProducts }: CollectionGridP
                   </div>
                   <h3 style={{
                     fontFamily: 'var(--font-serif)', fontSize: 20, fontWeight: 300,
-                    color: 'var(--forest)', marginBottom: 4, lineHeight: 1.25,
+                    color: 'var(--forest)', marginBottom: 10, lineHeight: 1.25,
                   }}>
                     {p.name}
                   </h3>
-                  <p style={{ fontSize: 12, color: 'var(--stone)', marginBottom: 10 }}>
-                    by {p.artisan?.name ?? 'Unknown maker'}
-                  </p>
+                  {/* Spec §2: maker/manufacturer attribution removed from
+                      public cards; the heading absorbs the reclaimed space. */}
                   {p.short_description && (
                     <p style={{ fontSize: 13, color: 'var(--stone)', lineHeight: 1.65, marginBottom: 10 }}>
                       {p.short_description.slice(0, 90)}{p.short_description.length > 90 ? '…' : ''}

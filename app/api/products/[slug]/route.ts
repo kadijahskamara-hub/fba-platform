@@ -3,6 +3,10 @@ import { supabase, supabaseAdmin } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
 import { resolveSubcategoryId } from '@/lib/subcategories'
 import { isPubliclyVisible } from '@/lib/productVisibility'
+import {
+  bypassesCategoryVisibility,
+  productCategoryIsPublic,
+} from '@/lib/categoryVisibility'
 import { logAudit } from '@/lib/audit'
 
 export async function GET(
@@ -16,7 +20,7 @@ export async function GET(
     .from('products')
     .select(`
       *,
-      category:categories(id, name, slug),
+      category:categories(id, name, slug, is_visible, archived_at),
       subcategory:subcategories(id, name, slug),
       artisan:artisans(id, name, slug, location, bio, hero_image, craft_category),
       specifications:product_specifications(*),
@@ -31,6 +35,12 @@ export async function GET(
 
   // Only publicly visible products for non-admins
   if (session?.role !== 'admin' && !isPubliclyVisible(data)) {
+    return NextResponse.json({ success: false, error: 'Product not found' }, { status: 404 })
+  }
+
+  // Spec §5: a hidden or archived category takes its products off every
+  // public surface, this API included — staff keep full access.
+  if (!bypassesCategoryVisibility(session?.role) && !productCategoryIsPublic(data)) {
     return NextResponse.json({ success: false, error: 'Product not found' }, { status: 404 })
   }
 

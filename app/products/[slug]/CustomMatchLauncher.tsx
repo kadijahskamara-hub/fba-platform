@@ -14,7 +14,10 @@ export default function CustomMatchLauncher({ product, materialTypes, defaultEma
 }) {
   const [open, setOpen] = useState(false)
   return (
-    <div style={{ margin: '14px 0 24px' }}>
+    // Spec §1: sits directly beneath the Request Quote / Save to Project
+    // row and spans their combined width. The 10px gap matches the gap
+    // inside .pdp-action-pair so the three actions read as one block.
+    <div style={{ marginTop: 10 }}>
       <button type="button" className="btn-custom-match" onClick={() => setOpen(true)}>
         <span className="cm-title">Custom Match</span>
         <span className="cm-sub">Bring your own marble, timber or fabric — we&apos;ll match it</span>

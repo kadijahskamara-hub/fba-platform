@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
+import PdpActionPair from './PdpActionPair'
 
 // ============================================================
 // Product configurator (site brief §8.7–8.11):
@@ -138,7 +138,10 @@ export default function ProductConfigurator({ productId, slug, hardFinishes, uph
   }
 
   return (
-    <div style={{ marginBottom: 28 }}>
+    // No bottom margin: Custom Match follows immediately (rendered by the
+    // page) and owns the gap, so the pair and the action beneath it sit as
+    // one group exactly as in the curated-finish path.
+    <div>
       {/* Hard finish options — circular material swatches */}
       {hardFinishes.length > 0 && (
         <div style={{ marginBottom: 22 }}>
@@ -234,20 +237,19 @@ export default function ProductConfigurator({ productId, slug, hardFinishes, uph
         </div>
       </div>
 
-      {/* CTAs — selections carried in the URL */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <Link href={quoteHref} className="btn btn-primary btn-full btn-lg">
-          Request Quote
-        </Link>
-        {isLoggedIn ? (
-          <Link href={projectHref} className="btn btn-secondary btn-full">
-            Save to Project
-          </Link>
-        ) : (
-          <Link href={`/login?next=/products/${slug}`} className="btn btn-secondary btn-full">
-            Sign in to Save to Project
-          </Link>
-        )}
+      {/* CTAs — selections carried in the URL.
+          Spec §1: the same shared pair as the curated-finish path, so a
+          product without curated finishes gets the approved side-by-side
+          layout instead of two stacked full-width buttons. Custom Match is
+          rendered by the page immediately below this block and spans the
+          combined width of the pair. */}
+      <div className="pdp-actions-stack">
+        <PdpActionPair
+          quoteHref={quoteHref}
+          isLoggedIn={isLoggedIn}
+          saveHref={projectHref}
+          signInHref={`/login?next=/products/${slug}`}
+        />
       </div>
     </div>
   )

@@ -5,6 +5,11 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
 import { getFlags } from '@/lib/flags'
 import { applyAudienceFilter } from '@/lib/productVisibility'
+import {
+  applyCategoryVisibilityFilter,
+  bypassesCategoryVisibility,
+  getNonPublicCategoryIds,
+} from '@/lib/categoryVisibility'
 import { CollectionGrid } from '@/components/CollectionGrid'
 import { HeroImageOverlay } from '@/components/HeroImageOverlay'
 
@@ -23,13 +28,15 @@ export const metadata = {
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
-async function getStats(role: string | null | undefined) {
+async function getStats(role: string | null | undefined, hiddenCategoryIds: string[]) {
   let q = supabaseAdmin
     .from('products')
     .select('id')
     .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
     .eq('is_fba_collection', true)
   q = applyAudienceFilter(q, role)
+  // Spec §5: the count must match the grid — both exclude hidden categories.
+  q = applyCategoryVisibilityFilter(q, hiddenCategoryIds, role)
 
   const { data } = await q
   return { total: data?.length ?? 0 }
@@ -37,7 +44,7 @@ async function getStats(role: string | null | undefined) {
 
 // Server-side initial pieces so the grid is crawlable and paints without a
 // client round-trip (fix B4). Mirrors /api/products?collection=true&limit=60.
-async function getInitialPieces(role: string | null | undefined) {
+async function getInitialPieces(role: string | null | undefined, hiddenCategoryIds: string[]) {
   let q = supabaseAdmin
     .from('products')
     .select(`
@@ -49,6 +56,7 @@ async function getInitialPieces(role: string | null | undefined) {
     .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
     .eq('is_fba_collection', true)
   q = applyAudienceFilter(q, role)
+  q = applyCategoryVisibilityFilter(q, hiddenCategoryIds, role)
   const { data } = await q.order('created_at', { ascending: false }).limit(60)
   // Sprint 15 security pass (md doc §17): these rows serialise into a
   // client component's props — strip internal commercial figures for
@@ -70,10 +78,14 @@ export default async function CollectionPage() {
   if (!flags.show_collection) redirect('/coming-soon')
 
   const session = await getSession()
+  // Spec §5: resolved once and shared so the count and the grid agree.
+  const hiddenCategoryIds = bypassesCategoryVisibility(session?.role)
+    ? []
+    : await getNonPublicCategoryIds()
   const [stats, heroImage, initialPieces] = await Promise.all([
-    getStats(session?.role),
+    getStats(session?.role, hiddenCategoryIds),
     getHeroImage('collection_hero_image', 'The FBA Collection — Limited Edition Pieces'),
-    getInitialPieces(session?.role),
+    getInitialPieces(session?.role, hiddenCategoryIds),
   ])
   const isTradeUser = ['trade_user', 'admin', 'staff'].includes(session?.role ?? '')
 

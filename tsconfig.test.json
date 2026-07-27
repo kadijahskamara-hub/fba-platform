@@ -24,6 +24,7 @@
     "lib/productCompleteness.ts",
     "lib/commercial/finishSelections.ts",
     "lib/contactAudience.ts",
+    "lib/categoryRules.ts",
     "lib/mediaShared.ts",
     "lib/permissionGroups.ts",
     "lib/types.ts",

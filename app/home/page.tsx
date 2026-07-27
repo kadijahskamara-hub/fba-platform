@@ -5,6 +5,10 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
 import { getFlags } from '@/lib/flags'
 import { resolvePrice, formatPrice } from '@/lib/pricing'
+import {
+  applyCategoryVisibilityFilter,
+  getNonPublicCategoryIds,
+} from '@/lib/categoryVisibility'
 import type { CurrencyCode } from '@/lib/types'
 
 export const metadata = {
@@ -17,18 +21,23 @@ export const metadata = {
 // ─── Data ────────────────────────────────────────────────────────────────────
 
 async function getHomeProducts(isTradeUser: boolean) {
-  const { data } = await supabaseAdmin
-    .from('products')
-    .select(`
-      id, name, slug, images, short_description,
-      retail_price, trade_price, price_type, currency,
-      audience, is_fba_home,
-      artisan:artisans(name, slug),
-      category:categories(name, slug)
-    `)
-    .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
-    .eq('is_fba_home', true)
-    .order('created_at', { ascending: false })
+  // Spec §5: pieces in a hidden or archived category leave FBA Home too.
+  const hiddenCategoryIds = await getNonPublicCategoryIds()
+  const { data } = await applyCategoryVisibilityFilter(
+    supabaseAdmin
+      .from('products')
+      .select(`
+        id, name, slug, images, short_description,
+        retail_price, trade_price, price_type, currency,
+        audience, is_fba_home,
+        artisan:artisans(name, slug),
+        category:categories(name, slug)
+      `)
+      .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
+      .eq('is_fba_home', true)
+      .order('created_at', { ascending: false }),
+    hiddenCategoryIds,
+  )
 
   // Audience gating
   const products = (data ?? []).filter((p: Record<string, unknown>) => {
@@ -289,9 +298,9 @@ export default async function FbaHomePage() {
                       }}>
                         {p.name as string}
                       </h3>
-                      <p style={{ fontSize: 12, color: 'var(--stone)', marginBottom: 10 }}>
-                        by {(p.artisan as Record<string, string> | null)?.name ?? 'Unknown maker'}
-                      </p>
+                      {/* Spec §2: maker/manufacturer attribution is not shown
+                          on public product cards. The relationship stays in
+                          the data, admin, quotes and procurement records. */}
                       {(p.short_description as string) && (
                         <p style={{ fontSize: 13, color: 'var(--stone)', lineHeight: 1.65, marginBottom: 10 }}>
                           {(p.short_description as string).slice(0, 90)}{(p.short_description as string).length > 90 ? '…' : ''}

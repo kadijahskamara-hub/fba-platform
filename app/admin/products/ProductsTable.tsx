@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { appConfirm } from '@/lib/appConfirm'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -112,21 +113,46 @@ function Th({ label, hint, className }: { label: string; hint?: string; classNam
 // outstanding, with a hint for where each one lives.
 function CompletenessBadge({ percent, health }: { percent: number; health: ProductHealthChecks | null }) {
   const [open, setOpen] = useState(false)
+  const [coords, setCoords] = useState<{ top: number; right: number } | null>(null)
+  const [mounted, setMounted] = useState(false)
   const rootRef = useRef<HTMLSpanElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const popRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => setMounted(true), [])
+
+  // Spec §4: the table container is now a horizontal scroll container so
+  // the identity column can stick. An absolutely positioned popover inside
+  // it would be clipped, so this renders in a portal with fixed
+  // coordinates — same pattern as the row action menu.
+  const place = () => {
+    const r = btnRef.current?.getBoundingClientRect()
+    if (r) setCoords({ top: r.bottom + 6, right: window.innerWidth - r.right })
+  }
 
   // QA follow-up: dismiss on outside click or Escape — a second click
   // on the badge shouldn't be the only way to close the popover.
   useEffect(() => {
     if (!open) return
     const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
+      const t = e.target as Node
+      if (rootRef.current?.contains(t)) return
+      if (popRef.current?.contains(t)) return
+      setOpen(false)
     }
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); btnRef.current?.focus() } }
+    // Close rather than float in a stale position once the page or the
+    // table scrolls away underneath it.
+    const onScroll = () => setOpen(false)
     document.addEventListener('mousedown', onDown)
     document.addEventListener('keydown', onKey)
+    window.addEventListener('scroll', onScroll, true)
+    window.addEventListener('resize', onScroll)
     return () => {
       document.removeEventListener('mousedown', onDown)
       document.removeEventListener('keydown', onKey)
+      window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('resize', onScroll)
     }
   }, [open])
 
@@ -136,11 +162,38 @@ function CompletenessBadge({ percent, health }: { percent: number; health: Produ
     ? (b.missing.length === 0 ? 'All 11 checks complete' : `Missing: ${b.missing.map(m => m.label).join(', ')}`)
     : undefined
 
+  const popover = open && health && coords ? (
+    <div
+      ref={popRef}
+      style={{
+        position: 'fixed', zIndex: 1000, top: coords.top, right: coords.right, width: 250,
+        background: 'var(--warm-white)', border: '1px solid var(--light-line)', borderRadius: 6,
+        boxShadow: '0 6px 18px rgba(24,32,26,0.14)', padding: '10px 12px', textAlign: 'left',
+      }}
+    >
+      <span style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--forest)', marginBottom: 6 }}>
+        {b.done}/{b.total} checks complete
+      </span>
+      {b.missing.length === 0 ? (
+        <span style={{ display: 'block', fontSize: 12, color: '#166534' }}>Nothing outstanding.</span>
+      ) : b.missing.map(m => (
+        <span key={m.key} style={{ display: 'block', fontSize: 11.5, color: 'var(--stone)', margin: '3px 0', fontWeight: 400 }}>
+          <span style={{ color: '#B91C1C' }}>✗</span> {m.label}
+          <span style={{ opacity: 0.7 }}> — {m.hint}</span>
+        </span>
+      ))}
+      <button type="button" className="btn btn-ghost btn-sm" style={{ marginTop: 6, fontSize: 11 }} onClick={() => { setOpen(false); btnRef.current?.focus() }}>
+        Close
+      </button>
+    </div>
+  ) : null
+
   return (
-    <span ref={rootRef} style={{ position: 'relative', display: 'inline-block' }}>
+    <span ref={rootRef} style={{ display: 'inline-block' }}>
       <button
+        ref={btnRef}
         type="button"
-        onClick={() => setOpen(o => !o)}
+        onClick={() => { if (!open) place(); setOpen(o => !o) }}
         title={summary}
         aria-expanded={open}
         aria-label={`Completeness ${percent}%${summary ? ` — ${summary}` : ''}`}
@@ -152,28 +205,7 @@ function CompletenessBadge({ percent, health }: { percent: number; health: Produ
       >
         {percent}%
       </button>
-      {open && health && (
-        <span style={{
-          position: 'absolute', zIndex: 60, top: 'calc(100% + 6px)', right: 0, width: 250,
-          background: 'var(--warm-white)', border: '1px solid var(--light-line)', borderRadius: 6,
-          boxShadow: '0 6px 18px rgba(24,32,26,0.14)', padding: '10px 12px', textAlign: 'left',
-        }}>
-          <span style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--forest)', marginBottom: 6 }}>
-            {b.done}/{b.total} checks complete
-          </span>
-          {b.missing.length === 0 ? (
-            <span style={{ display: 'block', fontSize: 12, color: '#166534' }}>Nothing outstanding.</span>
-          ) : b.missing.map(m => (
-            <span key={m.key} style={{ display: 'block', fontSize: 11.5, color: 'var(--stone)', margin: '3px 0', fontWeight: 400 }}>
-              <span style={{ color: '#B91C1C' }}>✗</span> {m.label}
-              <span style={{ opacity: 0.7 }}> — {m.hint}</span>
-            </span>
-          ))}
-          <button type="button" className="btn btn-ghost btn-sm" style={{ marginTop: 6, fontSize: 11 }} onClick={() => setOpen(false)}>
-            Close
-          </button>
-        </span>
-      )}
+      {mounted && popover ? createPortal(popover, document.body) : null}
     </span>
   )
 }
@@ -570,20 +602,23 @@ export default function ProductsTable({ products, isAdmin }: { products: Product
         </div>
       )}
 
-      {/* Final amendments §4: column-priority responsive table — no
-          page-level horizontal overflow at 1440 / 1280 / 1024 widths.
-          Retail collapses first (col-p2), then lead time and image
-          count (col-p3); long values truncate with a tooltip. */}
-      <div className="admin-table-wrap">
+      {/* Spec §4: the whole component stays inside the white admin panel and
+          the PAGE never scrolls sideways — any horizontal movement happens
+          inside .admin-table-wrap only. The checkbox + thumbnail + name +
+          slug form one protected identity group pinned to the left
+          (.col-select / .col-identity) so the product being reviewed is
+          always named, whatever else is scrolled into view. Lower-priority
+          columns still collapse first (col-p2 / col-p3). */}
+      <div className="admin-table-wrap admin-table-stickyid">
         <table className="data-table admin-fit-table">
           <thead>
             <tr>
-              <th style={{ width: 30 }}>
+              <th className="col-select">
                 <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Select all products" />
               </th>
-              <Th label="Name" />
-              {show('category') && <Th label="Category" hint={TOGGLEABLE_COLUMNS[0].hint} className="col-fit" />}
-              {show('artisan')  && <Th label="Artisan"  hint={TOGGLEABLE_COLUMNS[1].hint} className="col-fit" />}
+              <Th label="Name" className="col-identity" />
+              {show('category') && <Th label="Category" hint={TOGGLEABLE_COLUMNS[0].hint} className="col-wrap" />}
+              {show('artisan')  && <Th label="Artisan"  hint={TOGGLEABLE_COLUMNS[1].hint} className="col-wrap" />}
               {show('retail')   && <Th label="Retail"   hint={TOGGLEABLE_COLUMNS[2].hint} className="col-p2 col-fit" />}
               {show('trade')    && <Th label="Trade"    hint={TOGGLEABLE_COLUMNS[3].hint} className="col-fit" />}
               {show('lead')     && <Th label="Lead time" hint={TOGGLEABLE_COLUMNS[4].hint} className="col-p3 col-fit" />}
@@ -598,8 +633,12 @@ export default function ProductsTable({ products, isAdmin }: { products: Product
               const archived = Boolean(p.archived_at)
               const por = p.price_type === 'price_on_request'
               return (
-                <tr key={p.id} style={archived ? { opacity: 0.6 } : undefined}>
-                  <td>
+                // Archived rows are muted with colour + the "archived" pill
+                // rather than row opacity: an opacity group would make the
+                // pinned identity cells semi-transparent and let the
+                // scrolling columns show through them.
+                <tr key={p.id} className={archived ? 'row-archived' : undefined}>
+                  <td className="col-select">
                     <input
                       type="checkbox"
                       checked={selected.has(p.id)}
@@ -607,7 +646,7 @@ export default function ProductsTable({ products, isAdmin }: { products: Product
                       aria-label={`Select ${p.name}`}
                     />
                   </td>
-                  <td>
+                  <td className="col-identity">
                     {/* Wix-inspired: thumbnail + name link straight to the
                         editor — the image makes rows scannable at a glance. */}
                     <Link href={`/admin/products/${p.slug}`} style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: 'inherit' }}>
@@ -632,13 +671,28 @@ export default function ProductsTable({ products, isAdmin }: { products: Product
                         </span>
                       )}
                       <span style={{ minWidth: 0 }}>
-                        <span className="cell-truncate" title={p.name} style={{ display: 'block', fontWeight: 500 }}>{p.name}</span>
-                        <span className="cell-truncate" title={p.slug} style={{ display: 'block', fontSize: 11, color: 'var(--stone)' }}>{p.slug}</span>
+                        {/* Name wraps to at most two lines then ellipses, with
+                            the full value on the title attribute — it never
+                            widens the table and is never fully hidden. */}
+                        <span className="cell-clamp-2" title={p.name} style={{ fontWeight: 500 }}>{p.name}</span>
+                        <span className="cell-clamp-1 cell-sub" title={p.slug}>{p.slug}</span>
                       </span>
                     </Link>
                   </td>
-                  {show('category') && <td style={{ fontSize: 13, color: 'var(--stone)' }}><span className="cell-truncate" title={p.category_name ?? ''}>{p.category_name ?? '—'}</span></td>}
-                  {show('artisan')  && <td style={{ fontSize: 13, color: 'var(--stone)' }}><span className="cell-truncate" title={p.artisan_name ?? ''}>{p.artisan_name ?? '—'}</span></td>}
+                  {show('category') && (
+                    <td className="col-wrap" style={{ fontSize: 13, color: 'var(--stone)' }}>
+                      <span className="cell-clamp-2" title={p.category_name ?? ''}>{p.category_name ?? '—'}</span>
+                    </td>
+                  )}
+                  {show('artisan') && (
+                    // Spec §4: artisan names wrap onto a second line inside a
+                    // capped column instead of forcing the table past the
+                    // panel. No white-space: nowrap; the full name stays
+                    // available via the title attribute.
+                    <td className="col-wrap" style={{ fontSize: 13, color: 'var(--stone)' }}>
+                      <span className="cell-clamp-2" title={p.artisan_name ?? ''}>{p.artisan_name ?? '—'}</span>
+                    </td>
+                  )}
                   {show('retail') && (
                     <td className="col-p2">
                       {por ? (

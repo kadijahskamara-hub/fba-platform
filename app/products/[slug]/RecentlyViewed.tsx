@@ -24,6 +24,7 @@ export function RecentlyViewed({ current }: { current: Entry }) {
   const [items, setItems] = useState<Entry[]>([])
 
   useEffect(() => {
+    let cancelled = false
     let list: Entry[] = []
     try {
       const raw = localStorage.getItem(KEY)
@@ -35,12 +36,33 @@ export function RecentlyViewed({ current }: { current: Entry }) {
       }
     } catch { /* blocked or corrupt — start fresh */ }
 
+    const history = list.filter(e => e.slug !== current.slug)
+
     // Show everything except the product being viewed…
-    setItems(list.filter(e => e.slug !== current.slug).slice(0, MAX_SHOWN))
+    setItems(history.slice(0, MAX_SHOWN))
 
     // …then record the current product at the front.
-    const next = [current, ...list.filter(e => e.slug !== current.slug)].slice(0, MAX_STORED)
+    const next = [current, ...history].slice(0, MAX_STORED)
     try { localStorage.setItem(KEY, JSON.stringify(next)) } catch { /* storage blocked */ }
+
+    // Spec §5: a piece whose category has since been hidden or archived must
+    // not linger here as a working-looking card. Re-check the locally stored
+    // slugs against the server rule and prune anything no longer public.
+    if (history.length === 0) return
+    const slugs = next.map(e => e.slug).join(',')
+    fetch(`/api/products/visibility?slugs=${encodeURIComponent(slugs)}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(json => {
+        if (cancelled || !json?.success) return
+        const visible = new Set<string>(json.data?.visible ?? [])
+        const pruned = next.filter(e => visible.has(e.slug))
+        if (pruned.length === next.length) return
+        try { localStorage.setItem(KEY, JSON.stringify(pruned)) } catch { /* storage blocked */ }
+        setItems(pruned.filter(e => e.slug !== current.slug).slice(0, MAX_SHOWN))
+      })
+      .catch(() => { /* offline — keep showing local history */ })
+
+    return () => { cancelled = true }
   }, [current.slug]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (items.length === 0) return null

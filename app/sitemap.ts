@@ -1,5 +1,9 @@
 import type { MetadataRoute } from 'next'
 import { supabaseAdmin } from '@/lib/supabase'
+import {
+  applyCategoryVisibilityFilter,
+  getNonPublicCategoryIds,
+} from '@/lib/categoryVisibility'
 
 const BASE = 'https://fullbloom.uk.com'
 
@@ -63,10 +67,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ]
 
   // ── Dynamic: published products ───────────────────────────
-  const { data: products } = await supabaseAdmin
-    .from('products')
-    .select('slug, updated_at')
-    .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null)
+  // Spec §5: products in a hidden or archived category are not publicly
+  // reachable, so they must not be advertised in the sitemap either.
+  const hiddenCategoryIds = await getNonPublicCategoryIds()
+  const { data: products } = await applyCategoryVisibilityFilter(
+    supabaseAdmin
+      .from('products')
+      .select('slug, updated_at')
+      .eq('visibility', 'published').is('archived_at', null).is('deleted_at', null),
+    hiddenCategoryIds,
+  )
 
   const productEntries: MetadataRoute.Sitemap = (products ?? []).map(p => ({
     url:             `${BASE}/products/${p.slug}`,

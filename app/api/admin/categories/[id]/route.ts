@@ -1,15 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getSession, isStaffRole } from '@/lib/auth'
 import { logAudit } from '@/lib/audit'
+import { CATEGORY_DEPENDENT_PATHS } from '@/lib/categoryVisibility'
+
+/**
+ * Drop the cached output of every public surface whose contents depend on
+ * category visibility, plus the whole /products/[slug] segment (a hidden
+ * category turns its product pages into 404s and re-publishing restores
+ * them). Failures are swallowed: a stale cache must never fail the write
+ * that already succeeded in the database.
+ */
+function revalidateCatalogue(): void {
+  try {
+    for (const path of CATEGORY_DEPENDENT_PATHS) revalidatePath(path)
+    revalidatePath('/products/[slug]', 'page')
+    revalidatePath('/artisans/[slug]', 'page')
+  } catch (err) {
+    console.error('Category revalidation failed (data was saved):', err)
+  }
+}
 
 // ============================================================
 // Category lifecycle (final amendments §5)
 //
 // PATCH  — publish/hide, archive/restore, reorder, rename.
 //          Hidden or archived categories leave every public
-//          catalogue surface (navigation, filters, listings);
-//          re-publishing restores them without data loss.
+//          catalogue surface — navigation, filters, listings,
+//          search, recommendations, feeds AND the direct product
+//          URL, which 404s while the category is hidden (spec §5,
+//          superseding the earlier "reachable by link" rule).
+//          Re-publishing restores everything without data loss.
 // DELETE — permanent, admin-only. Blocked while products are
 //          assigned unless a `reassignTo` category is supplied,
 //          in which case products are moved first (their
@@ -70,6 +92,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     before: { name: before.name, is_visible: before.is_visible, archived_at: before.archived_at, sort_order: before.sort_order },
     after: updates,
   })
+
+  // Spec §5: a visibility change must show on the public site immediately —
+  // no redeployment. Only revalidate when visibility actually moved, so a
+  // rename or reorder does not needlessly dump the catalogue cache.
+  const visibilityChanged =
+    updates.is_visible !== undefined || updates.archived_at !== undefined
+  if (visibilityChanged) revalidateCatalogue()
 
   return NextResponse.json({ success: true, data })
 }
@@ -134,6 +163,10 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     actor: session, action: 'category.deleted', entityType: 'category', entityId: params.id,
     before: { name: cat.name, productCount: productCount ?? 0, reassignedTo: reassignTo },
   })
+
+  // Deletion changes navigation and (via reassignment) which products are
+  // publicly listed, so the same surfaces need refreshing.
+  revalidateCatalogue()
 
   return NextResponse.json({ success: true, data: { moved: productCount ?? 0 } })
 }

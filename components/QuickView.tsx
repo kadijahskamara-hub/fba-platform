@@ -54,8 +54,14 @@ export function QuickView({ product, session, onClose, onSaveToProject }: QuickV
 
           {/* Body */}
           <div className="quick-view-body">
-            {product.artisan && (
-              <div className="qv-artisan">{product.artisan.name} · {product.artisan.location}</div>
+            {/* Quick view is opened from a public product card, so it follows
+                the same rule as the card (spec §2) and the full product page:
+                the maker is named only where the product explicitly approves
+                public brand credit. */}
+            {product.artisan && ((product as unknown as Record<string, unknown>).public_brand_visible === true || product.publicBrandVisible === true) && (
+              <div className="qv-artisan">
+                {product.artisan.name}{product.artisan.location ? ` · ${product.artisan.location}` : ''}
+              </div>
             )}
             <h2 className="qv-name">{product.name}</h2>
 
